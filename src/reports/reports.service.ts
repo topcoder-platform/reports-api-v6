@@ -1,0 +1,37 @@
+import { Injectable, BadRequestException } from "@nestjs/common";
+import { DbService } from "../db/db.service";
+import { SqlLoaderService } from "../common/sql-loader.service";
+import {
+  parseOptionalDate,
+  defaultStartDate,
+  defaultEndDate,
+} from "../common/validation.util";
+
+@Injectable()
+export class ReportsService {
+  constructor(
+    private readonly db: DbService,
+    private readonly sql: SqlLoaderService,
+  ) {}
+
+  async getTopgearHourly() {
+    const query = this.sql.load("reports/topgear_hourly.sql");
+    return this.db.query(query);
+  }
+
+  async getTopgearPayments(opts: { start?: string; end?: string }) {
+    const startDate = parseOptionalDate(opts.start) ?? defaultStartDate();
+    const endDate = parseOptionalDate(opts.end) ?? defaultEndDate();
+
+    if (startDate > endDate) {
+      throw new BadRequestException("start_date must be <= end_date");
+    }
+
+    const query = this.sql.load("reports/topgear_payments.sql");
+    // Postgres parameter placeholders: $1, $2
+    return this.db.query(query, [
+      startDate.toISOString(),
+      endDate.toISOString(),
+    ]);
+  }
+}
