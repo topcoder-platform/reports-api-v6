@@ -14,7 +14,7 @@ import { Scopes as AppScopes } from "../app-constants";
 import { ReportsService } from "./reports.service";
 
 @ApiTags("Topcoder Reports")
-@Controller("/v6/reports")
+@Controller("/")
 export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
 
