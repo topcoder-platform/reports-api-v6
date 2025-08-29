@@ -15,7 +15,7 @@ export class ReportsService {
   ) {}
 
   async getTopgearHourly() {
-    const query = this.sql.load("reports/topgear_hourly.sql");
+    const query = this.sql.load("reports/topgear/hourly.sql");
     return this.db.query(query);
   }
 
@@ -27,7 +27,7 @@ export class ReportsService {
       throw new BadRequestException("start_date must be <= end_date");
     }
 
-    const query = this.sql.load("reports/topgear_payments.sql");
+    const query = this.sql.load("reports/topgear/payments.sql");
     // Postgres parameter placeholders: $1, $2
     return this.db.query(query, [
       startDate.toISOString(),
