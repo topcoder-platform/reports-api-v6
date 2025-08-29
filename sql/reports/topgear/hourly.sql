@@ -284,5 +284,7 @@ LEFT JOIN winner1 w1
   ON w1.challenge_id = c.id
 LEFT JOIN completed_payments cp
   ON cp.challenge_id = c.id
+WHERE c."createdAt" > '2025-01-01T00:00:00Z'::timestamptz
+AND c.status IN ('ACTIVE', 'COMPLETED')
 ORDER BY c."createdAt" DESC
 ;
