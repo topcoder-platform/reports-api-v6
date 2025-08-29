@@ -18,7 +18,7 @@ import { ReportsService } from "./reports.service";
 export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
 
-  @Get("topgear_hourly")
+  @Get("topgear/hourly")
   @UseGuards(PermissionsGuard)
   @Scopes(AppScopes.AllReports, AppScopes.TopgearHourly)
   @ApiBearerAuth()
@@ -27,7 +27,7 @@ export class ReportsController {
     return this.reports.getTopgearHourly();
   }
 
-  @Get("topgear_payments")
+  @Get("topgear/payments")
   @UseGuards(PermissionsGuard)
   @Scopes(AppScopes.AllReports, AppScopes.TopgearHourly)
   @ApiBearerAuth()
