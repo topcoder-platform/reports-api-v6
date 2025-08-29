@@ -19,9 +19,9 @@ export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
 
   @Get("topgear_hourly")
-  //   @UseGuards(PermissionsGuard)
-  //   @Scopes(AppScopes.AllReports, AppScopes.TopgearHourly)
-  //   @ApiBearerAuth()
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports, AppScopes.TopgearHourly)
+  @ApiBearerAuth()
   @ApiOperation({ summary: "Return the Topgear Hourly report details" })
   getTopgearHourly() {
     return this.reports.getTopgearHourly();
