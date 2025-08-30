@@ -113,6 +113,9 @@ reviewer_payments AS (
     OR (w.attributes->>'challengeLegacyId') = c."legacyId"::text
   LEFT JOIN finance.payment p
     ON p.winnings_id = w.winning_id
+  WHERE c."createdAt" > '2025-01-01T00:00:00Z'
+    AND c.status IN ('ACTIVE', 'COMPLETED')
+
   GROUP BY c.id
 ),
 registrant_emails AS (
@@ -158,6 +161,9 @@ winner1 AS (
        AND (w.attributes->>'memberId') = s.winner1_member_id::text
   LEFT JOIN finance.payment p
     ON p.winnings_id = w.winning_id
+  WHERE c."createdAt" > '2025-01-01T00:00:00Z'
+    AND c.status IN ('ACTIVE', 'COMPLETED')
+
   GROUP BY c.id, m.email
 ),
 completed_payments AS (
@@ -170,7 +176,8 @@ completed_payments AS (
     OR (w.attributes->>'challengeLegacyId') = c."legacyId"::text
   LEFT JOIN finance.payment p
     ON p.winnings_id = w.winning_id
-  WHERE c.status = 'COMPLETED'
+  WHERE c.status = 'COMPLETED' and
+  c."createdAt" > '2025-01-01T00:00:00Z'
   GROUP BY c.id
 )
 
@@ -284,7 +291,5 @@ LEFT JOIN winner1 w1
   ON w1.challenge_id = c.id
 LEFT JOIN completed_payments cp
   ON cp.challenge_id = c.id
-WHERE c."createdAt" > '2025-01-01T00:00:00Z'::timestamptz
-AND c.status IN ('ACTIVE', 'COMPLETED')
 ORDER BY c."createdAt" DESC
 ;
