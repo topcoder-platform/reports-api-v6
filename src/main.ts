@@ -32,10 +32,10 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup("api-docs", app, document);
+  SwaggerModule.setup("/v6/reports/api-docs", app, document);
 
   await app.listen(port);
   console.log(`Application is running on: ${await app.getUrl()}`);
-  console.log(`Swagger docs available at: ${await app.getUrl()}/api-docs`);
+  console.log(`Swagger docs available at: ${await app.getUrl()}/v6/reports/api-docs`);
 }
 bootstrap().catch(console.error);
