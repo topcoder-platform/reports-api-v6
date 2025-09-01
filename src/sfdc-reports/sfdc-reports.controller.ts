@@ -25,8 +25,8 @@ export class SfdcReportsController {
   constructor(private readonly reportsService: SfdcReportsService) {}
 
   @Get("/payments")
-  // @UseGuards(PermissionsGuard)
-  // @Scopes(AppScopes.AllReports)
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports)
   @ApiBearerAuth()
   @ApiOperation({
     summary: "Export search winnings result in csv file format",
