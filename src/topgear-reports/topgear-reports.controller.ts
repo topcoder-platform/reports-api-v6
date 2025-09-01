@@ -11,14 +11,14 @@ import { PermissionsGuard } from "../auth/guards/permissions.guard";
 import { Scopes } from "../auth/decorators/scopes.decorator";
 import { Scopes as AppScopes } from "../app-constants";
 
-import { ReportsService } from "./reports.service";
+import { TopgearReportsService } from "./topgear-reports.service";
 
-@ApiTags("Topcoder Reports")
-@Controller("/")
-export class ReportsController {
-  constructor(private readonly reports: ReportsService) {}
+@ApiTags("Topgear Reports")
+@Controller("/topgear")
+export class TopgearReportsController {
+  constructor(private readonly reports: TopgearReportsService) {}
 
-  @Get("topgear/hourly")
+  @Get("hourly")
   @UseGuards(PermissionsGuard)
   @Scopes(AppScopes.AllReports, AppScopes.TopgearHourly)
   @ApiBearerAuth()
@@ -27,7 +27,7 @@ export class ReportsController {
     return this.reports.getTopgearHourly();
   }
 
-  @Get("topgear/payments")
+  @Get("payments")
   @UseGuards(PermissionsGuard)
   @Scopes(AppScopes.AllReports, AppScopes.TopgearHourly)
   @ApiBearerAuth()

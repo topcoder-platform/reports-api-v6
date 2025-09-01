@@ -8,7 +8,7 @@ import {
 } from "../common/validation.util";
 
 @Injectable()
-export class ReportsService {
+export class TopgearReportsService {
   constructor(
     private readonly db: DbService,
     private readonly sql: SqlLoaderService,
