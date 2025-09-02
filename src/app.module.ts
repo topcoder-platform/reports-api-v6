@@ -1,15 +1,18 @@
 import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { ReportsModule } from "./reports/reports.module";
 import { DbModule } from "./db/db.module";
 import { AuthMiddleware } from "./auth/auth.middleware";
 import { HealthModule } from "./health/health.module";
+
+import { TopgearReportsModule } from "./topgear-reports/topgear-reports.module";
+import { SfdcReportsModule } from "./sfdc-reports/sfdc-reports.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     DbModule,
-    ReportsModule,
+    TopgearReportsModule,
+    SfdcReportsModule,
     HealthModule,
   ],
 })
