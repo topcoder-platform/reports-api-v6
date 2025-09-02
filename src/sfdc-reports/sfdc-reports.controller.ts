@@ -14,6 +14,8 @@ import { Scopes as AppScopes } from "../app-constants";
 
 import { SfdcReportsService } from "./sfdc-reports.service";
 import {
+  BaFeesReportQueryDto,
+  BaFeesReportResponse,
   PaymentsReportQueryDto,
   PaymentsReportResponse,
 } from "./sfdc-reports.dto";
@@ -29,19 +31,40 @@ export class SfdcReportsController {
   @Scopes(AppScopes.AllReports)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: "Export search winnings result in csv file format",
-    description: "Roles: Payment Admin, Payment Editor, Payment Viewer",
+    summary: "SFDC Payments report",
+    description: "",
   })
   @ApiQuery({
     type: PaymentsReportQueryDto,
   })
   @ApiResponse({
     status: 200,
-    description: "Export winnings successfully.",
+    description: "Export successfully.",
     type: ResponseDto<PaymentsReportResponse>,
   })
   async getPaymentsReport(@Query() query: PaymentsReportQueryDto) {
     const report = await this.reportsService.getPaymentsReport(query);
+    return report;
+  }
+
+  @Get("/ba-fees")
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Report of BA to fee / member payment",
+    description: "",
+  })
+  @ApiQuery({
+    type: BaFeesReportQueryDto,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Export successfully.",
+    type: ResponseDto<BaFeesReportResponse>,
+  })
+  async getBaFeesReport(@Query() query: BaFeesReportQueryDto) {
+    const report = await this.reportsService.getBaFeesReport(query);
     return report;
   }
 }
