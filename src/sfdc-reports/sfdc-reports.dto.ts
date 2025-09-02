@@ -110,3 +110,29 @@ export class PaymentsReportResponse {
   challengeFee: number;
   paymentAmount: number;
 }
+
+export class BaFeesReportQueryDto {
+  @ApiProperty({
+    required: false,
+    description: "Start date for the report query in ISO format",
+    example: "2023-01-01T00:00:00.000Z",
+  })
+  @IsOptional()
+  @IsDateString()
+  startDate?: Date;
+
+  @ApiProperty({
+    required: false,
+    description: "End date for the report query in ISO format",
+    example: "2023-01-31T23:59:59.000Z",
+  })
+  @IsOptional()
+  @IsDateString()
+  endDate?: Date;
+}
+
+export interface BaFeesReportResponse {
+  billing_account: string;
+  total_fees: string;
+  total_member_payments: string;
+}
