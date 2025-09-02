@@ -1,7 +1,5 @@
 import { Logger as NestLogger } from "@nestjs/common";
 import * as stringify from "json-stringify-safe";
-console.log('here', stringify);
-
 
 export class Logger extends NestLogger {
   log(...messages: any[]): void {
