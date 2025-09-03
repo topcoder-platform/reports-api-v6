@@ -3,7 +3,6 @@ import { Controller, Get, Query, UseGuards } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOperation,
-  ApiQuery,
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
@@ -34,9 +33,6 @@ export class SfdcReportsController {
     summary: "SFDC Payments report",
     description: "",
   })
-  @ApiQuery({
-    type: PaymentsReportQueryDto,
-  })
   @ApiResponse({
     status: 200,
     description: "Export successfully.",
@@ -54,9 +50,6 @@ export class SfdcReportsController {
   @ApiOperation({
     summary: "Report of BA to fee / member payment",
     description: "",
-  })
-  @ApiQuery({
-    type: BaFeesReportQueryDto,
   })
   @ApiResponse({
     status: 200,
