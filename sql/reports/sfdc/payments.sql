@@ -22,7 +22,7 @@ LEFT JOIN members.member m
     ON m."userId" = w.winner_id::bigint
 WHERE 
     ($1::text[] IS NULL OR p.billing_account = ANY($1::text[]))
-    AND ($2::text[] IS NULL OR p.billing_account != ANY($2::text[]))
+    AND ($2::text[] IS NULL OR p.billing_account <> ANY($2::text[]))
     AND ($3::text[] IS NULL OR c.id = ANY($3::text[]))
     AND ($4::text[] IS NULL OR w.winner_id::text IN (
         SELECT m2."userId"::text
