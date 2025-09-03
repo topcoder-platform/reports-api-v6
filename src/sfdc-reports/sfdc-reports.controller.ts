@@ -28,7 +28,7 @@ export class SfdcReportsController {
 
   @Get("/payments")
   @UseGuards(PermissionsGuard)
-  @Scopes(AppScopes.AllReports)
+  @Scopes(AppScopes.AllReports, AppScopes.SFDC.PaymentsReport)
   @ApiBearerAuth()
   @ApiOperation({
     summary: "SFDC Payments report",
@@ -49,7 +49,7 @@ export class SfdcReportsController {
 
   @Get("/ba-fees")
   @UseGuards(PermissionsGuard)
-  @Scopes(AppScopes.AllReports)
+  @Scopes(AppScopes.AllReports, AppScopes.SFDC.BA)
   @ApiBearerAuth()
   @ApiOperation({
     summary: "Report of BA to fee / member payment",

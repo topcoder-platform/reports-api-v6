@@ -7,7 +7,7 @@ export class HealthService {
 
   async check() {
     // A simple, fast query to check if the database is reachable and responsive.
-    await this.db.query('SELECT 1');
+    await this.db.query("SELECT 1");
     return {
       status: "ok",
       info: {

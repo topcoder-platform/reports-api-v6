@@ -1,8 +1,8 @@
 import { ValidationPipe } from "@nestjs/common";
-import { NestFactory, HttpAdapterHost } from '@nestjs/core';
+import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
-import { DbService } from './db/db.service';
+import { DbService } from "./db/db.service";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -14,8 +14,7 @@ async function bootstrap() {
   const port = Number(process.env.PORT || 3000);
 
   // Apply the Prisma exception filter globally
-  const { httpAdapter } = app.get(HttpAdapterHost);
-  app.setGlobalPrefix('v6/reports');
+  app.setGlobalPrefix("v6/reports");
 
   // Get PrismaService instance to handle graceful shutdown
   const prismaService = app.get(DbService);
@@ -36,6 +35,8 @@ async function bootstrap() {
 
   await app.listen(port);
   console.log(`Application is running on: ${await app.getUrl()}`);
-  console.log(`Swagger docs available at: ${await app.getUrl()}/v6/reports/api-docs`);
+  console.log(
+    `Swagger docs available at: ${await app.getUrl()}/v6/reports/api-docs`,
+  );
 }
 bootstrap().catch(console.error);
