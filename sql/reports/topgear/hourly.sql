@@ -92,15 +92,16 @@ reviewers AS (
   SELECT
     r."challengeId"                 AS challenge_id,
     COUNT(DISTINCT r."memberId")    AS num_reviews,
-    STRING_AGG(DISTINCT m.email, ', ' ORDER BY m.email) AS reviewer_email
+    STRING_AGG(DISTINCT m.email, ', ' ORDER BY m.email) AS reviewer_email,
+	r."memberId"				    AS reviewer_member_id
   FROM resources."Resource" r
   JOIN reviewer_roles rr ON rr.id = r."roleId"
   LEFT JOIN members.member m
     ON m."userId"::text = r."memberId"::text
-  GROUP BY r."challengeId"
+  GROUP BY r."challengeId", r."memberId"
 ),
 reviewer_payments AS (
-  SELECT
+   SELECT
     c.id AS challenge_id,
     COALESCE(SUM(p.total_amount),0)::numeric(12,2) AS reviewer_payment,
     STRING_AGG(
@@ -108,9 +109,11 @@ reviewer_payments AS (
       ', ' ORDER BY COALESCE(p.payment_status::text, 'UNKNOWN')
     ) AS reviewer_payment_status
   FROM challenges."Challenge" c
+  LEFT JOIN reviewers r
+  	ON r.challenge_id = c.id
   LEFT JOIN finance.winnings w
-    ON (w.attributes->>'challengeId') = c.id
-    OR (w.attributes->>'challengeLegacyId') = c."legacyId"::text
+    ON w.external_id = c.id AND
+	w.winner_id = r.reviewer_member_id
   LEFT JOIN finance.payment p
     ON p.winnings_id = w.winning_id
   WHERE c."createdAt" > '2025-01-01T00:00:00Z'
@@ -154,11 +157,8 @@ winner1 AS (
   LEFT JOIN members.member m
     ON m."userId"::text = s.winner1_member_id::text
   LEFT JOIN finance.winnings w
-    ON (
-         (w.attributes->>'challengeId') = c.id
-         OR (w.attributes->>'challengeLegacyId') = c."legacyId"::text
-       )
-       AND (w.attributes->>'memberId') = s.winner1_member_id::text
+    ON w.external_id = c.id
+       AND w.winner_id = s.winner1_member_id::text
   LEFT JOIN finance.payment p
     ON p.winnings_id = w.winning_id
   WHERE c."createdAt" > '2025-01-01T00:00:00Z'
@@ -172,8 +172,7 @@ completed_payments AS (
     MAX(p.updated_at) AS payment_modify_date
   FROM challenges."Challenge" c
   LEFT JOIN finance.winnings w
-    ON (w.attributes->>'challengeId') = c.id
-    OR (w.attributes->>'challengeLegacyId') = c."legacyId"::text
+    ON w.external_id = c.id
   LEFT JOIN finance.payment p
     ON p.winnings_id = w.winning_id
   WHERE c.status = 'COMPLETED' and
@@ -214,8 +213,8 @@ SELECT
   c.id                                            AS id,
   c."legacyId"                                    AS legacy_id,
 
-  COALESCE(s.num_submissions, 0)                  AS num_submissions,
-  COALESCE(rg.num_registrations, 0)               AS num_registrations,
+  c."numOfSubmissions"			                  AS num_submissions,
+  c."numOfRegistrants"				              AS num_registrations,
 
   ''::text                                        AS sub_practice,
   ''::text                                        AS practice,
@@ -291,5 +290,6 @@ LEFT JOIN winner1 w1
   ON w1.challenge_id = c.id
 LEFT JOIN completed_payments cp
   ON cp.challenge_id = c.id
+WHERE billing_account_id = '80000062'
 ORDER BY c."createdAt" DESC
 ;
