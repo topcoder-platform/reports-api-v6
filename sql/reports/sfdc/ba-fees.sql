@@ -1,6 +1,6 @@
 SELECT 
   p.billing_account as billing_account_id,
-  COALESCE(SUM(p.challenge_fee), 0) AS total_feels,
+  COALESCE(SUM(p.challenge_fee), 0) AS total_fees,
   COALESCE(SUM(p.total_amount), 0) AS total_member_payments
 FROM finance.payment p
 LEFT JOIN finance.winnings w 

@@ -9,6 +9,11 @@ import {
 } from "./sfdc-reports.dto";
 import { SqlLoaderService } from "src/common/sql-loader.service";
 
+type BillingAccountsSplit = {
+  include: string[];
+  exclude: string[];
+};
+
 @Injectable()
 export class SfdcReportsService {
   private readonly logger = new Logger(SfdcReportsService.name);
@@ -23,8 +28,22 @@ export class SfdcReportsService {
 
     const query = this.sql.load("reports/sfdc/payments.sql");
 
+    const { include: billingAccountIds, exclude: excludeBillingAccountIds } =
+      (filters.billingAccountIds ?? []).reduce<BillingAccountsSplit>(
+        (acc, id) => {
+          if (id.startsWith("!")) {
+            acc.exclude.push(id.slice(1));
+          } else {
+            acc.include.push(id);
+          }
+          return acc;
+        },
+        { include: [], exclude: [] }
+      );
+
     const payments = await this.db.query<PaymentsReportResponse>(query, [
-      filters.billingAccountIds,
+      billingAccountIds.length ? billingAccountIds : undefined,
+      excludeBillingAccountIds.length ? excludeBillingAccountIds : undefined,
       filters.challengeIds,
       filters.handles,
       filters.challengeName,

@@ -22,20 +22,21 @@ LEFT JOIN members.member m
     ON m."userId" = w.winner_id::bigint
 WHERE 
     ($1::text[] IS NULL OR p.billing_account = ANY($1::text[]))
-    AND ($2::text[] IS NULL OR c.id = ANY($2::text[]))
-    AND ($3::text[] IS NULL OR w.winner_id::text IN (
+    AND ($2::text[] IS NULL OR p.billing_account <> ANY($2::text[]))
+    AND ($3::text[] IS NULL OR c.id = ANY($3::text[]))
+    AND ($4::text[] IS NULL OR w.winner_id::text IN (
         SELECT m2."userId"::text
         FROM members.member m2
-        WHERE m2.handle = ANY($3::text[])
+        WHERE m2.handle = ANY($4::text[])
     ))
-    AND ($4::text IS NULL OR w.external_id IN (
+    AND ($5::text IS NULL OR w.external_id IN (
         SELECT c2.id
         FROM challenges."Challenge" c2
-        WHERE c2.name ILIKE '%' || $4 || '%'
+        WHERE c2.name ILIKE '%' || $5 || '%'
     ))
-    AND ($5::timestamptz IS NULL OR p.created_at >= $5::timestamptz)
-    AND ($6::timestamptz IS NULL OR p.created_at <= $6::timestamptz)
-    AND ($7::numeric IS NULL OR p.total_amount >= $7::numeric)
-    AND ($8::numeric IS NULL OR p.total_amount <= $8::numeric)
+    AND ($6::timestamptz IS NULL OR p.created_at >= $6::timestamptz)
+    AND ($7::timestamptz IS NULL OR p.created_at <= $7::timestamptz)
+    AND ($8::numeric IS NULL OR p.total_amount >= $8::numeric)
+    AND ($9::numeric IS NULL OR p.total_amount <= $9::numeric)
 ORDER BY p.created_at DESC
 LIMIT 1000;
