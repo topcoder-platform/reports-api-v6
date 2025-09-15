@@ -34,4 +34,20 @@ export class TopgearReportsService {
       endDate.toISOString(),
     ]);
   }
+
+  async getTopgearChallenge(opts: { start?: string; end?: string }) {
+    const startDate = parseOptionalDate(opts.start) ?? defaultStartDate();
+    const endDate = parseOptionalDate(opts.end) ?? defaultEndDate();
+
+    if (startDate > endDate) {
+      throw new BadRequestException("start_date must be <= end_date");
+    }
+
+    const query = this.sql.load("reports/topgear/challenge.sql");
+    // Postgres parameter placeholders: $1, $2
+    return this.db.query(query, [
+      startDate.toISOString(),
+      endDate.toISOString(),
+    ]);
+  }
 }

@@ -28,18 +28,19 @@ export class SfdcReportsService {
 
     const query = this.sql.load("reports/sfdc/payments.sql");
 
-    const { include: billingAccountIds, exclude: excludeBillingAccountIds } =
-      (filters.billingAccountIds ?? []).reduce<BillingAccountsSplit>(
-        (acc, id) => {
-          if (id.startsWith("!")) {
-            acc.exclude.push(id.slice(1));
-          } else {
-            acc.include.push(id);
-          }
-          return acc;
-        },
-        { include: [], exclude: [] }
-      );
+    const { include: billingAccountIds, exclude: excludeBillingAccountIds } = (
+      filters.billingAccountIds ?? []
+    ).reduce<BillingAccountsSplit>(
+      (acc, id) => {
+        if (id.startsWith("!")) {
+          acc.exclude.push(id.slice(1));
+        } else {
+          acc.include.push(id);
+        }
+        return acc;
+      },
+      { include: [], exclude: [] },
+    );
 
     const payments = await this.db.query<PaymentsReportResponse>(query, [
       billingAccountIds.length ? billingAccountIds : undefined,
