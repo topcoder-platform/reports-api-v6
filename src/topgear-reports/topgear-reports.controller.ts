@@ -81,7 +81,7 @@ export class TopgearReportsController {
 
   @Get("cancelled-challenge")
   @UseGuards(PermissionsGuard)
-  @Scopes(AppScopes.AllReports, AppScopes.TopgearChallenge)
+  @Scopes(AppScopes.AllReports, AppScopes.TopgearCancelledChallenge)
   @ApiBearerAuth()
   @ApiOperation({
     summary:
