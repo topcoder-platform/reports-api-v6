@@ -1,11 +1,11 @@
 import { Injectable, BadRequestException } from "@nestjs/common";
-import { DbService } from "../db/db.service";
-import { SqlLoaderService } from "../common/sql-loader.service";
+import { DbService } from "../../db/db.service";
+import { SqlLoaderService } from "../../common/sql-loader.service";
 import {
   parseOptionalDate,
   defaultStartDate,
   defaultEndDate,
-} from "../common/validation.util";
+} from "../../common/validation.util";
 
 @Injectable()
 export class TopgearReportsService {
