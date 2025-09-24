@@ -72,4 +72,8 @@ export class ChallengeRegistrantsQueryDto {
 export interface ChallengeRegistrantsResponseDto {
   registrantHandle: string;
   challengeId: string;
+  winnerHandle: string | null;
+  challengeCompletedDate: string | null;
+  registrantFinalScore?: number;
+  challengeStatus: string;
 }
