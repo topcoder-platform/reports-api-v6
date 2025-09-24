@@ -8,4 +8,7 @@ export const Scopes = {
     PaymentsReport: "reports:sfdc-payments",
     BA: "reports:sfdc-ba",
   },
+  Challenge: {
+    Registrants: "reports:challenge-registrants",
+  },
 };

@@ -20,7 +20,7 @@ export class ChallengesReportsController {
 
   @Get("/registrants")
   @UseGuards(PermissionsGuard)
-  @Scopes(AppScopes.AllReports, AppScopes.SFDC.PaymentsReport)
+  @Scopes(AppScopes.AllReports, AppScopes.Challenge.Registrants)
   @ApiBearerAuth()
   @ApiOperation({
     summary: "Return the challenge registrants history report",
