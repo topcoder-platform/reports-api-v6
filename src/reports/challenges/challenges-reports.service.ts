@@ -8,6 +8,7 @@ import {
 } from "./dtos/registrants.dto";
 import { multiValueArrayFilter } from "src/common/filtering";
 import { ChallengesReportResponseDto } from "./dtos/challenge.dto";
+import { SubmissionLinksQueryDto } from "./dtos/submission-links.dto";
 
 @Injectable()
 export class ChallengesReportsService {
@@ -17,6 +18,19 @@ export class ChallengesReportsService {
     private readonly db: DbService,
     private readonly sql: SqlLoaderService,
   ) {}
+
+  async getSubmissionLinks(filters: SubmissionLinksQueryDto) {
+    this.logger.debug("Starting getSubmissionLinks", filters);
+    const query = this.sql.load("reports/challenges/submission-links.sql");
+
+    const results = await this.db.query<any>(query, [
+      filters.challengeStatus,
+      filters.completionDateFrom,
+      filters.completionDateTo,
+    ]);
+
+    return results;
+  }
 
   async getChallengesReport(filters: ChallengeRegistrantsQueryDto) {
     this.logger.debug("Starting getChallengesReport with filters:", filters);

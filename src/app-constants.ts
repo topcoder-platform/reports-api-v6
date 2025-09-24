@@ -11,5 +11,6 @@ export const Scopes = {
   Challenge: {
     History: "reports:challenge-history",
     Registrants: "reports:challenge-registrants",
+    SubmissionLinks: "reports:challenge-submission-links",
   },
 };
