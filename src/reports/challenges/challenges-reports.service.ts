@@ -7,6 +7,7 @@ import {
   ChallengeRegistrantsResponseDto,
 } from "./dtos/registrants.dto";
 import { multiValueArrayFilter } from "src/common/filtering";
+import { ChallengesReportResponseDto } from "./dtos/challenge.dto";
 
 @Injectable()
 export class ChallengesReportsService {
@@ -16,6 +17,25 @@ export class ChallengesReportsService {
     private readonly db: DbService,
     private readonly sql: SqlLoaderService,
   ) {}
+
+  async getChallengesReport(filters: ChallengeRegistrantsQueryDto) {
+    this.logger.debug("Starting getChallengesReport with filters:", filters);
+
+    const query = this.sql.load("reports/challenges/challenges-history.sql");
+
+    const { include: billingAccountIds, exclude: excludeBillingAccountIds } =
+      multiValueArrayFilter(filters.billingAccountIds);
+
+    const payments = await this.db.query<ChallengesReportResponseDto>(query, [
+      billingAccountIds.length ? billingAccountIds : undefined,
+      excludeBillingAccountIds.length ? excludeBillingAccountIds : undefined,
+      filters.challengeStatus,
+      filters.completionDateFrom,
+      filters.completionDateTo,
+    ]);
+
+    return payments;
+  }
 
   async getRegistrantsReport(filters: ChallengeRegistrantsQueryDto) {
     this.logger.debug("Starting getRegistrantsReport with filters:", filters);
@@ -36,7 +56,6 @@ export class ChallengesReportsService {
       ],
     );
 
-    // console.log("here1", payments);
     return payments;
   }
 }

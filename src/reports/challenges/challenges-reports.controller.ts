@@ -12,11 +12,29 @@ import { Scopes } from "../../auth/decorators/scopes.decorator";
 import { Scopes as AppScopes } from "../../app-constants";
 import { ChallengesReportsService } from "./challenges-reports.service";
 import { ChallengeRegistrantsQueryDto } from "./dtos/registrants.dto";
+import { ChallengesReportQueryDto } from "./dtos/challenge.dto";
 
 @ApiTags("Challenges Reports")
 @Controller("/challenges")
 export class ChallengesReportsController {
   constructor(private readonly reportsService: ChallengesReportsService) {}
+
+  @Get()
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports, AppScopes.Challenge.History)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Return the challenge history report",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Export successful.",
+    type: ResponseDto<PaymentsReportResponse>,
+  })
+  async getChallengeHistoryReport(@Query() query: ChallengesReportQueryDto) {
+    const report = await this.reportsService.getChallengesReport(query);
+    return report;
+  }
 
   @Get("/registrants")
   @UseGuards(PermissionsGuard)

@@ -9,6 +9,7 @@ export const Scopes = {
     BA: "reports:sfdc-ba",
   },
   Challenge: {
+    History: "reports:challenge-history",
     Registrants: "reports:challenge-registrants",
   },
 };
