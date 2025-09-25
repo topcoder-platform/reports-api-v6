@@ -7,9 +7,9 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 
-import { PermissionsGuard } from "../auth/guards/permissions.guard";
-import { Scopes } from "../auth/decorators/scopes.decorator";
-import { Scopes as AppScopes } from "../app-constants";
+import { PermissionsGuard } from "../../auth/guards/permissions.guard";
+import { Scopes } from "../../auth/decorators/scopes.decorator";
+import { Scopes as AppScopes } from "../../app-constants";
 
 import { SfdcReportsService } from "./sfdc-reports.service";
 import {

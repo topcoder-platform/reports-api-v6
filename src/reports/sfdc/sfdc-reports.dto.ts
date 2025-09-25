@@ -7,9 +7,7 @@ import {
   IsNumber,
   IsDateString,
 } from "class-validator";
-
-const transformArray = ({ value }: { value: string }) =>
-  Array.isArray(value) ? value : [value];
+import { transformArray } from "src/common/validation.util";
 
 export class PaymentsReportQueryDto {
   @ApiProperty({

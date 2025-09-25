@@ -4,8 +4,9 @@ import { DbModule } from "./db/db.module";
 import { AuthMiddleware } from "./auth/auth.middleware";
 import { HealthModule } from "./health/health.module";
 
-import { TopgearReportsModule } from "./topgear-reports/topgear-reports.module";
-import { SfdcReportsModule } from "./sfdc-reports/sfdc-reports.module";
+import { TopgearReportsModule } from "./reports/topgear/topgear-reports.module";
+import { SfdcReportsModule } from "./reports/sfdc/sfdc-reports.module";
+import { ChallengesReportsModule } from "./reports/challenges/challenges-reports.module";
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { SfdcReportsModule } from "./sfdc-reports/sfdc-reports.module";
     DbModule,
     TopgearReportsModule,
     SfdcReportsModule,
+    ChallengesReportsModule,
     HealthModule,
   ],
 })
