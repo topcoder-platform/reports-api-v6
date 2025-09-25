@@ -8,8 +8,9 @@ SELECT
   ROUND(sub."finalScore", 2) as "registrantFinalScore",
   CASE WHEN sub."finalScore" > 98 THEN true ELSE false END AS "didSubmissionPass",
   sub.url as "submissionUrl",
-  sub.id as "submissionId"
-  sub."createdAt" as "submissionCreatedDate"
+  sub.id as "submissionId",
+  sub."createdAt" as "submissionCreatedDate",
+  mp."email" as "registrantEmail"
 FROM
   challenges."Challenge" c
 LEFT JOIN
@@ -17,10 +18,12 @@ LEFT JOIN
 LEFT JOIN
   resources."ResourceRole" rr on res."roleId" = rr.id
 LEFT JOIN
+  resources."MemberProfile" mp on res."memberId" = mp."userId"
+LEFT JOIN
   reviews."submission" sub on sub."memberId"=res."memberId" AND sub."challengeId"=c.id
 WHERE rr.name = 'Submitter'
   -- filter by challenge status
-  AND ($1::text[] IS NULL OR c.status::text= ANY($3::text[]))
+  AND ($1::text[] IS NULL OR c.status::text= ANY($1::text[]))
   -- -- filter by completion date
   -- filter by challengeCompletedDate
   AND (c.status!='COMPLETED' OR (
