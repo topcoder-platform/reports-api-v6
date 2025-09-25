@@ -9,7 +9,7 @@ import {
 import { transformArray } from "src/common/validation.util";
 import { ChallengeStatus } from "./challenge-status.enum";
 
-export class ChallengeRegistrantsQueryDto {
+export class ChallengesReportQueryDto {
   @ApiProperty({
     required: false,
     enum: ChallengeStatus,
@@ -52,11 +52,13 @@ export class ChallengeRegistrantsQueryDto {
   completionDateTo?: Date;
 }
 
-export interface ChallengeRegistrantsResponseDto {
-  registrantHandle: string;
+export interface ChallengesReportResponseDto {
   challengeId: string;
-  winnerHandle: string | null;
-  challengeCompletedDate: string | null;
-  registrantFinalScore?: number;
+  challengeName: string;
+  groupNames: string[];
   challengeStatus: string;
+  registrationStartDate: string;
+  challengeCompletionDate: string;
+  tags: string[];
+  projectId: string;
 }
