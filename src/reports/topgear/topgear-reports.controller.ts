@@ -12,7 +12,7 @@ import { Scopes } from "../../auth/decorators/scopes.decorator";
 import { Scopes as AppScopes } from "../../app-constants";
 
 import { TopgearReportsService } from "./topgear-reports.service";
-import { SubmissionsReviewDto } from "./dtos/submissions-review.dto";
+import { ChallengesCountBySkillDto } from "./dtos/submissions-review.dto";
 
 @ApiTags("Topgear Reports")
 @Controller("/topgear")
@@ -33,7 +33,7 @@ export class TopgearReportsController {
   @Scopes(AppScopes.AllReports, AppScopes.TopgearChallengeTechnology)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Return challenges count by skill" })
-  async getChallengesCountBySkill(): Promise<SubmissionsReviewDto[]> {
+  async getChallengesCountBySkill(): Promise<ChallengesCountBySkillDto[]> {
     return this.reports.getChallengesCountBySkill();
   }
 
