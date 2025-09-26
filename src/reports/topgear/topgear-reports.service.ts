@@ -19,8 +19,8 @@ export class TopgearReportsService {
     return this.db.query(query);
   }
 
-  async getSubmissionsReview() {
-    const query = this.sql.load("reports/topgear/submissions-review.sql");
+  async getChallengesCountBySkill() {
+    const query = this.sql.load("reports/topgear/challenge-count-by-skill.sql");
     return this.db.query(query);
   }
 

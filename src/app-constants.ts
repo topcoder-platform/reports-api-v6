@@ -4,6 +4,7 @@ export const Scopes = {
   TopgearChallenge: "reports:topgear-challenge",
   TopgearCancelledChallenge: "reports:topgear-cancelled-challenge",
   AllReports: "reports:all",
+  TopgearChallengeTechnology: "reports:topgear-challenge-technology",
   SFDC: {
     PaymentsReport: "reports:sfdc-payments",
     BA: "reports:sfdc-ba",

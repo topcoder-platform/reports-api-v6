@@ -28,13 +28,13 @@ export class TopgearReportsController {
     return this.reports.getTopgearHourly();
   }
 
-  @Get("submissions-review")
+  @Get("challenges-count-by-skill")
   @UseGuards(PermissionsGuard)
-  @Scopes(AppScopes.AllReports)
+  @Scopes(AppScopes.AllReports, AppScopes.TopgearChallengeTechnology)
   @ApiBearerAuth()
-  @ApiOperation({ summary: "Return submissions review by skill" })
-  async getSubmissionsReview(): Promise<SubmissionsReviewDto[]> {
-    return this.reports.getSubmissionsReview();
+  @ApiOperation({ summary: "Return challenges count by skill" })
+  async getChallengesCountBySkill(): Promise<SubmissionsReviewDto[]> {
+    return this.reports.getChallengesCountBySkill();
   }
 
   @Get("payments")
