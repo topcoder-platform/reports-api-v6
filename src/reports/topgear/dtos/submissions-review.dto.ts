@@ -1,9 +1,9 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty } from "@nestjs/swagger";
 
 export class SubmissionsReviewDto {
-  @ApiProperty({ description: 'Name of the skill' })
+  @ApiProperty({ description: "Name of the skill" })
   skillName: string;
 
-  @ApiProperty({ description: 'Count of distinct challenges for the skill' })
+  @ApiProperty({ description: "Count of distinct challenges for the skill" })
   challengeCount: number;
 }
