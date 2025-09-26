@@ -19,6 +19,11 @@ export class TopgearReportsService {
     return this.db.query(query);
   }
 
+  async getChallengesCountBySkill() {
+    const query = this.sql.load("reports/topgear/challenge-count-by-skill.sql");
+    return this.db.query(query);
+  }
+
   async getTopgearPayments(opts: { start?: string; end?: string }) {
     const startDate = parseOptionalDate(opts.start) ?? defaultStartDate();
     const endDate = parseOptionalDate(opts.end) ?? defaultEndDate();

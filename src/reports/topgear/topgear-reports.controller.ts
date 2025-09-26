@@ -12,6 +12,7 @@ import { Scopes } from "../../auth/decorators/scopes.decorator";
 import { Scopes as AppScopes } from "../../app-constants";
 
 import { TopgearReportsService } from "./topgear-reports.service";
+import { ChallengesCountBySkillDto } from "./dtos/submissions-review.dto";
 
 @ApiTags("Topgear Reports")
 @Controller("/topgear")
@@ -25,6 +26,15 @@ export class TopgearReportsController {
   @ApiOperation({ summary: "Return the Topgear Hourly report details" })
   getTopgearHourly() {
     return this.reports.getTopgearHourly();
+  }
+
+  @Get("challenges-count-by-skill")
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports, AppScopes.TopgearChallengeTechnology)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Return challenges count by skill" })
+  async getChallengesCountBySkill(): Promise<ChallengesCountBySkillDto[]> {
+    return this.reports.getChallengesCountBySkill();
   }
 
   @Get("payments")
