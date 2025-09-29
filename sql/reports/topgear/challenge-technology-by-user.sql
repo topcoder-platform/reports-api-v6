@@ -108,7 +108,6 @@ SELECT
   COUNT(DISTINCT CASE WHEN bd.is_winner     THEN bd.challenge_id END) AS "challengeStatsWins"
 FROM base_data bd
 WHERE
-  -- past month for example (adjust interval as needed)
   bd.posting_date >= (date_trunc('year', CURRENT_DATE)::date - INTERVAL '1 year')
   AND bd.challenge_status::text = 'COMPLETED'
   AND bd.registrant_handle IS NOT NULL
