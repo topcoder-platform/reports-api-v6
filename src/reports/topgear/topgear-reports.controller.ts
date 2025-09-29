@@ -118,7 +118,7 @@ export class TopgearReportsController {
 
   @Get("registrants-details")
   @UseGuards(PermissionsGuard)
-  @Scopes(AppScopes.AllReports, AppScopes.TopgearHourly)
+  @Scopes(AppScopes.AllReports, AppScopes.TopgearChallengeRegistrantDetails)
   @ApiBearerAuth()
   @ApiOperation({
     summary:
