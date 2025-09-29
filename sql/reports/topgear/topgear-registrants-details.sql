@@ -1,4 +1,4 @@
--- Parameters:
+-- INPUTS:
 --   $1 :: timestamptz  -- start of window
 --   $2 :: timestamptz  -- end of window
 WITH base AS (
@@ -12,7 +12,7 @@ WITH base AS (
     c."updatedAt"     AS challenge_updated_at,
     c."endDate"       AS planned_end_at
   FROM challenges."Challenge" c
-  WHERE c.status IN ('ACTIVE','COMPLETED')   -- only active/completed
+  WHERE c.status IN ('ACTIVE','COMPLETED')
 ),
 last_phase AS (
   SELECT
@@ -31,7 +31,6 @@ reg_end AS (
   GROUP BY cp."challengeId"
 ),
 submissions AS (
-  -- best score per member per challenge (if any)
   SELECT
     s."challengeId"                 AS challenge_id,
     s."memberId"::bigint            AS member_id,
@@ -60,7 +59,6 @@ proj AS (
   FROM projects.projects p
 ),
 registrants AS (
-  -- all registrants (Submitter role) per challenge
   SELECT
     r."challengeId"               AS challenge_id,
     r."memberId"::bigint          AS member_id,
@@ -103,9 +101,7 @@ LEFT JOIN billing b
 LEFT JOIN proj
   ON proj.project_id = base.project_id
 WHERE
-  -- Only Topgear billing account 80000062.
   COALESCE(b.billing_account_id, proj.project_billing_account_id) = 80000062
-  -- Date window: for COMPLETED, use completion date; otherwise fall back to planned end; otherwise createdAt.
   AND COALESCE(
         CASE WHEN base.challenge_status = 'COMPLETED' THEN lp.last_phase_end END,
         base.planned_end_at,
