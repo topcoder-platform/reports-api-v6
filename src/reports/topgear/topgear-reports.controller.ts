@@ -13,6 +13,7 @@ import { Scopes as AppScopes } from "../../app-constants";
 
 import { TopgearReportsService } from "./topgear-reports.service";
 import { ChallengesCountBySkillDto } from "./dtos/submissions-review.dto";
+import { ChallengeStatsByUserDto } from "./dtos/challenge-stats-by-user.dto";
 
 @ApiTags("Topgear Reports")
 @Controller("/topgear")
@@ -36,20 +37,8 @@ export class TopgearReportsController {
   async getChallengeStatsByUser(
     @Query("start_date") startDate?: string,
     @Query("end_date") endDate?: string,
-  ) {
+  ): Promise<ChallengeStatsByUserDto[]> {
     return this.reports.getChallengeStatsByUser({ startDate, endDate });
-  }
-
-  @Get("challenge-technology-by-user")
-  @UseGuards(PermissionsGuard)
-  @Scopes(AppScopes.AllReports, AppScopes.TopgearChallengeTechnologyByUser)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: "Get challenge technology per user" })
-  async getChallengeTechnologyByUser(
-    @Query("start_date") startDate?: string,
-    @Query("end_date") endDate?: string,
-  ) {
-    return this.reports.getChallengeTechnologyByUser({ startDate, endDate });
   }
 
   @Get("challenges-count-by-skill")

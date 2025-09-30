@@ -56,6 +56,14 @@ registrants AS (
   LEFT JOIN members.member m
     ON m."userId" = r."memberId"::bigint
 ),
+challenge_technology AS (
+  SELECT
+    cs."challengeId" AS challenge_id,
+    s.name           AS technology_name
+  FROM challenges."ChallengeSkill" cs
+  JOIN skills.skill s
+    ON s.id = cs."skillId"::uuid
+),
 base_data AS (
   SELECT
     reg.registrant_handle,
@@ -64,6 +72,7 @@ base_data AS (
     bse.challenge_id,
     bse.challenge_status,
     prj.group_customer_name,
+    tech.technology_name,
     COALESCE(
       CASE WHEN bse.challenge_status = 'COMPLETED' THEN lp.last_phase_end END,
       bse.planned_end_at,
@@ -85,22 +94,26 @@ base_data AS (
     ON prj.project_id = bse.project_id
   LEFT JOIN billing bil
     ON bil.challenge_id = bse.challenge_id
+  LEFT JOIN challenge_technology tech
+    ON tech.challenge_id = bse.challenge_id
   WHERE COALESCE(bil.billing_account_id, prj.project_billing_account_id) = 80000062
 )
 SELECT
-  bd.registrant_handle                                 AS "challengeRegistrantHandle",
-  bd.registrant_email                                  AS "userEmail",
-  COUNT(DISTINCT bd.challenge_id)                      AS "challengeDistinctCount",
-  SUM(bd.did_submit)                                   AS "submissionByAUser",
-  SUM(bd.did_win)                                      AS "challengeStatsWins"
+  bd.technology_name                               AS "challengeTechnology",
+  bd.registrant_handle                              AS "challengeRegistrantHandle",
+  bd.registrant_email                               AS "userEmail",
+  COUNT(DISTINCT bd.challenge_id)                   AS "challengeDistinctCount",
+  SUM(bd.did_submit)                                AS "submissionByAUser",
+  SUM(bd.did_win)                                   AS "challengeStatsWins"
 FROM base_data bd
 WHERE
   bd.posting_date BETWEEN $1::timestamptz AND $2::timestamptz
   AND bd.challenge_status::text = 'COMPLETED'
   AND bd.registrant_handle IS NOT NULL
 GROUP BY
+  bd.technology_name,
   bd.registrant_handle,
   bd.registrant_email
 ORDER BY
-  "challenge_stats.count_distinct_challenge" DESC
+  "challengeDistinctCount" DESC
 LIMIT 1000;

@@ -6,6 +6,7 @@ import {
   defaultStartDate,
   defaultEndDate,
 } from "../../common/validation.util";
+import { ChallengeStatsByUserDto } from "./dtos/challenge-stats-by-user.dto";
 
 @Injectable()
 export class TopgearReportsService {
@@ -19,7 +20,10 @@ export class TopgearReportsService {
     return this.db.query(query);
   }
 
-  async getChallengeStatsByUser(opts: { startDate?: string; endDate?: string }) {
+  async getChallengeStatsByUser(opts: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<ChallengeStatsByUserDto[]> {
     const startDate = opts.startDate ? new Date(opts.startDate) : new Date(0);
     const endDate = opts.endDate ? new Date(opts.endDate) : new Date();
 
@@ -28,19 +32,10 @@ export class TopgearReportsService {
     }
 
     const query = this.sql.load("reports/topgear/challenge-stats-by-user.sql");
-    return this.db.query(query, [startDate.toISOString(), endDate.toISOString()]);
-  }
-
-  async getChallengeTechnologyByUser(opts: { startDate?: string; endDate?: string }) {
-    const startDate = opts.startDate ? new Date(opts.startDate) : new Date(0);
-    const endDate = opts.endDate ? new Date(opts.endDate) : new Date();
-
-    if (startDate > endDate) {
-      throw new BadRequestException("start_date must be <= end_date");
-    }
-
-    const query = this.sql.load("reports/topgear/challenge-technology-by-user.sql");
-    return this.db.query(query, [startDate.toISOString(), endDate.toISOString()]);
+    return this.db.query<ChallengeStatsByUserDto>(query, [
+      startDate.toISOString(),
+      endDate.toISOString(),
+    ]);
   }
 
   async getChallengesCountBySkill() {
