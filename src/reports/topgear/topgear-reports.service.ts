@@ -19,6 +19,23 @@ export class TopgearReportsService {
     return this.db.query(query);
   }
 
+  async getTopgearRegistrantsDetails(opts: { start?: string; end?: string }) {
+    const startDate = parseOptionalDate(opts.start) ?? defaultStartDate();
+    const endDate = parseOptionalDate(opts.end) ?? defaultEndDate();
+
+    if (startDate > endDate) {
+      throw new BadRequestException("start_date must be <= end_date");
+    }
+
+    const query = this.sql.load(
+      "reports/topgear/topgear-registrants-details.sql",
+    );
+    return this.db.query(query, [
+      startDate.toISOString(),
+      endDate.toISOString(),
+    ]);
+  }
+
   async getChallengesCountBySkill() {
     const query = this.sql.load("reports/topgear/challenge-count-by-skill.sql");
     return this.db.query(query);
