@@ -13,6 +13,7 @@ import { Scopes as AppScopes } from "../../app-constants";
 import { ChallengesReportsService } from "./challenges-reports.service";
 import { ChallengeRegistrantsQueryDto } from "./dtos/registrants.dto";
 import { ChallengesReportQueryDto } from "./dtos/challenge.dto";
+import { SubmissionLinksDto, SubmissionLinksQueryDto } from "./dtos/submission-links.dto";
 
 @ApiTags("Challenges Reports")
 @Controller("/challenges")
@@ -50,6 +51,23 @@ export class ChallengesReportsController {
   })
   async getRegistrantsHistory(@Query() query: ChallengeRegistrantsQueryDto) {
     const report = await this.reportsService.getRegistrantsReport(query);
+    return report;
+  }
+
+  @Get("/submission-links")
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports, AppScopes.Challenge.SubmissionLinks)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Return the submission links report",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Export successful.",
+    type: ResponseDto<SubmissionLinksDto[]>,
+  })
+  async getSubmissionLinks(@Query() query: SubmissionLinksQueryDto) {
+    const report = await this.reportsService.getSubmissionLinks(query);
     return report;
   }
 }
