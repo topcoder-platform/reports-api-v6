@@ -13,7 +13,10 @@ import { Scopes as AppScopes } from "../../app-constants";
 import { ChallengesReportsService } from "./challenges-reports.service";
 import { ChallengeRegistrantsQueryDto } from "./dtos/registrants.dto";
 import { ChallengesReportQueryDto } from "./dtos/challenge.dto";
-import { SubmissionLinksDto, SubmissionLinksQueryDto } from "./dtos/submission-links.dto";
+import {
+  SubmissionLinksDto,
+  SubmissionLinksQueryDto,
+} from "./dtos/submission-links.dto";
 
 @ApiTags("Challenges Reports")
 @Controller("/challenges")
