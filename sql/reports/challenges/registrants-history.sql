@@ -63,4 +63,4 @@ WHERE rr.name = 'Submitter'
       ) BETWEEN $4::timestamptz AND $5::timestamptz)
     )
   ))
-LIMIT 100;
+LIMIT 1000;
