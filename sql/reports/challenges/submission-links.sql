@@ -18,7 +18,7 @@ LEFT JOIN
 LEFT JOIN
   resources."ResourceRole" rr on res."roleId" = rr.id
 LEFT JOIN
-  resources."MemberProfile" mp on res."memberId" = mp."userId"::text
+  members."member" mp on res."memberId" = mp."userId"::text
 LEFT JOIN
   reviews."submission" sub on sub."memberId"=res."memberId" AND sub."challengeId"=c.id
 WHERE rr.name = 'Submitter'
