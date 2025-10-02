@@ -29,7 +29,7 @@ export class ChallengesReportsService {
         filters.completionDateFrom,
         filters.completionDateTo,
       ]);
-  
+
       this.logger.debug("After results");
       return results;
     } catch (e) {
