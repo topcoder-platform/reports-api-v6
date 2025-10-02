@@ -1,3 +1,4 @@
+import type { Server } from "http";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
@@ -33,8 +34,15 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup("/v6/reports/api-docs", app, document);
 
-  const server = app.getHttpAdapter().getInstance();
-  server.setTimeout(300000); // 300000 ms = 5 min
+  const httpServer = app.getHttpAdapter().getHttpServer() as Server;
+
+  // Request timeout (no activity on socket)
+  httpServer.setTimeout(300_000); // 5 min
+
+  // Optional but recommended when long requests + keep-alive are used:
+  // keepAliveTimeout must be < headersTimeout
+  httpServer.keepAliveTimeout = 295_000; // how long to keep idle keep-alive sockets
+  httpServer.headersTimeout = 300_000; // max time to receive complete headers
 
   await app.listen(port);
   console.log(`Application is running on: ${await app.getUrl()}`);
