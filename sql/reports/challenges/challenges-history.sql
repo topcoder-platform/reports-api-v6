@@ -55,4 +55,4 @@ WHERE ($1::text[] IS NULL OR cb."billingAccountId" = ANY($1::text[]))
       ) BETWEEN $4::timestamptz AND $5::timestamptz)
     )
   ))
-LIMIT 500;
+LIMIT 1000;

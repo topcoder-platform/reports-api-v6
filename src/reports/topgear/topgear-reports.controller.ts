@@ -128,4 +128,31 @@ export class TopgearReportsController {
   ) {
     return this.reports.getTopgearCancelledChallenge({ start, end });
   }
+
+  @Get("registrants-details")
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports, AppScopes.TopgearChallengeRegistrantDetails)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Return the Topgear Registrants Details report from start_date to end_date",
+  })
+  @ApiQuery({
+    name: "start_date",
+    required: false,
+    type: Date,
+    description: "Start date",
+  })
+  @ApiQuery({
+    name: "end_date",
+    required: false,
+    type: Date,
+    description: "End date",
+  })
+  getTopgearRegistrantsDetails(
+    @Query("start_date") start?: string,
+    @Query("end_date") end?: string,
+  ) {
+    return this.reports.getTopgearRegistrantsDetails({ start, end });
+  }
 }

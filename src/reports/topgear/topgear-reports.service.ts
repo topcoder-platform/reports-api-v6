@@ -33,6 +33,22 @@ export class TopgearReportsService {
 
     const query = this.sql.load("reports/topgear/challenge-stats-by-user.sql");
     return this.db.query<ChallengeStatsByUserDto>(query, [
+      startDate,
+      endDate
+    ]);
+  }
+  async getTopgearRegistrantsDetails(opts: { start?: string; end?: string }) {
+    const startDate = parseOptionalDate(opts.start) ?? defaultStartDate();
+    const endDate = parseOptionalDate(opts.end) ?? defaultEndDate();
+
+    if (startDate > endDate) {
+      throw new BadRequestException("start_date must be <= end_date");
+    }
+
+    const query = this.sql.load(
+      "reports/topgear/topgear-registrants-details.sql",
+    );
+    return this.db.query(query, [
       startDate.toISOString(),
       endDate.toISOString(),
     ]);
