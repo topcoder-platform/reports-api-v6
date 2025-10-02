@@ -33,6 +33,9 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup("/v6/reports/api-docs", app, document);
 
+  const server = app.getHttpAdapter().getInstance();
+  server.setTimeout(300000); // 300000 ms = 5 min
+  
   await app.listen(port);
   console.log(`Application is running on: ${await app.getUrl()}`);
   console.log(
