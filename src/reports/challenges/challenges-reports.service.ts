@@ -23,13 +23,17 @@ export class ChallengesReportsService {
     this.logger.debug("Starting getSubmissionLinks", filters);
     const query = this.sql.load("reports/challenges/submission-links.sql");
 
-    const results = await this.db.query<any>(query, [
-      filters.challengeStatus,
-      filters.completionDateFrom,
-      filters.completionDateTo,
-    ]);
+    try {
+      const results = await this.db.query<any>(query, [
+        filters.challengeStatus,
+        filters.completionDateFrom,
+        filters.completionDateTo,
+      ]);
 
-    return results;
+      return results;
+    } catch (e) {
+      this.logger.error(e);
+    }
   }
 
   async getChallengesReport(filters: ChallengeRegistrantsQueryDto) {
