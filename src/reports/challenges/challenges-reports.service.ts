@@ -30,7 +30,6 @@ export class ChallengesReportsService {
         filters.completionDateTo,
       ]);
 
-      this.logger.debug("After results");
       return results;
     } catch (e) {
       this.logger.error(e);
