@@ -25,6 +25,7 @@ export class SubmissionLinksQueryDto {
   })
   @IsOptional()
   @IsDateString()
+  @Transform(({ value }) => value || new Date().toISOString())
   completionDateTo?: Date;
 
   @ApiProperty({

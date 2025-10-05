@@ -58,6 +58,14 @@ proj AS (
     p."billingAccountId"::bigint                                   AS project_billing_account_id
   FROM projects.projects p
 ),
+proj_phase_end AS (
+  SELECT
+    pp."projectId"::bigint                 AS project_id,              -- cast to text to match base.project_id
+    MAX(pp."endDate")           AS project_scheduled_end_date
+  FROM projects."project_phases" pp
+  WHERE pp.status ILIKE 'planned'
+  GROUP BY pp."projectId"
+),
 registrants AS (
   SELECT
     r."challengeId"               AS challenge_id,
@@ -82,7 +90,7 @@ SELECT
   proj.group_customer_name                             AS "Customer name",
   reg.registrant_email                                 AS "Registrant email",
   CASE WHEN base.challenge_status = 'ACTIVE'
-       THEN base.planned_end_at END                    AS "Project scheduled end date",
+       THEN ppe.project_scheduled_end_date END         AS "Project scheduled end date",
   sub.best_final_score                                 AS "Submission score"
 FROM base
 JOIN registrants reg
@@ -100,6 +108,8 @@ LEFT JOIN billing b
   ON b.challenge_id = base.challenge_id
 LEFT JOIN proj
   ON proj.project_id = base.project_id
+LEFT JOIN proj_phase_end ppe
+  ON ppe.project_id = base.project_id
 WHERE
   COALESCE(b.billing_account_id, proj.project_billing_account_id) = 80000062
   AND COALESCE(
@@ -107,4 +117,15 @@ WHERE
         base.planned_end_at,
         base.challenge_created_at
       ) BETWEEN $1::timestamptz AND $2::timestamptz
+  AND (
+    (base.challenge_status = 'COMPLETED'
+      AND lp.last_phase_end ) BETWEEN $1::timestamptz AND $2::timestamptz
+    )
+    OR
+    (base.challenge_status = 'ACTIVE' AND (
+         base.challenge_created_at ) BETWEEN $1::timestamptz AND $2::timestamptz
+      OR base.challenge_updated_at ) BETWEEN $1::timestamptz AND $2::timestamptz
+      OR base.planned_end_at       ) BETWEEN $1::timestamptz AND $2::timestamptz
+    ))
+  )
 ORDER BY base.challenge_id DESC, reg.registrant_handle;
