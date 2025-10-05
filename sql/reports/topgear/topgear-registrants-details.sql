@@ -112,20 +112,15 @@ LEFT JOIN proj_phase_end ppe
   ON ppe.project_id = base.project_id
 WHERE
   COALESCE(b.billing_account_id, proj.project_billing_account_id) = 80000062
-  AND COALESCE(
-        CASE WHEN base.challenge_status = 'COMPLETED' THEN lp.last_phase_end END,
-        base.planned_end_at,
-        base.challenge_created_at
-      ) BETWEEN $1::timestamptz AND $2::timestamptz
   AND (
     (base.challenge_status = 'COMPLETED'
-      AND lp.last_phase_end ) BETWEEN $1::timestamptz AND $2::timestamptz
+      AND lp.last_phase_end BETWEEN '2025-09-28T00:00:00Z'::timestamptz AND '2025-10-05T23:59:59.999Z'::timestamptz
     )
     OR
     (base.challenge_status = 'ACTIVE' AND (
-         base.challenge_created_at ) BETWEEN $1::timestamptz AND $2::timestamptz
-      OR base.challenge_updated_at ) BETWEEN $1::timestamptz AND $2::timestamptz
-      OR base.planned_end_at       ) BETWEEN $1::timestamptz AND $2::timestamptz
+         base.challenge_created_at BETWEEN '2025-09-28T00:00:00Z'::timestamptz AND '2025-10-05T23:59:59.999Z'::timestamptz
+      OR base.challenge_updated_at BETWEEN '2025-09-28T00:00:00Z'::timestamptz AND '2025-10-05T23:59:59.999Z'::timestamptz
+      OR base.planned_end_at       BETWEEN '2025-09-28T00:00:00Z'::timestamptz AND '2025-10-05T23:59:59.999Z'::timestamptz
     ))
   )
 ORDER BY base.challenge_id DESC, reg.registrant_handle;
