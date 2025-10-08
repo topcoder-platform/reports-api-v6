@@ -7,6 +7,7 @@ import {
   defaultEndDate,
 } from "../../common/validation.util";
 import { ChallengeStatsByUserDto } from "./dtos/challenge-stats-by-user.dto";
+import { subDays } from "date-fns";
 
 @Injectable()
 export class TopgearReportsService {
@@ -24,7 +25,7 @@ export class TopgearReportsService {
     startDate?: string;
     endDate?: string;
   }): Promise<ChallengeStatsByUserDto[]> {
-    const startDate = opts.startDate ? new Date(opts.startDate) : new Date(0);
+    const startDate = opts.startDate ? new Date(opts.startDate) : subDays(new Date(), 7);
     const endDate = opts.endDate ? new Date(opts.endDate) : new Date();
 
     if (startDate > endDate) {
