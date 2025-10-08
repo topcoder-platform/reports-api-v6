@@ -5,6 +5,7 @@ import { AuthMiddleware } from "./auth/auth.middleware";
 import { HealthModule } from "./health/health.module";
 
 import { TopgearReportsModule } from "./topgear-reports/topgear-reports.module";
+import { StatisticsModule } from "./statistics/statistics.module";
 import { SfdcReportsModule } from "./sfdc-reports/sfdc-reports.module";
 
 @Module({
@@ -12,6 +13,7 @@ import { SfdcReportsModule } from "./sfdc-reports/sfdc-reports.module";
     ConfigModule.forRoot({ isGlobal: true }),
     DbModule,
     TopgearReportsModule,
+    StatisticsModule,
     SfdcReportsModule,
     HealthModule,
   ],

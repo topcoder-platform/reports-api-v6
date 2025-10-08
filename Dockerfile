@@ -25,6 +25,7 @@ ENV NODE_ENV production
 # Copy built application from the build stage
 COPY --from=build /usr/src/app/dist ./dist
 COPY --from=build /usr/src/app/sql ./sql
+COPY --from=build /usr/src/app/data ./data
 # Copy production dependencies from the deps stage
 COPY --from=deps /usr/src/app/node_modules ./node_modules
 

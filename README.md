@@ -74,3 +74,13 @@ pnpm run dev
 ```
 
 The application will be available at http://localhost:3000.
+
+## Public Statistics Endpoints
+
+The following read-only endpoints are available without authentication to support the Community Statistics page. 
+
+- `GET /v6/reports/statistics/srm/top-rated` — Highest rated SRM data (static JSON)
+- `GET /v6/reports/statistics/srm/country-ratings` — SRM country ratings (static JSON)
+- `GET /v6/reports/statistics/srm/competitions-count` — SRM number of competitions (static JSON)
+
+Static datasets are stored under `data/statistics/srm` and are packaged into the ECS image in the Dockerfile.
