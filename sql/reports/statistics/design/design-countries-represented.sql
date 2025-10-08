@@ -1,0 +1,29 @@
+WITH design_submitters AS (
+  SELECT DISTINCT
+    s."memberId"::text AS member_id
+  FROM reviews.submission s
+  JOIN challenges."Challenge" c
+    ON c.id = s."challengeId"
+  JOIN challenges."ChallengeTrack" tr
+    ON tr.id = c."trackId"
+  WHERE tr.abbreviation = 'DESIGN'
+),
+member_country AS (
+  SELECT
+    ds.member_id,
+    COALESCE(
+      NULLIF(TRIM(m."homeCountryCode"), ''),
+      NULLIF(TRIM(m."competitionCountryCode"), '')
+    ) AS country_code
+  FROM design_submitters ds
+  JOIN members.member m
+    ON m."userId"::text = ds.member_id
+)
+SELECT
+  country_code,
+  COUNT(*)::bigint AS members_count
+FROM member_country
+WHERE country_code IS NOT NULL
+GROUP BY country_code
+ORDER BY members_count DESC, country_code ASC;
+
