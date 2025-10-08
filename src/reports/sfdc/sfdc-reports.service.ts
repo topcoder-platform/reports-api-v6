@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { DbService } from "../db/db.service";
+import { DbService } from "../../db/db.service";
 import { Logger } from "src/common/logger";
 import {
   BaFeesReportQueryDto,
@@ -8,11 +8,7 @@ import {
   PaymentsReportResponse,
 } from "./sfdc-reports.dto";
 import { SqlLoaderService } from "src/common/sql-loader.service";
-
-type BillingAccountsSplit = {
-  include: string[];
-  exclude: string[];
-};
+import { multiValueArrayFilter } from "src/common/filtering";
 
 @Injectable()
 export class SfdcReportsService {
@@ -28,19 +24,8 @@ export class SfdcReportsService {
 
     const query = this.sql.load("reports/sfdc/payments.sql");
 
-    const { include: billingAccountIds, exclude: excludeBillingAccountIds } = (
-      filters.billingAccountIds ?? []
-    ).reduce<BillingAccountsSplit>(
-      (acc, id) => {
-        if (id.startsWith("!")) {
-          acc.exclude.push(id.slice(1));
-        } else {
-          acc.include.push(id);
-        }
-        return acc;
-      },
-      { include: [], exclude: [] },
-    );
+    const { include: billingAccountIds, exclude: excludeBillingAccountIds } =
+      multiValueArrayFilter(filters.billingAccountIds);
 
     const payments = await this.db.query<PaymentsReportResponse>(query, [
       billingAccountIds.length ? billingAccountIds : undefined,

@@ -11,3 +11,7 @@ export function defaultStartDate(): Date {
 export function defaultEndDate(): Date {
   return new Date(); // now
 }
+
+export function transformArray({ value }: { value: string }) {
+  return Array.isArray(value) ? value : [value];
+}
