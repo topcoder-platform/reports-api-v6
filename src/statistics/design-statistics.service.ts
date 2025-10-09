@@ -36,5 +36,11 @@ export class DesignStatisticsService {
     );
     return this.db.query(q);
   }
-}
 
+  async getFirstPlaceByCountry() {
+    const q = this.sql.load(
+      "reports/statistics/design/first-place-by-country.sql",
+    );
+    return this.db.query(q);
+  }
+}

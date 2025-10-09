@@ -30,5 +30,10 @@ export class StatisticsDesignController {
   getDesignCountriesRepresented() {
     return this.design.getDesignCountriesRepresented();
   }
-}
 
+  @Get("/first-place-by-country")
+  @ApiOperation({ summary: "Design first place finishes by country (desc)" })
+  getDesignFirstPlaceByCountry() {
+    return this.design.getFirstPlaceByCountry();
+  }
+}
