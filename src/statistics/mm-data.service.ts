@@ -28,4 +28,3 @@ export class MmDataService {
     return this.loadJson("competitions-count.json");
   }
 }
-

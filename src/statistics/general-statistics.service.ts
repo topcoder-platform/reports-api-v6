@@ -54,10 +54,7 @@ export class GeneralStatisticsService {
   }
 
   async getReviewCountsByMember() {
-    const q = this.sql.load(
-      "reports/statistics/general/reviews-by-member.sql",
-    );
+    const q = this.sql.load("reports/statistics/general/reviews-by-member.sql");
     return this.db.query(q);
   }
 }
-

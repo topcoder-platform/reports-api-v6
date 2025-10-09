@@ -24,4 +24,3 @@ export class SrmDataService {
     return this.loadJson("competitions-count.json");
   }
 }
-

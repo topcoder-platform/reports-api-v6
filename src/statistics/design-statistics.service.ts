@@ -10,16 +10,12 @@ export class DesignStatisticsService {
   ) {}
 
   async getUiDesignWins() {
-    const q = this.sql.load(
-      "reports/statistics/design/ui-design-wins.sql",
-    );
+    const q = this.sql.load("reports/statistics/design/ui-design-wins.sql");
     return this.db.query(q);
   }
 
   async getDesignF2FWins() {
-    const q = this.sql.load(
-      "reports/statistics/design/design-f2f-wins.sql",
-    );
+    const q = this.sql.load("reports/statistics/design/design-f2f-wins.sql");
     return this.db.query(q);
   }
 
@@ -52,9 +48,7 @@ export class DesignStatisticsService {
   }
 
   async getWireframeWins() {
-    const q = this.sql.load(
-      "reports/statistics/design/wireframe-wins.sql",
-    );
+    const q = this.sql.load("reports/statistics/design/wireframe-wins.sql");
     return this.db.query(q);
   }
 
@@ -66,9 +60,7 @@ export class DesignStatisticsService {
   }
 
   async getLuxPlacements() {
-    const q = this.sql.load(
-      "reports/statistics/design/lux-placements.sql",
-    );
+    const q = this.sql.load("reports/statistics/design/lux-placements.sql");
     return this.db.query(q);
   }
 }

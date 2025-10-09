@@ -25,7 +25,9 @@ export class TopgearReportsService {
     startDate?: string;
     endDate?: string;
   }): Promise<ChallengeStatsByUserDto[]> {
-    const startDate = opts.startDate ? new Date(opts.startDate) : subDays(new Date(), 7);
+    const startDate = opts.startDate
+      ? new Date(opts.startDate)
+      : subDays(new Date(), 7);
     const endDate = opts.endDate ? new Date(opts.endDate) : new Date();
 
     if (startDate > endDate) {
@@ -33,10 +35,7 @@ export class TopgearReportsService {
     }
 
     const query = this.sql.load("reports/topgear/challenge-stats-by-user.sql");
-    return this.db.query<ChallengeStatsByUserDto>(query, [
-      startDate,
-      endDate
-    ]);
+    return this.db.query<ChallengeStatsByUserDto>(query, [startDate, endDate]);
   }
   async getTopgearRegistrantsDetails(opts: { start?: string; end?: string }) {
     const startDate = parseOptionalDate(opts.start) ?? defaultStartDate();

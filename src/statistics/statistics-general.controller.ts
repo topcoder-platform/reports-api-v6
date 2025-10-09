@@ -51,4 +51,3 @@ export class StatisticsGeneralController {
     return this.general.getReviewCountsByMember();
   }
 }
-
