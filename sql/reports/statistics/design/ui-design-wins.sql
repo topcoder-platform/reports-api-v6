@@ -1,7 +1,8 @@
 SELECT
   m."userId"             AS member_id,
   m.handle               AS handle,
-  COUNT(DISTINCT s."challengeId")::int AS wins_count
+  COUNT(DISTINCT s."challengeId")::int AS wins_count,
+  COUNT(DISTINCT s."challengeId")::int AS count
 FROM reviews.submission s
 JOIN challenges."Challenge" c
   ON c.id = s."challengeId"
@@ -16,4 +17,3 @@ WHERE s.placement = 1
   AND ct.abbreviation = 'CH'
 GROUP BY m."userId", m.handle
 ORDER BY wins_count DESC, handle ASC;
-
