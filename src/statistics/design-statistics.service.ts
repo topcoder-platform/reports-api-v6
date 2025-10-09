@@ -43,4 +43,32 @@ export class DesignStatisticsService {
     );
     return this.db.query(q);
   }
+
+  async getRuxFirstPlaceWins() {
+    const q = this.sql.load(
+      "reports/statistics/design/rux-first-place-wins.sql",
+    );
+    return this.db.query(q);
+  }
+
+  async getWireframeWins() {
+    const q = this.sql.load(
+      "reports/statistics/design/wireframe-wins.sql",
+    );
+    return this.db.query(q);
+  }
+
+  async getLuxFirstPlaceWins() {
+    const q = this.sql.load(
+      "reports/statistics/design/lux-first-place-wins.sql",
+    );
+    return this.db.query(q);
+  }
+
+  async getLuxPlacements() {
+    const q = this.sql.load(
+      "reports/statistics/design/lux-placements.sql",
+    );
+    return this.db.query(q);
+  }
 }

@@ -19,6 +19,18 @@ export class StatisticsDesignController {
     return this.design.getDesignF2FWins();
   }
 
+  @Get("/lux-first-place-wins")
+  @ApiOperation({ summary: "Design LUX first place wins by member (desc)" })
+  getLuxFirstPlaceWins() {
+    return this.design.getLuxFirstPlaceWins();
+  }
+
+  @Get("/lux-placements")
+  @ApiOperation({ summary: "Design LUX placements by member (desc)" })
+  getLuxPlacements() {
+    return this.design.getLuxPlacements();
+  }
+
   @Get("/first-time-submitters")
   @ApiOperation({ summary: "First-time design submitters in last 3 months" })
   getFirstTimeDesignSubmitters() {
@@ -35,5 +47,21 @@ export class StatisticsDesignController {
   @ApiOperation({ summary: "Design first place finishes by country (desc)" })
   getDesignFirstPlaceByCountry() {
     return this.design.getFirstPlaceByCountry();
+  }
+
+  @Get("/rux-first-place-wins")
+  @ApiOperation({
+    summary: "RUX first place design challenge wins by member (desc)",
+  })
+  getRuxFirstPlaceWins() {
+    return this.design.getRuxFirstPlaceWins();
+  }
+
+  @Get("/wireframe-wins")
+  @ApiOperation({
+    summary: "Design wireframe challenge wins by member (desc)",
+  })
+  getWireframeWins() {
+    return this.design.getWireframeWins();
   }
 }
