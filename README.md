@@ -82,5 +82,9 @@ The following read-only endpoints are available without authentication to suppor
 - `GET /v6/reports/statistics/srm/top-rated` — Highest rated SRM data (static JSON)
 - `GET /v6/reports/statistics/srm/country-ratings` — SRM country ratings (static JSON)
 - `GET /v6/reports/statistics/srm/competitions-count` — SRM number of competitions (static JSON)
+- `GET /v6/reports/statistics/mm/top-rated` — Highest rated Marathon Match data (static JSON)
+- `GET /v6/reports/statistics/mm/country-ratings` — Marathon Match country ratings (static JSON)
+- `GET /v6/reports/statistics/mm/top-10-finishes` — Marathon Match Top 10 finishes (static JSON)
+- `GET /v6/reports/statistics/mm/competitions-count` — Marathon Match number of competitions (static JSON)
 
-Static datasets are stored under `data/statistics/srm` and are packaged into the ECS image in the Dockerfile.
+Static datasets are stored under `data/statistics/srm` and `data/statistics/mm` and are packaged into the ECS image in the Dockerfile.

@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { StatisticsController } from "./statistics.controller";
 import { SrmDataService } from "./srm-data.service";
+import { MmDataService } from "./mm-data.service";
 import { StatisticsGeneralController } from "./statistics-general.controller";
 import { GeneralStatisticsService } from "./general-statistics.service";
 import { StatisticsDesignController } from "./statistics-design.controller";
@@ -15,6 +16,7 @@ import { SqlLoaderService } from "../common/sql-loader.service";
   ],
   providers: [
     SrmDataService,
+    MmDataService,
     GeneralStatisticsService,
     DesignStatisticsService,
     SqlLoaderService,
