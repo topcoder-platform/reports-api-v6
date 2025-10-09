@@ -6,7 +6,7 @@ WITH design_submitters AS (
     ON c.id = s."challengeId"
   JOIN challenges."ChallengeTrack" tr
     ON tr.id = c."trackId"
-  WHERE tr.abbreviation = 'DESIGN'
+  WHERE tr.abbreviation = 'DS'
 ),
 member_country AS (
   SELECT

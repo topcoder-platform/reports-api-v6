@@ -6,7 +6,7 @@ WITH winners AS (
   JOIN challenges."ChallengeTrack" tr
     ON tr.id = c."trackId"
   WHERE s.placement = 1
-    AND tr.abbreviation = 'DESIGN'
+    AND tr.abbreviation = 'DS'
 ),
 winners_country AS (
   SELECT

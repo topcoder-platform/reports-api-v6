@@ -12,7 +12,7 @@ JOIN challenges."ChallengeTrack" tr
 JOIN members.member m
   ON m."userId"::text = s."memberId"::text
 WHERE s.placement = 1
-  AND tr.abbreviation = 'DESIGN'
+  AND tr.abbreviation = 'DS'
   AND ct.abbreviation = 'CH'
 GROUP BY m."userId", m.handle
 ORDER BY wins_count DESC, handle ASC;

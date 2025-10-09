@@ -7,7 +7,7 @@ WITH design_first_submissions AS (
     ON c.id = s."challengeId"
   JOIN challenges."ChallengeTrack" tr
     ON tr.id = c."trackId"
-  WHERE tr.abbreviation = 'DESIGN'
+  WHERE tr.abbreviation = 'DS'
   GROUP BY s."memberId"
 )
 SELECT
