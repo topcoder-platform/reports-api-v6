@@ -34,6 +34,18 @@ export class TopgearReportsController {
   @Scopes(AppScopes.AllReports, AppScopes.TopgearChallengeStatsByUser)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Get challenge stats per user" })
+  @ApiQuery({
+    name: "start_date",
+    required: false,
+    type: Date,
+    description: "Start date",
+  })
+  @ApiQuery({
+    name: "end_date",
+    required: false,
+    type: Date,
+    description: "End date",
+  })
   async getChallengeStatsByUser(
     @Query("start_date") startDate?: string,
     @Query("end_date") endDate?: string,
