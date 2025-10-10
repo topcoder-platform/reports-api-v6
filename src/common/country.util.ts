@@ -1,7 +1,13 @@
-import countryUtil from "i18n-iso-countries";
+import * as countriesModule from "i18n-iso-countries";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const enLocale = require("i18n-iso-countries/langs/en.json");
+
+// Handle environments where the module might be exposed on either the module
+// object itself or under a `default` export.
+const countryUtil =
+  (countriesModule as unknown as { default?: typeof countriesModule }).default ??
+  countriesModule;
 
 countryUtil.registerLocale(enLocale);
 
