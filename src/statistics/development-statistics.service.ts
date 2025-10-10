@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { DbService } from "../db/db.service";
 import { SqlLoaderService } from "../common/sql-loader.service";
+import { alpha3ToCountryName } from "../common/country.util";
 
 @Injectable()
 export class DevelopmentStatisticsService {
@@ -46,7 +47,20 @@ export class DevelopmentStatisticsService {
     const q = this.sql.load(
       "reports/statistics/development/development-countries-represented.sql",
     );
-    return this.db.query(q);
+    const rows = await this.db.query<{
+      country_code: string | null;
+      "user.count": number | string | null;
+      rank: number | string | null;
+    }>(q);
+    return rows.map((row) => {
+      const countryName =
+        alpha3ToCountryName(row.country_code) ?? row.country_code ?? "";
+      return {
+        "country.country_name": countryName,
+        "user.count": Number(row["user.count"] ?? 0),
+        rank: row.rank !== null && row.rank !== undefined ? Number(row.rank) : null,
+      };
+    });
   }
 
   async getDevelopmentChallengesByTechnology() {

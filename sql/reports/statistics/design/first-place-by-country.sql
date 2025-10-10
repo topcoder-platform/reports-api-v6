@@ -1,28 +1,33 @@
-WITH winners AS (
-  SELECT s."memberId"::text AS member_id
-  FROM reviews.submission s
+WITH raw_winners AS (
+  SELECT
+    cw."userId"::bigint AS user_id,
+    COALESCE(NULLIF(TRIM(cw.handle), ''), m.handle) AS handle
+  FROM challenges."ChallengeWinner" cw
   JOIN challenges."Challenge" c
-    ON c.id = s."challengeId"
+    ON c.id = cw."challengeId"
   JOIN challenges."ChallengeTrack" tr
     ON tr.id = c."trackId"
-  WHERE s.placement = 1
-    AND tr.abbreviation = 'DS'
+  LEFT JOIN members.member m
+    ON m."userId" = cw."userId"::bigint
+  WHERE tr.abbreviation = 'DS'
+    AND c.status = 'COMPLETED'
+    AND cw.placement = 1
 ),
-winners_country AS (
+placements AS (
   SELECT
-    COALESCE(
-      NULLIF(TRIM(m."homeCountryCode"), ''),
-      NULLIF(TRIM(m."competitionCountryCode"), '')
-    ) AS country_code
-  FROM winners w
-  JOIN members.member m
-    ON m."userId"::text = w.member_id
+    user_id,
+    handle,
+    COUNT(*)::int AS wins
+  FROM raw_winners
+  WHERE handle IS NOT NULL
+  GROUP BY user_id, handle
 )
 SELECT
-  country_code,
-  COUNT(*)::bigint AS first_place_count
-FROM winners_country
-WHERE country_code IS NOT NULL
-GROUP BY country_code
-ORDER BY first_place_count DESC, country_code ASC;
-
+  p.handle AS "challenge_stats.registrant_handle",
+  mmr.rating AS "member_profile_advanced.max_rating",
+  p.wins AS "challenge_stats.count",
+  DENSE_RANK() OVER (ORDER BY p.wins DESC, p.handle ASC)::int AS rank
+FROM placements p
+LEFT JOIN members."memberMaxRating" mmr
+  ON mmr."userId" = p.user_id
+ORDER BY "challenge_stats.count" DESC, "challenge_stats.registrant_handle" ASC;

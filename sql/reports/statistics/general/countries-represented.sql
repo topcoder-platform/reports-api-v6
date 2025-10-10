@@ -5,9 +5,14 @@ WITH member_country AS (
 )
 SELECT
   country_code,
-  COUNT(*)::bigint AS members_count
-FROM member_country
-WHERE country_code IS NOT NULL
-GROUP BY country_code
-ORDER BY members_count DESC, country_code ASC;
-
+  members_count AS "user.count",
+  DENSE_RANK() OVER (ORDER BY members_count DESC, country_code ASC)::int AS rank
+FROM (
+  SELECT
+    country_code,
+    COUNT(*)::bigint AS members_count
+  FROM member_country
+  WHERE country_code IS NOT NULL
+  GROUP BY country_code
+) aggregated
+ORDER BY "user.count" DESC, country_code ASC;

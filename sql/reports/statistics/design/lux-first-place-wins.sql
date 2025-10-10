@@ -28,12 +28,13 @@ placements AS (
   GROUP BY user_id, handle
 )
 SELECT
-  p.handle,
-  p.placements_count AS wins_count,
+  p.handle AS "challenge_stats.winner_handle",
+  p.handle AS handle,
+  p.placements_count AS "challenge_stats.count",
   p.placements_count AS count,
-  mmr.rating AS max_rating,
+  mmr.rating AS "member_profile_advanced.max_rating",
   DENSE_RANK() OVER (ORDER BY p.placements_count DESC, p.handle ASC)::int AS rank
 FROM placements p
 LEFT JOIN members."memberMaxRating" mmr
   ON mmr."userId" = p.user_id
-ORDER BY wins_count DESC, handle ASC;
+ORDER BY "challenge_stats.count" DESC, "challenge_stats.winner_handle" ASC;

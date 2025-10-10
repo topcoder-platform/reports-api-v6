@@ -1,30 +1,31 @@
-WITH member_placements AS (
+WITH placements AS (
   SELECT
-    m."userId" AS member_id,
-    m.handle AS handle,
+    s."memberId"::bigint AS user_id,
+    COALESCE(NULLIF(TRIM(m.handle), ''), m.handle) AS handle,
     COUNT(DISTINCT s."challengeId")::int AS placements_count
   FROM reviews.submission s
   JOIN challenges."Challenge" c
     ON c.id = s."challengeId"
   JOIN challenges."ChallengeTrack" tr
     ON tr.id = c."trackId"
-  JOIN members.member m
+  LEFT JOIN members.member m
     ON m."userId"::text = s."memberId"::text
   WHERE s.placement IS NOT NULL
     AND s.placement > 0
     AND tr.abbreviation = 'DS'
     AND (
-      c.name ILIKE 'RUX%'
-      OR c.name ILIKE 'TCO RUX%'
+      c.name ILIKE 'LUX%'
+      OR c.name ILIKE 'TCO LUX%'
     )
-  GROUP BY m."userId", m.handle
+    AND COALESCE(NULLIF(TRIM(m.handle), ''), m.handle) IS NOT NULL
+  GROUP BY s."memberId", m.handle
 )
 SELECT
-  member_id,
-  handle,
-  NULL::int AS max_rating,
-  placements_count,
-  placements_count AS count,
-  RANK() OVER (ORDER BY placements_count DESC, handle ASC) AS rank
-FROM member_placements
-ORDER BY placements_count DESC, handle ASC;
+  p.handle AS "submitter.handle",
+  mmr.rating AS "submitter_profile.max_rating",
+  p.placements_count AS "challenge.count",
+  DENSE_RANK() OVER (ORDER BY p.placements_count DESC, p.handle ASC)::int AS rank
+FROM placements p
+LEFT JOIN members."memberMaxRating" mmr
+  ON mmr."userId" = p.user_id
+ORDER BY "challenge.count" DESC, "submitter.handle" ASC;

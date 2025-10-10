@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { DbService } from "../db/db.service";
 import { SqlLoaderService } from "../common/sql-loader.service";
+import { alpha3ToCountryName } from "../common/country.util";
 
 @Injectable()
 export class GeneralStatisticsService {
@@ -13,7 +14,7 @@ export class GeneralStatisticsService {
     const q = this.sql.load("reports/statistics/general/member-count.sql");
     const rows = await this.db.query<{ count: string }>(q);
     const count = rows?.[0]?.count ? Number(rows[0].count) : 0;
-    return { count };
+    return { "user.count": count };
   }
 
   async getTotalPrizes() {
@@ -29,21 +30,47 @@ export class GeneralStatisticsService {
     );
     const rows = await this.db.query<{ count: string }>(q);
     const count = rows?.[0]?.count ? Number(rows[0].count) : 0;
-    return { count };
+    return { "challenge.count": count };
   }
 
   async getCountriesRepresented() {
     const q = this.sql.load(
       "reports/statistics/general/countries-represented.sql",
     );
-    return this.db.query(q);
+    const rows = await this.db.query<{
+      country_code: string | null;
+      "user.count": number | string | null;
+      rank: number | string | null;
+    }>(q);
+    return rows.map((row) => {
+      const countryName =
+        alpha3ToCountryName(row.country_code) ?? row.country_code ?? "";
+      return {
+        "country.country_name": countryName,
+        "user.count": Number(row["user.count"] ?? 0),
+        rank: row.rank !== null && row.rank !== undefined ? Number(row.rank) : null,
+      };
+    });
   }
 
   async getFirstPlaceByCountry() {
     const q = this.sql.load(
       "reports/statistics/general/first-place-by-country.sql",
     );
-    return this.db.query(q);
+    const rows = await this.db.query<{
+      country_code: string | null;
+      "challenge_stats.count": number | string | null;
+      rank: number | string | null;
+    }>(q);
+    return rows.map((row) => {
+      const countryName =
+        alpha3ToCountryName(row.country_code) ?? row.country_code ?? "";
+      return {
+        "country.country_name": countryName,
+        "challenge_stats.count": Number(row["challenge_stats.count"] ?? 0),
+        rank: row.rank !== null && row.rank !== undefined ? Number(row.rank) : null,
+      };
+    });
   }
 
   async getCopilotedChallenges() {
