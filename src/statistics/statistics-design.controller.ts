@@ -31,6 +31,12 @@ export class StatisticsDesignController {
     return this.design.getLuxPlacements();
   }
 
+  @Get("/rux-placements")
+  @ApiOperation({ summary: "Design RUX placements by member (desc)" })
+  getRuxPlacements() {
+    return this.design.getRuxPlacements();
+  }
+
   @Get("/first-time-submitters")
   @ApiOperation({ summary: "First-time design submitters in last 3 months" })
   getFirstTimeDesignSubmitters() {

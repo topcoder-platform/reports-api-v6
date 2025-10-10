@@ -63,4 +63,9 @@ export class DesignStatisticsService {
     const q = this.sql.load("reports/statistics/design/lux-placements.sql");
     return this.db.query(q);
   }
+
+  async getRuxPlacements() {
+    const q = this.sql.load("reports/statistics/design/rux-placements.sql");
+    return this.db.query(q);
+  }
 }

@@ -8,13 +8,13 @@ WITH skill_counts AS (
   JOIN skills.skill s
     ON s.id = ws.skill_id
   JOIN challenges."Challenge" c
-    ON c.id = ws.work_id
+    ON c.id::text = ws.work_id::text
   JOIN challenges."ChallengeTrack" tr
     ON tr.id = c."trackId"
   LEFT JOIN challenges."ChallengeType" ct
     ON ct.id = c."typeId"
   WHERE st.name = 'challenge'
-    AND tr.abbreviation = 'DE'
+    AND tr.abbreviation = 'Dev'
     AND s.name IS NOT NULL
     AND s.deleted_at IS NULL
     AND COALESCE(ct."isTask", false) = false
@@ -34,4 +34,4 @@ SELECT
   DENSE_RANK() OVER (ORDER BY challenge_count DESC, skill_name ASC)::int AS rank
 FROM skill_counts
 ORDER BY "challenge_stats.count" DESC, "challenge_technology.name" ASC
-LIMIT 500;
+LIMIT 100;
