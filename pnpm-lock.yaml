@@ -41,6 +41,9 @@ importers:
       date-fns:
         specifier: ^3.6.0
         version: 3.6.0
+      i18n-iso-countries:
+        specifier: ^3.7.1
+        version: 3.7.8
       json-stringify-safe:
         specifier: ^5.0.1
         version: 5.0.1
@@ -1435,6 +1438,10 @@ packages:
   https-proxy-agent@5.0.1:
     resolution: {integrity: sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA==}
     engines: {node: '>= 6'}
+
+  i18n-iso-countries@3.7.8:
+    resolution: {integrity: sha512-NkT3lRiw7D4kKtSAVjVdHCvGlc2UOe0ALKa9IfEx0LkEDf0q3YgjP/veVk0d/OZ7yqUNzV8aJP4lJc6RPj++Gw==}
+    engines: {node: '>= 4'}
 
   iconv-lite@0.4.24:
     resolution: {integrity: sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==}
@@ -4031,6 +4038,8 @@ snapshots:
       debug: 4.4.1
     transitivePeerDependencies:
       - supports-color
+
+  i18n-iso-countries@3.7.8: {}
 
   iconv-lite@0.4.24:
     dependencies:
