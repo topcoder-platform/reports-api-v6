@@ -1,4 +1,9 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import {
+  Injectable,
+  INestApplication,
+  OnModuleDestroy,
+  OnModuleInit,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Pool } from "pg";
 
@@ -23,5 +28,11 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
   async query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
     const result = await this.pool.query(sql, params);
     return result.rows as T[];
+  }
+
+  enableShutdownHooks(app: INestApplication) {
+    process.on("beforeExit", () => {
+      app.close().catch(console.error);
+    });
   }
 }
