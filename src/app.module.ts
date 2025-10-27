@@ -5,6 +5,7 @@ import { AuthMiddleware } from "./auth/auth.middleware";
 import { HealthModule } from "./health/health.module";
 
 import { TopgearReportsModule } from "./reports/topgear/topgear-reports.module";
+import { TopcoderReportsModule } from "./reports/topcoder/topcoder-reports.module";
 import { StatisticsModule } from "./statistics/statistics.module";
 import { SfdcReportsModule } from "./reports/sfdc/sfdc-reports.module";
 import { ChallengesReportsModule } from "./reports/challenges/challenges-reports.module";
@@ -14,6 +15,7 @@ import { ChallengesReportsModule } from "./reports/challenges/challenges-reports
     ConfigModule.forRoot({ isGlobal: true }),
     DbModule,
     TopgearReportsModule,
+    TopcoderReportsModule,
     StatisticsModule,
     SfdcReportsModule,
     ChallengesReportsModule,
