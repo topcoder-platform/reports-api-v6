@@ -18,4 +18,10 @@ export class TopcoderReportsController {
   get90DayMemberSpend() {
     return this.reports.get90DayMemberSpend();
   }
+
+  @Get("/90-day-new-members")
+  @ApiOperation({ summary: "Total number of new active members created in the last 90 days" })
+  get90DayNewMembers() {
+    return this.reports.get90DayNewMembers();
+  }
 }
