@@ -8,7 +8,9 @@ export class StatisticsQaController {
   constructor(private readonly qa: QaStatisticsService) {}
 
   @Get("/wins")
-  @ApiOperation({ summary: "Quality Assurance challenge wins by member (desc)" })
+  @ApiOperation({
+    summary: "Quality Assurance challenge wins by member (desc)",
+  })
   getQaWins() {
     return this.qa.getWins();
   }

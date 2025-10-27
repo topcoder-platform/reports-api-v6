@@ -13,5 +13,4 @@ WHERE (p.payment_status IS NULL OR p.payment_status != 'CANCELLED')
     FROM unnest(COALESCE(c.groups, ARRAY[]::text[])) AS group_ref(group_id)
     JOIN groups."Group" g ON g.id = group_ref.group_id
     WHERE g.name ILIKE 'Wipro%'
-  )
-LIMIT 500;
+  );

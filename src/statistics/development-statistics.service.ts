@@ -58,7 +58,8 @@ export class DevelopmentStatisticsService {
       return {
         "country.country_name": countryName,
         "user.count": Number(row["user.count"] ?? 0),
-        rank: row.rank !== null && row.rank !== undefined ? Number(row.rank) : null,
+        rank:
+          row.rank !== null && row.rank !== undefined ? Number(row.rank) : null,
       };
     });
   }
