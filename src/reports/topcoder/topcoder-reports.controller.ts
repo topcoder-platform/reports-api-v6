@@ -12,4 +12,10 @@ export class TopcoderReportsController {
   getMemberCount() {
     return this.reports.getMemberCount();
   }
+
+  @Get("/90-day-member-spend")
+  @ApiOperation({ summary: "Total gross amount paid to members in the last 90 days" })
+  get90DayMemberSpend() {
+    return this.reports.get90DayMemberSpend();
+  }
 }

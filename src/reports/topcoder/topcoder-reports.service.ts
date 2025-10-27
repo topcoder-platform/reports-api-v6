@@ -15,4 +15,13 @@ export class TopcoderReportsService {
     const value = rows?.[0]?.["user.count"];
     return { "user.count": Number(value ?? 0) };
   }
+
+  async get90DayMemberSpend() {
+    const query = this.sql.load("reports/topcoder/90-day-member-spend.sql");
+    const rows = await this.db.query<{
+      "user_payment.gross_amount": string | number;
+    }>(query);
+    const value = rows?.[0]?.["user_payment.gross_amount"];
+    return { "user_payment.gross_amount": Number(value ?? 0) };
+  }
 }
