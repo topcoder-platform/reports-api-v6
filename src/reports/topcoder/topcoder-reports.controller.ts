@@ -19,6 +19,24 @@ export class TopcoderReportsController {
     return this.reports.getTotalCopilots();
   }
 
+  @Get("/weekly-active-copilots")
+  @ApiOperation({
+    summary:
+      "Weekly challenge and copilot counts by track for the last six months",
+  })
+  getWeeklyActiveCopilots() {
+    return this.reports.getWeeklyActiveCopilots();
+  }
+
+  @Get("/weekly-member-participation")
+  @ApiOperation({
+    summary:
+      "Weekly distinct registrants and submitters for the last five weeks",
+  })
+  getWeeklyMemberParticipation() {
+    return this.reports.getWeeklyMemberParticipation();
+  }
+
   @Get("/90-day-member-spend")
   @ApiOperation({
     summary: "Total gross amount paid to members in the last 90 days",
@@ -66,6 +84,15 @@ export class TopcoderReportsController {
   })
   get90DayChallengeVolume() {
     return this.reports.get90DayChallengeVolume();
+  }
+
+  @Get("/90-day-challenge-duration")
+  @ApiOperation({
+    summary:
+      "Total duration and count of completed challenges in the last 90 days",
+  })
+  get90DayChallengeDuration() {
+    return this.reports.get90DayChallengeDuration();
   }
 
   @Get("/90-day-challenge-registrants")
@@ -120,5 +147,40 @@ export class TopcoderReportsController {
   })
   get90DayFulfillmentWithTasks() {
     return this.reports.get90DayFulfillmentWithTasks();
+  }
+
+  @Get("/weekly-challenge-fulfillment")
+  @ApiOperation({
+    summary:
+      "Weekly share of challenges completed versus cancelled for the last four weeks",
+  })
+  getWeeklyChallengeFulfillment() {
+    return this.reports.getWeeklyChallengeFulfillment();
+  }
+
+  @Get("/weekly-challenge-volume")
+  @ApiOperation({
+    summary: "Weekly challenge counts by task indicator for the last four weeks",
+  })
+  getWeeklyChallengeVolume() {
+    return this.reports.getWeeklyChallengeVolume();
+  }
+
+  @Get("/90-day-membership-participation-funnel")
+  @ApiOperation({
+    summary:
+      "New member counts with design and development participation indicators for the last 90 days",
+  })
+  get90DayMembershipParticipationFunnel() {
+    return this.reports.get90DayMembershipParticipationFunnel();
+  }
+
+  @Get("/membership-participation-funnel-data")
+  @ApiOperation({
+    summary:
+      "Weekly new member counts with design and development participation indicators for the last four weeks",
+  })
+  getMembershipParticipationFunnelData() {
+    return this.reports.getMembershipParticipationFunnelData();
   }
 }
