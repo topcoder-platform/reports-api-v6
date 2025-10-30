@@ -17,5 +17,5 @@ LEFT JOIN lookups."Country" AS comp_code
 LEFT JOIN lookups."Country" AS comp_id
   ON UPPER(comp_id.id) = UPPER(mem."competitionCountryCode")
 WHERE rr.name = 'Submitter'
-  AND res."challengeId" = 'e12ee862-474a-4e40-9d2d-2699ae1dfc2a'
+  AND res."challengeId" = $1::text
 ORDER BY res."memberHandle";
