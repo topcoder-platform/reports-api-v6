@@ -1,6 +1,8 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller, Get, Query, Res } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Response } from "express";
 import { TopcoderReportsService } from "./topcoder-reports.service";
+import { RegistrantCountriesQueryDto } from "./dto/registrant-countries.dto";
 
 @ApiTags("Topcoder Reports")
 @Controller("/topcoder")
@@ -11,6 +13,25 @@ export class TopcoderReportsController {
   @ApiOperation({ summary: "Total number of active members" })
   getMemberCount() {
     return this.reports.getMemberCount();
+  }
+
+  @Get("/registrant-countries")
+  @ApiOperation({
+    summary: "Countries of all registrants for the specified challenge",
+  })
+  async getRegistrantCountries(
+    @Query() query: RegistrantCountriesQueryDto,
+    @Res() res: Response,
+  ) {
+    const { challengeId } = query;
+    const csv = await this.reports.getRegistrantCountriesCsv(challengeId);
+    const filename =
+      challengeId.length > 0
+        ? `registrant-countries-${challengeId}.csv`
+        : "registrant-countries.csv";
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(csv);
   }
 
   @Get("/total-copilots")
