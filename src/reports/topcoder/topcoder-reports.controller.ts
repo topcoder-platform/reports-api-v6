@@ -1,10 +1,13 @@
-import { Controller, Get, Query, Res } from "@nestjs/common";
-import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Controller, Get, Query, Res, UseGuards } from "@nestjs/common";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Response } from "express";
 import { TopcoderReportsService } from "./topcoder-reports.service";
 import { RegistrantCountriesQueryDto } from "./dto/registrant-countries.dto";
+import { TopcoderReportsGuard } from "../../auth/guards/topcoder-reports.guard";
 
 @ApiTags("Topcoder Reports")
+@ApiBearerAuth()
+@UseGuards(TopcoderReportsGuard)
 @Controller("/topcoder")
 export class TopcoderReportsController {
   constructor(private readonly reports: TopcoderReportsService) {}
