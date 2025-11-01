@@ -1,8 +1,13 @@
-import { Controller, Get } from "@nestjs/common";
-import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Controller, Get, Query, Res, UseGuards } from "@nestjs/common";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Response } from "express";
 import { TopcoderReportsService } from "./topcoder-reports.service";
+import { RegistrantCountriesQueryDto } from "./dto/registrant-countries.dto";
+import { TopcoderReportsGuard } from "../../auth/guards/topcoder-reports.guard";
 
 @ApiTags("Topcoder Reports")
+@ApiBearerAuth()
+@UseGuards(TopcoderReportsGuard)
 @Controller("/topcoder")
 export class TopcoderReportsController {
   constructor(private readonly reports: TopcoderReportsService) {}
@@ -11,6 +16,25 @@ export class TopcoderReportsController {
   @ApiOperation({ summary: "Total number of active members" })
   getMemberCount() {
     return this.reports.getMemberCount();
+  }
+
+  @Get("/registrant-countries")
+  @ApiOperation({
+    summary: "Countries of all registrants for the specified challenge",
+  })
+  async getRegistrantCountries(
+    @Query() query: RegistrantCountriesQueryDto,
+    @Res() res: Response,
+  ) {
+    const { challengeId } = query;
+    const csv = await this.reports.getRegistrantCountriesCsv(challengeId);
+    const filename =
+      challengeId.length > 0
+        ? `registrant-countries-${challengeId}.csv`
+        : "registrant-countries.csv";
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(csv);
   }
 
   @Get("/total-copilots")

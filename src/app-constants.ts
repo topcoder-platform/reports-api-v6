@@ -4,6 +4,7 @@ export const Scopes = {
   TopgearChallenge: "reports:topgear-challenge",
   TopgearCancelledChallenge: "reports:topgear-cancelled-challenge",
   AllReports: "reports:all",
+  TopcoderReports: "reports:topcoder",
   TopgearChallengeTechnology: "reports:topgear-challenge-technology",
   TopgearChallengeStatsByUser: "reports:topgear-challenge-stats-by-user",
   TopgearChallengeRegistrantDetails:
@@ -17,4 +18,8 @@ export const Scopes = {
     Registrants: "reports:challenge-registrants",
     SubmissionLinks: "reports:challenge-submission-links",
   },
+};
+
+export const UserRoles = {
+  Admin: "Administrator",
 };

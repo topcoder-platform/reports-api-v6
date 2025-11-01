@@ -2,6 +2,13 @@ import { Injectable } from "@nestjs/common";
 import { DbService } from "../../db/db.service";
 import { SqlLoaderService } from "../../common/sql-loader.service";
 
+type RegistrantCountriesRow = {
+  handle: string | null;
+  email: string | null;
+  home_country: string | null;
+  competition_country: string | null;
+};
+
 @Injectable()
 export class TopcoderReportsService {
   constructor(
@@ -386,5 +393,50 @@ export class TopcoderReportsService {
         row["challenge_stats.count_distinct_submitter"] ?? 0,
       ),
     }));
+  }
+
+  async getRegistrantCountriesCsv(challengeId: string) {
+    const query = this.sql.load("reports/topcoder/registrant-countries.sql");
+    const rows = await this.db.query<RegistrantCountriesRow>(query, [
+      challengeId,
+    ]);
+    return this.rowsToCsv(rows);
+  }
+
+  private rowsToCsv(rows: RegistrantCountriesRow[]) {
+    const header = [
+      "Handle",
+      "Email",
+      "Home country",
+      "Competition country",
+    ];
+
+    const lines = [
+      header.map((value) => this.toCsvCell(value)).join(","),
+      ...rows.map((row) =>
+        [
+          row.handle,
+          row.email,
+          row.home_country,
+          row.competition_country,
+        ]
+          .map((value) => this.toCsvCell(value))
+          .join(","),
+      ),
+    ];
+
+    return lines.join("\n");
+  }
+
+  private toCsvCell(value: string | null | undefined) {
+    if (value === null || value === undefined) {
+      return "";
+    }
+    const text = String(value);
+    if (!/[",\r\n]/.test(text)) {
+      return text;
+    }
+    const escaped = text.replace(/"/g, '""');
+    return `"${escaped}"`;
   }
 }
