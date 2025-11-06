@@ -103,7 +103,7 @@ SELECT
   ct.name                                          AS challenge_type,
   bc."registrationEndDate"                         AS registration_end_date,
   bc."submissionEndDate"                           AS submission_end_date,
-  bc."endDate"                                     AS completed_date,
+  pd.latest_actual_end_date                        AS completed_date,
   mt.onsite_efforts                                AS onsite_efforts,
   mt.offsite_efforts                               AS offsite_efforts,
   COALESCE(rv.num_reviews, 0)                      AS num_reviews,
@@ -133,13 +133,13 @@ SELECT
   bc."createdBy"                                   AS creator,
   bc."createdAt"                                   AS creation_date,
   CASE
-    WHEN bc.status = 'COMPLETED' AND bc."endDate" IS NOT NULL
-      THEN to_char(bc."endDate", 'Mon-YY')
+    WHEN bc.status = 'COMPLETED' AND pd.latest_actual_end_date IS NOT NULL
+      THEN to_char(pd.latest_actual_end_date, 'Mon-YY')
     ELSE NULL
   END                                              AS completed_month,
   CASE
-    WHEN bc.status = 'COMPLETED' AND bc."endDate" IS NOT NULL
-      THEN to_char(bc."endDate", 'DD-Mon-YYYY HH24:MI:SS')
+    WHEN bc.status = 'COMPLETED' AND pd.latest_actual_end_date IS NOT NULL
+      THEN to_char(pd.latest_actual_end_date, 'DD-Mon-YYYY HH24:MI:SS')
     ELSE NULL
   END                                              AS completed_date_formatted,
   bc."registrationStartDate"                       AS registration_start_date,
@@ -196,6 +196,12 @@ LEFT JOIN tag_list tl
   ON tl.challenge_id = bc.id
 LEFT JOIN group_list gl
   ON gl.challenge_id = bc.id
+LEFT JOIN LATERAL (
+  SELECT
+    MAX(cp."actualEndDate") AS latest_actual_end_date
+  FROM challenges."ChallengePhase" cp
+  WHERE cp."challengeId" = bc.id
+) pd ON TRUE
 LEFT JOIN LATERAL (
   SELECT
     COUNT(*)::int AS num_submissions,
