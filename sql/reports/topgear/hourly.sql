@@ -1,19 +1,17 @@
-WITH bill AS (
-  SELECT
-    cb."challengeId" AS challenge_id,
-    MAX(cb."billingAccountId") FILTER (WHERE cb."billingAccountId" IS NOT NULL) AS billing_account_id
-  FROM challenges."ChallengeBilling" cb
-  WHERE cb."billingAccountId" = '80000062'
-  GROUP BY cb."challengeId"
-),
-base_challenges AS (
+WITH base_challenges AS (
   SELECT
     c.*,
-    b.billing_account_id
+    ba.billing_account_id
   FROM challenges."Challenge" c
-  JOIN bill b
-    ON b.challenge_id = c.id
+  JOIN LATERAL (
+    SELECT
+      MAX(cb."billingAccountId") AS billing_account_id
+    FROM challenges."ChallengeBilling" cb
+    WHERE cb."challengeId" = c.id
+      AND cb."billingAccountId" = '80000062'
+  ) ba ON TRUE
   WHERE c."createdAt" >= now() - interval '4 months'
+    AND ba.billing_account_id IS NOT NULL
 ),
 project_details AS (
   SELECT
