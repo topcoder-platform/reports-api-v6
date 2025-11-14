@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { DbService } from "../../db/db.service";
 import { SqlLoaderService } from "../../common/sql-loader.service";
 
@@ -7,6 +7,22 @@ type RegistrantCountriesRow = {
   email: string | null;
   home_country: string | null;
   competition_country: string | null;
+};
+
+type MarathonMatchStatsRow = {
+  handle: string;
+  first_name: string | null;
+  last_name: string | null;
+  competition_country: string | null;
+  member_since: Date | string | null;
+  marathon_match_rating: string | number | null;
+  marathon_match_rank: string | number | null;
+  highest_track_rating: string | number | null;
+  marathon_matches_registered: string | number | null;
+  marathon_match_wins: string | number | null;
+  marathon_match_top_five_finishes: string | number | null;
+  average_marathon_match_placement: string | number | null;
+  marathon_submission_rate: string | number | null;
 };
 
 @Injectable()
@@ -403,6 +419,42 @@ export class TopcoderReportsService {
     return this.rowsToCsv(rows);
   }
 
+  async getMarathonMatchStats(handle: string) {
+    const query = this.sql.load("reports/topcoder/mm-stats.sql");
+    const rows = await this.db.query<MarathonMatchStatsRow>(query, [handle]);
+    const row = rows?.[0];
+
+    if (!row) {
+      throw new NotFoundException(
+        `No member marathon stats found for handle: ${handle}`,
+      );
+    }
+
+    return {
+      handle: row.handle,
+      firstName: row.first_name ?? null,
+      lastName: row.last_name ?? null,
+      competitionCountry: row.competition_country ?? null,
+      memberSince: this.normalizeDate(row.member_since),
+      marathonMatchRating: this.toNullableNumber(row.marathon_match_rating),
+      marathonMatchRank: this.toNullableNumber(row.marathon_match_rank),
+      highestTrackRating: this.toNullableNumber(row.highest_track_rating),
+      marathonMatchesRegistered: this.toNullableNumber(
+        row.marathon_matches_registered,
+      ),
+      marathonMatchWins: this.toNullableNumber(row.marathon_match_wins),
+      marathonMatchTopFiveFinishes: this.toNullableNumber(
+        row.marathon_match_top_five_finishes,
+      ),
+      averageMarathonMatchPlacement: this.toNullableNumber(
+        row.average_marathon_match_placement,
+      ),
+      marathonSubmissionRate: this.toNullableNumber(
+        row.marathon_submission_rate,
+      ),
+    };
+  }
+
   private rowsToCsv(rows: RegistrantCountriesRow[]) {
     const header = [
       "Handle",
@@ -438,5 +490,22 @@ export class TopcoderReportsService {
     }
     const escaped = text.replace(/"/g, '""');
     return `"${escaped}"`;
+  }
+
+  private toNullableNumber(value: string | number | null | undefined) {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    return Number(value);
+  }
+
+  private normalizeDate(value: Date | string | null | undefined) {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    return value;
   }
 }

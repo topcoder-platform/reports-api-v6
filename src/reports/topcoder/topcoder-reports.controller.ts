@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Res, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, Query, Res, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Response } from "express";
 import { TopcoderReportsService } from "./topcoder-reports.service";
@@ -35,6 +35,14 @@ export class TopcoderReportsController {
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.send(csv);
+  }
+
+  @Get("/mm-stats/:handle")
+  @ApiOperation({
+    summary: "Marathon match performance snapshot for a specific handle",
+  })
+  getMarathonMatchStats(@Param("handle") handle: string) {
+    return this.reports.getMarathonMatchStats(handle);
   }
 
   @Get("/total-copilots")
