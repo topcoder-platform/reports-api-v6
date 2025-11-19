@@ -25,6 +25,23 @@ type MarathonMatchStatsRow = {
   marathon_submission_rate: string | number | null;
 };
 
+type ThirtyDayPaymentRow = {
+  customer: string | null;
+  project_id: string | null;
+  project_name: string | null;
+  billing_account_id: string | null;
+  billing_account_name: string | null;
+  challenge_id: string | null;
+  challenge_name: string | null;
+  challenge_created_at: Date | string | null;
+  member_id: string | null;
+  member_handle: string | null;
+  payment_type: string | null;
+  member_payment: string | number | null;
+  fee: string | number | null;
+  payment_date: Date | string | null;
+};
+
 @Injectable()
 export class TopcoderReportsService {
   constructor(
@@ -408,6 +425,27 @@ export class TopcoderReportsService {
       "challenge_stats.count_distinct_submitter": Number(
         row["challenge_stats.count_distinct_submitter"] ?? 0,
       ),
+    }));
+  }
+
+  async get30DayPayments() {
+    const query = this.sql.load("reports/topcoder/30-day-payments.sql");
+    const rows = await this.db.query<ThirtyDayPaymentRow>(query);
+    return rows.map((row) => ({
+      customer: row.customer ?? null,
+      projectId: row.project_id ?? null,
+      projectName: row.project_name ?? null,
+      billingAccountId: row.billing_account_id ?? null,
+      billingAccountName: row.billing_account_name ?? null,
+      challengeId: row.challenge_id ?? null,
+      challengeName: row.challenge_name ?? null,
+      challengeCreatedAt: this.normalizeDate(row.challenge_created_at),
+      memberId: row.member_id ?? null,
+      memberHandle: row.member_handle ?? null,
+      paymentType: row.payment_type ?? null,
+      memberPayment: this.toNullableNumber(row.member_payment),
+      fee: this.toNullableNumber(row.fee),
+      paymentDate: this.normalizeDate(row.payment_date),
     }));
   }
 

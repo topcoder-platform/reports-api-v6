@@ -69,6 +69,14 @@ export class TopcoderReportsController {
     return this.reports.getWeeklyMemberParticipation();
   }
 
+  @Get("/30-day-payments")
+  @ApiOperation({
+    summary: "Member payments for the last 30 days",
+  })
+  get30DayPayments() {
+    return this.reports.get30DayPayments();
+  }
+
   @Get("/90-day-member-spend")
   @ApiOperation({
     summary: "Total gross amount paid to members in the last 90 days",
