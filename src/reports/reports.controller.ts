@@ -9,7 +9,7 @@ import {
 } from "./report-directory.data";
 
 @ApiTags("Reports")
-@Controller("/reports")
+@Controller()
 export class ReportsController {
   @Get()
   @UseGuards(PermissionsGuard)
