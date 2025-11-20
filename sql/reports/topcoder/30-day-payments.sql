@@ -35,6 +35,7 @@ recent_payments AS (
 )
 SELECT
   cl."name" AS customer,
+  cl."codeName" AS client_codename,
   COALESCE(c."projectId"::text, ba."projectId") AS project_id,
   proj.name AS project_name,
   ba.id::text AS billing_account_id,
@@ -54,7 +55,8 @@ SELECT
     rp.challenge_fee,
     COALESCE(rp.gross_amount, rp.total_amount) * (rp.challenge_markup / 100.0)
   ) AS fee,
-  COALESCE(rp.date_paid, rp.payment_created_at) AS payment_date
+  rp.payment_created_at AS payment_created_at,
+  rp.date_paid AS paid_date
 FROM recent_payments rp
 LEFT JOIN challenges."Challenge" c
   ON c."id" = rp.challenge_id
@@ -71,4 +73,4 @@ LEFT JOIN projects.projects proj
   ON proj.id = c."projectId"::bigint
 LEFT JOIN members.member mem
   ON mem."userId"::text = rp.winner_id
-ORDER BY payment_date DESC, rp.payment_created_at DESC;
+ORDER BY payment_created_at DESC;

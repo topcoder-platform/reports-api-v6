@@ -27,6 +27,7 @@ type MarathonMatchStatsRow = {
 
 type ThirtyDayPaymentRow = {
   customer: string | null;
+  client_codename: string | null;
   project_id: string | null;
   project_name: string | null;
   billing_account_id: string | null;
@@ -433,6 +434,7 @@ export class TopcoderReportsService {
     const rows = await this.db.query<ThirtyDayPaymentRow>(query);
     return rows.map((row) => ({
       customer: row.customer ?? null,
+      clientCodeName: row.client_codename ?? null,
       projectId: row.project_id ?? null,
       projectName: row.project_name ?? null,
       billingAccountId: row.billing_account_id ?? null,
@@ -449,12 +451,17 @@ export class TopcoderReportsService {
     }));
   }
 
-  async getRegistrantCountriesCsv(challengeId: string) {
+  async getRegistrantCountries(challengeId: string) {
     const query = this.sql.load("reports/topcoder/registrant-countries.sql");
     const rows = await this.db.query<RegistrantCountriesRow>(query, [
       challengeId,
     ]);
-    return this.rowsToCsv(rows);
+    return rows.map((row) => ({
+      handle: row.handle ?? null,
+      email: row.email ?? null,
+      homeCountry: row.home_country ?? null,
+      competitionCountry: row.competition_country ?? null,
+    }));
   }
 
   async getMarathonMatchStats(handle: string) {
@@ -491,43 +498,6 @@ export class TopcoderReportsService {
         row.marathon_submission_rate,
       ),
     };
-  }
-
-  private rowsToCsv(rows: RegistrantCountriesRow[]) {
-    const header = [
-      "Handle",
-      "Email",
-      "Home country",
-      "Competition country",
-    ];
-
-    const lines = [
-      header.map((value) => this.toCsvCell(value)).join(","),
-      ...rows.map((row) =>
-        [
-          row.handle,
-          row.email,
-          row.home_country,
-          row.competition_country,
-        ]
-          .map((value) => this.toCsvCell(value))
-          .join(","),
-      ),
-    ];
-
-    return lines.join("\n");
-  }
-
-  private toCsvCell(value: string | null | undefined) {
-    if (value === null || value === undefined) {
-      return "";
-    }
-    const text = String(value);
-    if (!/[",\r\n]/.test(text)) {
-      return text;
-    }
-    const escaped = text.replace(/"/g, '""');
-    return `"${escaped}"`;
   }
 
   private toNullableNumber(value: string | number | null | undefined) {
