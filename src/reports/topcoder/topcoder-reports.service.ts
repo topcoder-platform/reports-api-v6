@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { DbService } from "../../db/db.service";
 import { SqlLoaderService } from "../../common/sql-loader.service";
 
@@ -7,6 +7,40 @@ type RegistrantCountriesRow = {
   email: string | null;
   home_country: string | null;
   competition_country: string | null;
+};
+
+type MarathonMatchStatsRow = {
+  handle: string;
+  first_name: string | null;
+  last_name: string | null;
+  competition_country: string | null;
+  member_since: Date | string | null;
+  marathon_match_rating: string | number | null;
+  marathon_match_rank: string | number | null;
+  highest_track_rating: string | number | null;
+  marathon_matches_registered: string | number | null;
+  marathon_match_wins: string | number | null;
+  marathon_match_top_five_finishes: string | number | null;
+  average_marathon_match_placement: string | number | null;
+  marathon_submission_rate: string | number | null;
+};
+
+type ThirtyDayPaymentRow = {
+  customer: string | null;
+  client_codename: string | null;
+  project_id: string | null;
+  project_name: string | null;
+  billing_account_id: string | null;
+  billing_account_name: string | null;
+  challenge_id: string | null;
+  challenge_name: string | null;
+  challenge_created_at: Date | string | null;
+  member_id: string | null;
+  member_handle: string | null;
+  payment_type: string | null;
+  member_payment: string | number | null;
+  fee: string | number | null;
+  payment_date: Date | string | null;
 };
 
 @Injectable()
@@ -395,48 +429,91 @@ export class TopcoderReportsService {
     }));
   }
 
-  async getRegistrantCountriesCsv(challengeId: string) {
+  async get30DayPayments() {
+    const query = this.sql.load("reports/topcoder/30-day-payments.sql");
+    const rows = await this.db.query<ThirtyDayPaymentRow>(query);
+    return rows.map((row) => ({
+      customer: row.customer ?? null,
+      clientCodeName: row.client_codename ?? null,
+      projectId: row.project_id ?? null,
+      projectName: row.project_name ?? null,
+      billingAccountId: row.billing_account_id ?? null,
+      billingAccountName: row.billing_account_name ?? null,
+      challengeId: row.challenge_id ?? null,
+      challengeName: row.challenge_name ?? null,
+      challengeCreatedAt: this.normalizeDate(row.challenge_created_at),
+      memberId: row.member_id ?? null,
+      memberHandle: row.member_handle ?? null,
+      paymentType: row.payment_type ?? null,
+      memberPayment: this.toNullableNumber(row.member_payment),
+      fee: this.toNullableNumber(row.fee),
+      paymentDate: this.normalizeDate(row.payment_date),
+    }));
+  }
+
+  async getRegistrantCountries(challengeId: string) {
     const query = this.sql.load("reports/topcoder/registrant-countries.sql");
     const rows = await this.db.query<RegistrantCountriesRow>(query, [
       challengeId,
     ]);
-    return this.rowsToCsv(rows);
+    return rows.map((row) => ({
+      handle: row.handle ?? null,
+      email: row.email ?? null,
+      homeCountry: row.home_country ?? null,
+      competitionCountry: row.competition_country ?? null,
+    }));
   }
 
-  private rowsToCsv(rows: RegistrantCountriesRow[]) {
-    const header = [
-      "Handle",
-      "Email",
-      "Home country",
-      "Competition country",
-    ];
+  async getMarathonMatchStats(handle: string) {
+    const query = this.sql.load("reports/topcoder/mm-stats.sql");
+    const rows = await this.db.query<MarathonMatchStatsRow>(query, [handle]);
+    const row = rows?.[0];
 
-    const lines = [
-      header.map((value) => this.toCsvCell(value)).join(","),
-      ...rows.map((row) =>
-        [
-          row.handle,
-          row.email,
-          row.home_country,
-          row.competition_country,
-        ]
-          .map((value) => this.toCsvCell(value))
-          .join(","),
+    if (!row) {
+      throw new NotFoundException(
+        `No member marathon stats found for handle: ${handle}`,
+      );
+    }
+
+    return {
+      handle: row.handle,
+      firstName: row.first_name ?? null,
+      lastName: row.last_name ?? null,
+      competitionCountry: row.competition_country ?? null,
+      memberSince: this.normalizeDate(row.member_since),
+      marathonMatchRating: this.toNullableNumber(row.marathon_match_rating),
+      marathonMatchRank: this.toNullableNumber(row.marathon_match_rank),
+      highestTrackRating: this.toNullableNumber(row.highest_track_rating),
+      marathonMatchesRegistered: this.toNullableNumber(
+        row.marathon_matches_registered,
       ),
-    ];
-
-    return lines.join("\n");
+      marathonMatchWins: this.toNullableNumber(row.marathon_match_wins),
+      marathonMatchTopFiveFinishes: this.toNullableNumber(
+        row.marathon_match_top_five_finishes,
+      ),
+      averageMarathonMatchPlacement: this.toNullableNumber(
+        row.average_marathon_match_placement,
+      ),
+      marathonSubmissionRate: this.toNullableNumber(
+        row.marathon_submission_rate,
+      ),
+    };
   }
 
-  private toCsvCell(value: string | null | undefined) {
+  private toNullableNumber(value: string | number | null | undefined) {
     if (value === null || value === undefined) {
-      return "";
+      return null;
     }
-    const text = String(value);
-    if (!/[",\r\n]/.test(text)) {
-      return text;
+    return Number(value);
+  }
+
+  private normalizeDate(value: Date | string | null | undefined) {
+    if (value === null || value === undefined) {
+      return null;
     }
-    const escaped = text.replace(/"/g, '""');
-    return `"${escaped}"`;
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    return value;
   }
 }

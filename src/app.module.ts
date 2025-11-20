@@ -9,6 +9,7 @@ import { TopcoderReportsModule } from "./reports/topcoder/topcoder-reports.modul
 import { StatisticsModule } from "./statistics/statistics.module";
 import { SfdcReportsModule } from "./reports/sfdc/sfdc-reports.module";
 import { ChallengesReportsModule } from "./reports/challenges/challenges-reports.module";
+import { ReportsModule } from "./reports/reports.module";
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ChallengesReportsModule } from "./reports/challenges/challenges-reports
     StatisticsModule,
     SfdcReportsModule,
     ChallengesReportsModule,
+    ReportsModule,
     HealthModule,
   ],
 })
