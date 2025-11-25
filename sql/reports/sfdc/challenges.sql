@@ -24,7 +24,7 @@ WHERE
     AND ($2::text[] IS NULL OR p.billing_account <> ANY($2::text[]))
     AND ($3::text[] IS NULL OR c.id = ANY($3::text[]))
     AND ($4::text IS NULL OR c.name ILIKE '%' || $4 || '%')
-    AND ($5::text[] IS NULL OR c.status = ANY($5::text[]))
+    AND ($5::text[] IS NULL OR c.status::text = ANY($5::text[]))
     AND ($6::timestamptz IS NULL OR c."endDate" >= $6::timestamptz)
     AND ($7::timestamptz IS NULL OR c."endDate" <= $7::timestamptz)
     AND ($8::boolean IS NULL OR c."taskIsTask" = $8::boolean)
