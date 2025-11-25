@@ -4,11 +4,12 @@ SELECT
     p.billing_account as "billingAccountId",
     p.payment_status as "paymentStatus",
     p.challenge_fee as "challengeFee",
-    p.total_amount as "paymentAmount",
+    p.total_amount as "paymentAmount", -- Looker cost_transaction.member_payments
     w.external_id as "challengeId",
     w.category,
     (w.category = 'TASK_PAYMENT') AS "isTask",
     c.name AS "challengeName",
+    c.status AS "challengeStatus",
     m.handle AS "winnerHandle",
     m."userId" as "winnerId",
     m."firstName" as "winnerFirstName",
@@ -38,5 +39,6 @@ WHERE
     AND ($7::timestamptz IS NULL OR p.created_at <= $7::timestamptz)
     AND ($8::numeric IS NULL OR p.total_amount >= $8::numeric)
     AND ($9::numeric IS NULL OR p.total_amount <= $9::numeric)
+    AND ($10::text[] IS NULL OR c.status = ANY($10::text[]))
 ORDER BY p.created_at DESC
 LIMIT 1000;

@@ -1,5 +1,6 @@
 WITH filtered_payments AS (
   SELECT
+    p.id,
     p.billing_account,
     p.challenge_fee,
     p.total_amount,
@@ -33,10 +34,17 @@ latest_status AS (
 )
 SELECT
   fp.billing_account AS "billingAccountId",
+  TO_CHAR(DATE_TRUNC('month', fp.created_at), 'YYYY-MM') AS "month",
   COALESCE(SUM(fp.challenge_fee), 0) AS "totalFees",
   COALESCE(SUM(fp.total_amount), 0) AS "totalMemberPayments",
+  COUNT(fp.id) AS "paymentCount",
+  MIN(fp.created_at)::date AS "earliestPaymentDate",
+  MAX(fp.created_at)::date AS "latestPaymentDate",
   ls.payment_status_desc AS "currentPaymentStatus"
 FROM filtered_payments fp
 LEFT JOIN latest_status ls ON ls.billing_account = fp.billing_account
-GROUP BY fp.billing_account, ls.payment_status_desc
-ORDER BY fp.billing_account;
+GROUP BY
+  fp.billing_account,
+  DATE_TRUNC('month', fp.created_at),
+  ls.payment_status_desc
+ORDER BY fp.billing_account, "month" DESC;
