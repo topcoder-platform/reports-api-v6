@@ -78,9 +78,9 @@ describe("SfdcReportsController", () => {
       mockChallengeQueryDto.billingAccount,
     );
 
-    expect(
-      mockSfdcReportsService.getChallengesReport,
-    ).toHaveBeenCalledWith(mockChallengeQueryDto.billingAccount);
+    expect(mockSfdcReportsService.getChallengesReport).toHaveBeenCalledWith(
+      mockChallengeQueryDto.billingAccount,
+    );
     expect(result).toEqual(mockChallengeData);
   });
 

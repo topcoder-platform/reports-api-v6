@@ -175,7 +175,9 @@ export class SfdcReportsService {
       ],
     );
 
-    this.logger.debug("Mapped TaaS resource bookings to the final report format");
+    this.logger.debug(
+      "Mapped TaaS resource bookings to the final report format",
+    );
 
     return report;
   }
@@ -196,7 +198,9 @@ export class SfdcReportsService {
       [handleLower],
     );
 
-    this.logger.debug("Mapped TaaS member verification to the final report format");
+    this.logger.debug(
+      "Mapped TaaS member verification to the final report format",
+    );
 
     return report;
   }
@@ -226,7 +230,9 @@ export class SfdcReportsService {
       ],
     );
 
-    this.logger.debug("Mapped Western Union payments to the final report format");
+    this.logger.debug(
+      "Mapped Western Union payments to the final report format",
+    );
 
     return report;
   }
@@ -234,10 +240,8 @@ export class SfdcReportsService {
   async getBaFeesReport(filters: BaFeesReportQueryDto) {
     this.logger.debug("Starting getBaFeesReport with filters:", filters);
 
-    const {
-      include: billingAccountIds,
-      exclude: excludeBillingAccountIds,
-    } = multiValueArrayFilter(filters.billingAccountIds);
+    const { include: billingAccountIds, exclude: excludeBillingAccountIds } =
+      multiValueArrayFilter(filters.billingAccountIds);
 
     const query = this.sql.load(
       filters.groupBy === "month"

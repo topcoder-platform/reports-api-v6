@@ -23,10 +23,17 @@ const transformToNumber = ({ value }: { value: unknown }) => {
     return undefined;
   }
 
-  const parsed =
-    typeof value === "number" ? value : parseFloat(String(value));
+  if (typeof value === "number") {
+    return value;
+  }
 
-  return Number.isNaN(parsed) ? value : parsed;
+  if (typeof value === "string") {
+    const parsed = parseFloat(value);
+
+    return Number.isNaN(parsed) ? value : parsed;
+  }
+
+  return value;
 };
 
 export class ChallengesReportQueryDto {
@@ -162,7 +169,7 @@ export class ChallengesReportResponse {
   billingAccountId: string;
   @ApiProperty({
     description:
-      "Challenge status pulled from challenges.\"Challenge\".status (ChallengeStatusEnum code, not Looker status_desc)",
+      'Challenge status pulled from challenges."Challenge".status (ChallengeStatusEnum code, not Looker status_desc)',
   })
   challengeStatus: string;
   @ApiProperty({
@@ -283,7 +290,9 @@ export class PaymentsReportResponse {
   billingAccountId: string;
   challengeName: string;
   challengeId: string;
-  @ApiProperty({ description: "Winnings category from finance.winnings.category" })
+  @ApiProperty({
+    description: "Winnings category from finance.winnings.category",
+  })
   category: string;
   paymentDate: string;
   paymentId: string;
@@ -295,10 +304,11 @@ export class PaymentsReportResponse {
   isTask: boolean;
   challengeFee: number;
   paymentAmount: number;
-  @ApiProperty({ description: "Challenge status from challenges.Challenge.status" })
+  @ApiProperty({
+    description: "Challenge status from challenges.Challenge.status",
+  })
   challengeStatus: string;
 }
-
 
 export class TaasJobsReportQueryDto {
   @ApiProperty({
@@ -402,7 +412,9 @@ export class TaasJobsReportResponse {
   jobId: string;
   @ApiProperty({ description: "Project ID from taas.jobs.project_id" })
   projectId: number;
-  @ApiProperty({ description: "External identifier from taas.jobs.external_id" })
+  @ApiProperty({
+    description: "External identifier from taas.jobs.external_id",
+  })
   externalId: string;
   @ApiProperty({ description: "Job title from taas.jobs.title" })
   title: string;
@@ -416,7 +428,9 @@ export class TaasJobsReportResponse {
   rateType: string;
   @ApiProperty({ description: "Skills JSONB payload from taas.jobs.skills" })
   skills: any;
-  @ApiProperty({ description: "Number of positions from taas.jobs.num_positions" })
+  @ApiProperty({
+    description: "Number of positions from taas.jobs.num_positions",
+  })
   numPositions: number;
   @ApiProperty({ description: "Start date from taas.jobs.start_date" })
   startDate: string;
@@ -432,16 +446,21 @@ export class TaasJobsReportResponse {
   hoursPerWeek: number;
   @ApiProperty({ description: "Currency code from taas.jobs.currency" })
   currency: string;
-  @ApiProperty({ description: "Record creation timestamp from taas.jobs.created_at" })
+  @ApiProperty({
+    description: "Record creation timestamp from taas.jobs.created_at",
+  })
   createdAt: string;
-  @ApiProperty({ description: "Record update timestamp from taas.jobs.updated_at" })
+  @ApiProperty({
+    description: "Record update timestamp from taas.jobs.updated_at",
+  })
   updatedAt: string;
 }
 
 export class TaasResourceBookingsReportQueryDto {
   @ApiProperty({
     required: false,
-    description: "Array of resource booking UUIDs from taas.resource_bookings.id",
+    description:
+      "Array of resource booking UUIDs from taas.resource_bookings.id",
     example: ["c2bbf3e6-5d5c-4cf8-8c69-89fcd1d98d52"],
   })
   @IsOptional()
@@ -509,7 +528,8 @@ export class TaasResourceBookingsReportQueryDto {
 
   @ApiProperty({
     required: false,
-    description: "Array of billing account IDs from taas.resource_bookings.billing_account_id",
+    description:
+      "Array of billing account IDs from taas.resource_bookings.billing_account_id",
     example: ["80001012"],
   })
   @IsOptional()
@@ -520,7 +540,8 @@ export class TaasResourceBookingsReportQueryDto {
 
   @ApiProperty({
     required: false,
-    description: "Start date (inclusive) for filtering taas.resource_bookings.start_date",
+    description:
+      "Start date (inclusive) for filtering taas.resource_bookings.start_date",
     example: "2023-01-01",
   })
   @IsOptional()
@@ -529,7 +550,8 @@ export class TaasResourceBookingsReportQueryDto {
 
   @ApiProperty({
     required: false,
-    description: "End date (inclusive) for filtering taas.resource_bookings.end_date",
+    description:
+      "End date (inclusive) for filtering taas.resource_bookings.end_date",
     example: "2023-02-01",
   })
   @IsOptional()
@@ -538,7 +560,8 @@ export class TaasResourceBookingsReportQueryDto {
 
   @ApiProperty({
     required: false,
-    description: "Minimum customer rate from taas.resource_bookings.customer_rate",
+    description:
+      "Minimum customer rate from taas.resource_bookings.customer_rate",
     example: 50,
   })
   @IsOptional()
@@ -548,7 +571,8 @@ export class TaasResourceBookingsReportQueryDto {
 
   @ApiProperty({
     required: false,
-    description: "Maximum customer rate from taas.resource_bookings.customer_rate",
+    description:
+      "Maximum customer rate from taas.resource_bookings.customer_rate",
     example: 150,
   })
   @IsOptional()
@@ -558,11 +582,15 @@ export class TaasResourceBookingsReportQueryDto {
 }
 
 export class TaasResourceBookingsReportResponse {
-  @ApiProperty({ description: "Resource booking UUID from taas.resource_bookings.id" })
+  @ApiProperty({
+    description: "Resource booking UUID from taas.resource_bookings.id",
+  })
   resourceBookingId: string;
   @ApiProperty({ description: "Job UUID from taas.resource_bookings.job_id" })
   jobId: string;
-  @ApiProperty({ description: "Project ID from taas.resource_bookings.project_id" })
+  @ApiProperty({
+    description: "Project ID from taas.resource_bookings.project_id",
+  })
   projectId: number;
   @ApiProperty({ description: "User ID from taas.resource_bookings.user_id" })
   userId: string;
@@ -572,25 +600,42 @@ export class TaasResourceBookingsReportResponse {
   firstName: string;
   @ApiProperty({ description: "Last name from identity.user.last_name" })
   lastName: string;
-  @ApiProperty({ description: "Booking status from taas.resource_bookings.status" })
+  @ApiProperty({
+    description: "Booking status from taas.resource_bookings.status",
+  })
   status: string;
-  @ApiProperty({ description: "Start date from taas.resource_bookings.start_date" })
+  @ApiProperty({
+    description: "Start date from taas.resource_bookings.start_date",
+  })
   startDate: string;
   @ApiProperty({ description: "End date from taas.resource_bookings.end_date" })
   endDate: string;
-  @ApiProperty({ description: "Member rate from taas.resource_bookings.member_rate" })
+  @ApiProperty({
+    description: "Member rate from taas.resource_bookings.member_rate",
+  })
   memberRate: number;
-  @ApiProperty({ description: "Customer rate from taas.resource_bookings.customer_rate" })
+  @ApiProperty({
+    description: "Customer rate from taas.resource_bookings.customer_rate",
+  })
   customerRate: number;
-  @ApiProperty({ description: "Rate type from taas.resource_bookings.rate_type" })
+  @ApiProperty({
+    description: "Rate type from taas.resource_bookings.rate_type",
+  })
   rateType: string;
   @ApiProperty({
-    description: "Billing account ID from taas.resource_bookings.billing_account_id",
+    description:
+      "Billing account ID from taas.resource_bookings.billing_account_id",
   })
   billingAccountId: string;
-  @ApiProperty({ description: "Record creation timestamp from taas.resource_bookings.created_at" })
+  @ApiProperty({
+    description:
+      "Record creation timestamp from taas.resource_bookings.created_at",
+  })
   createdAt: string;
-  @ApiProperty({ description: "Record update timestamp from taas.resource_bookings.updated_at" })
+  @ApiProperty({
+    description:
+      "Record update timestamp from taas.resource_bookings.updated_at",
+  })
   updatedAt: string;
 }
 
@@ -646,7 +691,8 @@ export class WesternUnionPaymentsReportQueryDto {
 
   @ApiProperty({
     required: false,
-    description: "Start date for filtering payment created_at in ISO 8601 format",
+    description:
+      "Start date for filtering payment created_at in ISO 8601 format",
     example: "2023-01-01",
   })
   @IsOptional()
@@ -679,10 +725,13 @@ export class WesternUnionPaymentsReportResponse {
   paymentId: string;
   @ApiProperty({ description: "Member handle from identity.user.handle" })
   handle: string;
-  @ApiProperty({ description: "Gross amount from finance.payment.gross_amount" })
+  @ApiProperty({
+    description: "Gross amount from finance.payment.gross_amount",
+  })
   grossAmount: number;
   @ApiProperty({
-    description: "Reference ID from finance.winnings.external_id (challenge reference)",
+    description:
+      "Reference ID from finance.winnings.external_id (challenge reference)",
   })
   referenceId: string;
   @ApiProperty({
@@ -745,7 +794,8 @@ export class BaFeesReportQueryDto {
 
 export class BaFeesReportResponse {
   @ApiProperty({
-    description: "Billing account identifier returned from finance.payment.billing_account",
+    description:
+      "Billing account identifier returned from finance.payment.billing_account",
     example: "80001012",
   })
   billingAccountId: string;
@@ -780,7 +830,8 @@ export class BaFeesReportResponse {
 
   @ApiProperty({
     required: false,
-    description: "Number of payments contributing to the bucket when groupBy=month",
+    description:
+      "Number of payments contributing to the bucket when groupBy=month",
     example: 42,
   })
   paymentCount?: number;

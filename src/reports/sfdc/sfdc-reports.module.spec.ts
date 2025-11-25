@@ -35,9 +35,9 @@ describe("SfdcReportsModule", () => {
     expect(
       moduleRef.get<SfdcReportsController>(SfdcReportsController),
     ).toBeInstanceOf(SfdcReportsController);
-    expect(moduleRef.get<SfdcReportsService>(SfdcReportsService)).toBeInstanceOf(
-      SfdcReportsService,
-    );
+    expect(
+      moduleRef.get<SfdcReportsService>(SfdcReportsService),
+    ).toBeInstanceOf(SfdcReportsService);
     expect(moduleRef.get<SqlLoaderService>(SqlLoaderService)).toBe(
       mockSqlLoaderService,
     );

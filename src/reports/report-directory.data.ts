@@ -241,7 +241,11 @@ export const REPORTS_DIRECTORY: ReportsDirectory = {
     label: "Statistics",
     basePath: "/statistics",
     reports: [
-      report("SRM Top Rated", "/statistics/srm/top-rated", "Highest rated SRMs (static)"),
+      report(
+        "SRM Top Rated",
+        "/statistics/srm/top-rated",
+        "Highest rated SRMs (static)",
+      ),
       report(
         "SRM Country Ratings",
         "/statistics/srm/country-ratings",

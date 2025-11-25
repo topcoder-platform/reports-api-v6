@@ -108,7 +108,8 @@ export class SfdcReportsController {
   async getTaasResourceBookingsReport(
     @Query() query: TaasResourceBookingsReportQueryDto,
   ) {
-    const report = await this.reportsService.getTaasResourceBookingsReport(query);
+    const report =
+      await this.reportsService.getTaasResourceBookingsReport(query);
     return report;
   }
 
@@ -129,7 +130,8 @@ export class SfdcReportsController {
   async getTaasMemberVerificationReport(
     @Query() query: TaasMemberVerificationReportQueryDto,
   ) {
-    const report = await this.reportsService.getTaasMemberVerificationReport(query);
+    const report =
+      await this.reportsService.getTaasMemberVerificationReport(query);
     return report;
   }
 
@@ -150,9 +152,8 @@ export class SfdcReportsController {
   async getWesternUnionPaymentsReport(
     @Query() query: WesternUnionPaymentsReportQueryDto,
   ) {
-    const report = await this.reportsService.getWesternUnionPaymentsReport(
-      query,
-    );
+    const report =
+      await this.reportsService.getWesternUnionPaymentsReport(query);
     return report;
   }
 

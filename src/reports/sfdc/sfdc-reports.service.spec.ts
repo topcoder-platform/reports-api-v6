@@ -7,9 +7,6 @@ import {
   ChallengesReportQueryDto,
   PaymentsReportQueryDto,
   TaasJobsReportQueryDto,
-  TaasMemberVerificationReportQueryDto,
-  TaasResourceBookingsReportQueryDto,
-  WesternUnionPaymentsReportQueryDto,
 } from "./sfdc-reports.dto";
 import { SfdcReportsService } from "./sfdc-reports.service";
 import {
@@ -777,9 +774,7 @@ describe("SfdcReportsService - getTaasMemberVerificationReport", () => {
       mockTaasMemberVerificationQueryDto.singleHandle,
     );
 
-    expect(mockDbService.query).toHaveBeenCalledWith(mockSqlQuery, [
-      ["user1"],
-    ]);
+    expect(mockDbService.query).toHaveBeenCalledWith(mockSqlQuery, [["user1"]]);
     expect(result).toEqual(mockTaasMemberVerificationData);
   });
 

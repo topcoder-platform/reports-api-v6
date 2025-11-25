@@ -102,14 +102,18 @@ describe("ChallengesReportQueryDto validation", () => {
 
   it("rejects empty billingAccountIds entries", async () => {
     const { errors } = await validateDto({ billingAccountIds: [""] });
-    expect(errors.some((err) => err.property === "billingAccountIds")).toBe(true);
+    expect(errors.some((err) => err.property === "billingAccountIds")).toBe(
+      true,
+    );
   });
 
   it("rejects non-string billingAccountIds entries", async () => {
     const { errors } = await validateDto({
       billingAccountIds: [123 as unknown as string],
     });
-    expect(errors.some((err) => err.property === "billingAccountIds")).toBe(true);
+    expect(errors.some((err) => err.property === "billingAccountIds")).toBe(
+      true,
+    );
   });
 
   it("accepts valid challengeIds", async () => {
@@ -429,7 +433,9 @@ describe("TaasJobsReportQueryDto validation", () => {
   });
 
   it("validates projectIds as numbers", async () => {
-    const { errors } = await validateTaasJobsDto({ projectIds: [12345, 67890] });
+    const { errors } = await validateTaasJobsDto({
+      projectIds: [12345, 67890],
+    });
     expect(errors).toHaveLength(0);
   });
 
@@ -443,7 +449,9 @@ describe("TaasJobsReportQueryDto validation", () => {
   });
 
   it("rejects non-numeric projectIds", async () => {
-    const { errors } = await validateTaasJobsDto({ projectIds: ["abc"] as any });
+    const { errors } = await validateTaasJobsDto({
+      projectIds: ["abc"] as any,
+    });
     expect(errors.some((err) => err.property === "projectIds")).toBe(true);
   });
 
@@ -485,7 +493,9 @@ describe("TaasJobsReportQueryDto validation", () => {
   });
 
   it("validates skills as strings", async () => {
-    const { errors } = await validateTaasJobsDto({ skills: ["React", "Node.js"] });
+    const { errors } = await validateTaasJobsDto({
+      skills: ["React", "Node.js"],
+    });
     expect(errors).toHaveLength(0);
   });
 
@@ -586,9 +596,9 @@ describe("TaasResourceBookingsReportQueryDto validation", () => {
     const { errors } = await validateTaasResourceBookingsDto({
       resourceBookingIds: [""],
     });
-    expect(
-      errors.some((err) => err.property === "resourceBookingIds"),
-    ).toBe(true);
+    expect(errors.some((err) => err.property === "resourceBookingIds")).toBe(
+      true,
+    );
   });
 
   it("validates jobIds as UUID strings", async () => {

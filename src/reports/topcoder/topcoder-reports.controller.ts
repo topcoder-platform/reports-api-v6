@@ -198,7 +198,8 @@ export class TopcoderReportsController {
 
   @Get("/weekly-challenge-volume")
   @ApiOperation({
-    summary: "Weekly challenge counts by task indicator for the last four weeks",
+    summary:
+      "Weekly challenge counts by task indicator for the last four weeks",
   })
   getWeeklyChallengeVolume() {
     return this.reports.getWeeklyChallengeVolume();

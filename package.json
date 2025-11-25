@@ -32,7 +32,7 @@
     "pg": "^8.11.5",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
-    "tc-core-library-js": "github:appirio-tech/tc-core-library-js#v2.6.4"
+    "tc-core-library-js": "github:appirio-tech/tc-core-library-js#security"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
