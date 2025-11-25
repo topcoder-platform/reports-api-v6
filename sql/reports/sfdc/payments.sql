@@ -39,6 +39,6 @@ WHERE
     AND ($7::timestamptz IS NULL OR p.created_at <= $7::timestamptz)
     AND ($8::numeric IS NULL OR p.total_amount >= $8::numeric)
     AND ($9::numeric IS NULL OR p.total_amount <= $9::numeric)
-    AND ($10::text[] IS NULL OR c.status = ANY($10::text[]))
+    AND ($10::text[] IS NULL OR c.status::text = ANY($10::text[]))
 ORDER BY p.created_at DESC
 LIMIT 1000;
