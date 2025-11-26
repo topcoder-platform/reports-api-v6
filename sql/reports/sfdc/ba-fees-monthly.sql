@@ -1,4 +1,4 @@
-filtered_payments AS (
+WITH filtered_payments AS (
   SELECT
     p.payment_id,
     p.billing_account,
@@ -22,8 +22,8 @@ filtered_payments AS (
   WHERE
     ($1::timestamptz IS NULL OR p.created_at >= $1::timestamptz)
     AND ($2::timestamptz IS NULL OR p.created_at <= $2::timestamptz)
-    AND ($3::bigint[] IS NULL OR p.billing_account = ANY($3::bigint[]))
-    AND ($4::bigint[] IS NULL OR p.billing_account != ALL($4::bigint[]))
+    AND ($3::text[] IS NULL OR p.billing_account = ANY($3::text[]))
+    AND ($4::text[] IS NULL OR p.billing_account != ALL($4::text[]))
 ),
 latest_status AS (
   SELECT DISTINCT ON (billing_account)
