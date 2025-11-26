@@ -11,7 +11,12 @@ export const Scopes = {
     "reports:topgear-challenge-registrant-details",
   SFDC: {
     PaymentsReport: "reports:sfdc-payments",
+    ChallengesReport: "reports:sfdc-challenges-report",
     BA: "reports:sfdc-ba",
+    TaasJobs: "reports:sfdc-taas-jobs",
+    TaasResourceBookings: "reports:sfdc-taas-resource-bookings",
+    TaasMemberVerification: "reports:sfdc-taas-member-verification",
+    WesternUnionPayments: "reports:sfdc-western-union-payments",
   },
   Challenge: {
     History: "reports:challenge-history",

@@ -81,9 +81,7 @@ export class TopcoderReportsService {
   }
 
   async get90DayActiveCopilots() {
-    const query = this.sql.load(
-      "reports/topcoder/90-day-active-copilots.sql",
-    );
+    const query = this.sql.load("reports/topcoder/90-day-active-copilots.sql");
     const rows = await this.db.query<{ "copilot.count": string | number }>(
       query,
     );
@@ -255,9 +253,7 @@ export class TopcoderReportsService {
   async getWeeklyChallengeVolume() {
     const [dataQuery, totalsQuery] = [
       this.sql.load("reports/topcoder/weekly-challenge-volume.sql"),
-      this.sql.load(
-        "reports/topcoder/weekly-challenge-volume-row-totals.sql",
-      ),
+      this.sql.load("reports/topcoder/weekly-challenge-volume-row-totals.sql"),
     ];
 
     const [challengeRows, totalRows] = await Promise.all([
@@ -288,9 +284,7 @@ export class TopcoderReportsService {
         z___min_rank: Number(row.z___min_rank ?? 0),
         z___pivot_row_rank: Number(row.z___pivot_row_rank ?? 0),
         z__pivot_col_ordering: Number(row.z__pivot_col_ordering ?? 0),
-        z__is_highest_ranked_cell: Number(
-          row.z__is_highest_ranked_cell ?? 0,
-        ),
+        z__is_highest_ranked_cell: Number(row.z__is_highest_ranked_cell ?? 0),
       })),
       totals: totalRows.map((row) => ({
         "challenge.posting_week": row["challenge.posting_week"],
@@ -305,16 +299,20 @@ export class TopcoderReportsService {
     );
     const rows = await this.db.query<{
       "participant_funnel_monthly.member_since_date_year":
-        string | number | null;
+        | string
+        | number
+        | null;
       "participant_funnel_monthly.new_signups": string | number | null;
       "participant_funnel_monthly.new_design_participants":
-        string | number | null;
+        | string
+        | number
+        | null;
       "participant_funnel_monthly.new_design_submitters":
-        string | number | null;
-      "participant_funnel_monthly.new_dev_participants":
-        string | number | null;
-      "participant_funnel_monthly.new_dev_submitters":
-        string | number | null;
+        | string
+        | number
+        | null;
+      "participant_funnel_monthly.new_dev_participants": string | number | null;
+      "participant_funnel_monthly.new_dev_submitters": string | number | null;
     }>(query);
 
     const row = rows?.[0];
@@ -349,13 +347,15 @@ export class TopcoderReportsService {
       "participant_funnel_monthly.member_since_date_week": string;
       "participant_funnel_monthly.new_signups": string | number | null;
       "participant_funnel_monthly.new_design_participants":
-        string | number | null;
+        | string
+        | number
+        | null;
       "participant_funnel_monthly.new_design_submitters":
-        string | number | null;
-      "participant_funnel_monthly.new_dev_participants":
-        string | number | null;
-      "participant_funnel_monthly.new_dev_submitters":
-        string | number | null;
+        | string
+        | number
+        | null;
+      "participant_funnel_monthly.new_dev_participants": string | number | null;
+      "participant_funnel_monthly.new_dev_submitters": string | number | null;
     }>(query);
 
     return rows.map((row) => ({
@@ -389,9 +389,7 @@ export class TopcoderReportsService {
   }
 
   async getWeeklyActiveCopilots() {
-    const query = this.sql.load(
-      "reports/topcoder/weekly-active-copilots.sql",
-    );
+    const query = this.sql.load("reports/topcoder/weekly-active-copilots.sql");
     const rows = await this.db.query<{
       "challenge_stats.posting_week": string;
       "challenge.track": string;

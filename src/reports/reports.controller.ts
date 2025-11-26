@@ -3,10 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PermissionsGuard } from "src/auth/guards/permissions.guard";
 import { Scopes } from "src/auth/decorators/scopes.decorator";
 import { Scopes as AppScopes } from "src/app-constants";
-import {
-  REPORTS_DIRECTORY,
-  ReportsDirectory,
-} from "./report-directory.data";
+import { REPORTS_DIRECTORY, ReportsDirectory } from "./report-directory.data";
 
 @ApiTags("Reports")
 @Controller()

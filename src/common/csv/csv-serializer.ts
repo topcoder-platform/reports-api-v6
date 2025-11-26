@@ -8,11 +8,11 @@ export class CsvSerializer {
       return this.serializeArray(data);
     }
 
-    if (typeof data === "object") {
-      return this.serializeObject(data as Record<string, unknown>);
+    if (this.isRecord(data)) {
+      return this.serializeObject(data);
     }
 
-    return String(data);
+    return this.normalizeValue(data);
   }
 
   private serializeArray(values: unknown[]): string {
@@ -21,7 +21,7 @@ export class CsvSerializer {
     }
 
     if (values.every((value) => this.isRecord(value))) {
-      return this.serializeRecords(values as Record<string, unknown>[]);
+      return this.serializeRecords(values);
     }
 
     const header = ["value"];
@@ -90,11 +90,31 @@ export class CsvSerializer {
       return value.toISOString();
     }
 
-    if (Array.isArray(value) || typeof value === "object") {
+    if (Array.isArray(value)) {
       return JSON.stringify(value);
     }
 
-    return String(value);
+    if (this.isRecord(value)) {
+      return JSON.stringify(value);
+    }
+
+    if (typeof value === "string") {
+      return value;
+    }
+
+    if (
+      typeof value === "number" ||
+      typeof value === "boolean" ||
+      typeof value === "bigint"
+    ) {
+      return value.toString();
+    }
+
+    if (typeof value === "symbol") {
+      return value.toString();
+    }
+
+    return "";
   }
 
   private escapeCsvCell(value: string): string {
