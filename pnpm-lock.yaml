@@ -23,15 +23,24 @@ importers:
       '@nestjs/platform-express':
         specifier: ^11.1.9
         version: 11.1.9(@nestjs/common@11.1.9(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.1.14)(rxjs@7.8.2))(@nestjs/core@11.1.9)
+      '@nestjs/schematics':
+        specifier: ^11.0.9
+        version: 11.0.9(chokidar@4.0.3)(typescript@5.9.2)
       '@nestjs/swagger':
         specifier: ^11.2.3
         version: 11.2.3(@nestjs/common@11.1.9(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.1.14)(rxjs@7.8.2))(@nestjs/core@11.1.9)(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.1.14)
+      '@nestjs/testing':
+        specifier: ^11.1.9
+        version: 11.1.9(@nestjs/common@11.1.9(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.1.14)(rxjs@7.8.2))(@nestjs/core@11.1.9)(@nestjs/platform-express@11.1.9)
       '@prisma/client':
         specifier: ^7.0.1
         version: 7.0.1(prisma@7.0.1(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.2))(typescript@5.9.2)
       '@types/express':
         specifier: ^5.0.5
         version: 5.0.5
+      '@types/jest':
+        specifier: ^29.5.8
+        version: 29.5.14
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1
@@ -66,15 +75,6 @@ importers:
       '@eslint/js':
         specifier: ^9.18.0
         version: 9.33.0
-      '@nestjs/schematics':
-        specifier: ^11.0.9
-        version: 11.0.9(chokidar@4.0.3)(typescript@5.9.2)
-      '@nestjs/testing':
-        specifier: ^11.1.9
-        version: 11.1.9(@nestjs/common@11.1.9(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.1.14)(rxjs@7.8.2))(@nestjs/core@11.1.9)(@nestjs/platform-express@11.1.9)
-      '@types/jest':
-        specifier: ^29.5.8
-        version: 29.5.14
       '@types/node':
         specifier: ^20.11.24
         version: 20.19.11

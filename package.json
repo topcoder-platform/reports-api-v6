@@ -32,13 +32,14 @@
     "pg": "^8.16.3",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.2",
-    "tc-core-library-js": "github:appirio-tech/tc-core-library-js#security"
+    "tc-core-library-js": "github:appirio-tech/tc-core-library-js#security",
+    "@nestjs/schematics": "^11.0.9",
+    "@types/jest": "^29.5.8",
+    "@nestjs/testing": "^11.1.9"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
-    "@nestjs/schematics": "^11.0.9",
-    "@nestjs/testing": "^11.1.9",
     "@types/node": "^20.11.24",
     "@types/pg": "^8.15.5",
     "@typescript-eslint/eslint-plugin": "^7.13.0",
@@ -53,7 +54,6 @@
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.2",
-    "typescript-eslint": "^8.38.0",
-    "@types/jest": "^29.5.8"
+    "typescript-eslint": "^8.38.0"
   }
 }
