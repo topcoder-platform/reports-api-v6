@@ -35,10 +35,9 @@ WHERE
         FROM challenges."Challenge" c2
         WHERE c2.name ILIKE '%' || $5 || '%'
     ))
-    AND ($6::timestamptz IS NULL OR p.created_at >= $6::timestamptz)
+    AND p.created_at >= COALESCE($6::timestamptz, (NOW() AT TIME ZONE 'UTC') - INTERVAL '45 days')
     AND ($7::timestamptz IS NULL OR p.created_at <= $7::timestamptz)
     AND ($8::numeric IS NULL OR p.total_amount >= $8::numeric)
     AND ($9::numeric IS NULL OR p.total_amount <= $9::numeric)
     AND ($10::text[] IS NULL OR c.status::text = ANY($10::text[]))
 ORDER BY p.created_at DESC
-LIMIT 1000;
