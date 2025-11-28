@@ -16,6 +16,8 @@ import {
   mockBaFeesQueryDto,
   mockPaymentData,
   mockPaymentQueryDto,
+  normalizedChallengeData,
+  normalizedPaymentData,
   mockSqlQuery,
   mockTaasJobsData,
   mockTaasJobsQueryDto,
@@ -81,7 +83,7 @@ describe("SfdcReportsService - getChallengesReport", () => {
       undefined,
       undefined,
     ]);
-    expect(result).toEqual(mockChallengeData);
+    expect(result).toEqual(normalizedChallengeData);
   });
 
   it("runs a challengeId query successfully", async () => {
@@ -315,7 +317,7 @@ describe("SfdcReportsService - getPaymentsReport", () => {
       undefined,
       undefined,
     ]);
-    expect(result).toEqual(mockPaymentData);
+    expect(result).toEqual(normalizedPaymentData);
   });
 
   it("splits include/exclude billing account filters", async () => {

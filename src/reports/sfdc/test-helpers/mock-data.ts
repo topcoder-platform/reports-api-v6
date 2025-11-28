@@ -15,6 +15,7 @@ import {
   WesternUnionPaymentsReportQueryDto,
   WesternUnionPaymentsReportResponse,
 } from "../sfdc-reports.dto";
+import { normalizeChallengeStatus } from "../status-normalizer";
 
 export const mockChallengeData: ChallengesReportResponse[] = [
   {
@@ -153,6 +154,18 @@ export const mockPaymentQueryDto: Record<string, PaymentsReportQueryDto> = {
     challengeStatus: ["COMPLETED"],
   },
 };
+
+export const normalizedChallengeData = mockChallengeData.map((challenge) => ({
+  ...challenge,
+  challengeStatus: normalizeChallengeStatus(
+    challenge.challengeStatus,
+  ) as string,
+}));
+
+export const normalizedPaymentData = mockPaymentData.map((payment) => ({
+  ...payment,
+  challengeStatus: normalizeChallengeStatus(payment.challengeStatus) as string,
+}));
 
 export const mockBaFeesData: BaFeesReportResponse[] = [
   {
