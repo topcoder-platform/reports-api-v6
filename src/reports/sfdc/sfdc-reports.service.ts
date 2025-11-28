@@ -20,6 +20,7 @@ import {
 } from "./sfdc-reports.dto";
 import { SqlLoaderService } from "src/common/sql-loader.service";
 import { multiValueArrayFilter } from "src/common/filtering";
+import { normalizeChallengeStatus } from "./status-normalizer";
 
 @Injectable()
 export class SfdcReportsService {
@@ -96,7 +97,10 @@ export class SfdcReportsService {
 
     this.logger.debug("Mapped challenges to the final report format");
 
-    return challenges;
+    return challenges.map((challenge) => ({
+      ...challenge,
+      challengeStatus: normalizeChallengeStatus(challenge.challengeStatus),
+    }));
   }
 
   async getPaymentsReport(filters: PaymentsReportQueryDto) {
@@ -122,7 +126,10 @@ export class SfdcReportsService {
 
     this.logger.debug("Mapped payments to the final report format");
 
-    return payments;
+    return payments.map((payment) => ({
+      ...payment,
+      challengeStatus: normalizeChallengeStatus(payment.challengeStatus),
+    }));
   }
 
   async getTaasJobsReport(filters: TaasJobsReportQueryDto) {

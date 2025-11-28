@@ -14,12 +14,12 @@ import {
 import { SfdcReportsController } from "./sfdc-reports.controller";
 import { SfdcReportsService } from "./sfdc-reports.service";
 import {
-  mockChallengeData,
   mockChallengeQueryDto,
   mockBaFeesData,
   mockBaFeesQueryDto,
-  mockPaymentData,
   mockPaymentQueryDto,
+  normalizedChallengeData,
+  normalizedPaymentData,
   mockTaasJobsData,
   mockTaasJobsQueryDto,
   mockTaasMemberVerificationData,
@@ -71,7 +71,7 @@ describe("SfdcReportsController", () => {
 
   it("returns the challenges report on success", async () => {
     mockSfdcReportsService.getChallengesReport.mockResolvedValue(
-      mockChallengeData,
+      normalizedChallengeData,
     );
 
     const result = await controller.getChallengesReport(
@@ -81,7 +81,7 @@ describe("SfdcReportsController", () => {
     expect(mockSfdcReportsService.getChallengesReport).toHaveBeenCalledWith(
       mockChallengeQueryDto.billingAccount,
     );
-    expect(result).toEqual(mockChallengeData);
+    expect(result).toEqual(normalizedChallengeData);
   });
 
   it("returns an empty array when no results are found", async () => {
@@ -129,7 +129,7 @@ describe("SfdcReportsController", () => {
   describe("getPaymentsReport", () => {
     it("returns the payments report on success", async () => {
       mockSfdcReportsService.getPaymentsReport.mockResolvedValue(
-        mockPaymentData,
+        normalizedPaymentData,
       );
 
       const result = await controller.getPaymentsReport(
@@ -139,7 +139,7 @@ describe("SfdcReportsController", () => {
       expect(mockSfdcReportsService.getPaymentsReport).toHaveBeenCalledWith(
         mockPaymentQueryDto.billingAccount,
       );
-      expect(result).toEqual(mockPaymentData);
+      expect(result).toEqual(normalizedPaymentData);
     });
 
     it("returns an empty array when no results are found", async () => {
