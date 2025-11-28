@@ -12,6 +12,18 @@ export function defaultEndDate(): Date {
   return new Date(); // now
 }
 
-export function transformArray({ value }: { value: string }) {
-  return Array.isArray(value) ? value : [value];
+export function transformArray({ value }: { value: unknown }) {
+  if (value === undefined || value === null) return undefined;
+
+  const splitIfString = (v: unknown) => {
+    if (typeof v === "string") {
+      return v
+        .split(",")
+        .map((token) => token.trim())
+        .filter((token) => token !== "");
+    }
+    return [v];
+  };
+
+  return Array.isArray(value) ? value.flatMap(splitIfString) : splitIfString(value);
 }
