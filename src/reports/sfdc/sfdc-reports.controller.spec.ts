@@ -166,7 +166,7 @@ describe("SfdcReportsController", () => {
       mockSfdcReportsService.getPaymentsReport.mockResolvedValue([]);
 
       const dto = plainToInstance(PaymentsReportQueryDto, {
-        billingAccountIds: "80001012",
+        billingAccountIds: "80001012,80002012",
         challengeIds: "e74c3e37-73c9-474e-a838-a38dd4738906",
         handles: "user_01",
         challengeStatus: "COMPLETED",
@@ -176,7 +176,7 @@ describe("SfdcReportsController", () => {
 
       expect(mockSfdcReportsService.getPaymentsReport).toHaveBeenCalledWith(
         expect.objectContaining({
-          billingAccountIds: ["80001012"],
+          billingAccountIds: ["80001012", "80002012"],
           challengeIds: ["e74c3e37-73c9-474e-a838-a38dd4738906"],
           handles: ["user_01"],
           challengeStatus: ["COMPLETED"],

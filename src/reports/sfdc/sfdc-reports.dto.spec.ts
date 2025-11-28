@@ -704,6 +704,19 @@ describe("TaasResourceBookingsReportQueryDto validation", () => {
     expect(dto.billingAccountIds).toEqual(["80001012"]);
   });
 
+  it("splits comma-delimited billingAccountIds", async () => {
+    const { dto, errors } = await validateTaasResourceBookingsDto({
+      // @ts-expect-error intentional single value for transform check
+      billingAccountIds: "80001012,80002012 , 80003012",
+    });
+    expect(errors).toHaveLength(0);
+    expect(dto.billingAccountIds).toEqual([
+      "80001012",
+      "80002012",
+      "80003012",
+    ]);
+  });
+
   it("accepts ISO date strings for startDate and endDate", async () => {
     const { errors } = await validateTaasResourceBookingsDto({
       startDate: "2023-04-01",
