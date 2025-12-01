@@ -31,15 +31,25 @@ recent_payments AS (
   WHERE w.type = 'PAYMENT'
     AND p.installment_number = 1
     AND p.payment_status = 'PAID'
-    AND COALESCE(p.date_paid, p.created_at) >= (CURRENT_DATE - INTERVAL '3 months')
+    AND p.created_at >= (CURRENT_DATE - INTERVAL '3 months')
 )
 SELECT
   cl."name" AS customer,
   cl."codeName" AS client_codename,
+  COALESCE(
+  	NULLIF(TRIM(proj.details::jsonb #>> '{taasDefinition,oppurtunityDetails,customerName}'), ''),
+    NULLIF(TRIM(proj.details::jsonb #>> '{project_data,group_customer_name}'), ''),
+    ba."name"
+  ) AS customer_name,
   COALESCE(c."projectId"::text, ba."projectId") AS project_id,
   proj.name AS project_name,
   ba.id::text AS billing_account_id,
   ba."name" AS billing_account_name,
+  COALESCE(
+    NULLIF(TRIM(proj.details::jsonb #>> '{taasDefinition,oppurtunityDetails,customerName}'), ''),
+    NULLIF(TRIM(proj.details::jsonb #>> '{project_data,group_customer_name}'), ''),
+    ba."name"
+  ) AS customer_name,
   rp.challenge_id,
   c."name" AS challenge_name,
   c."createdAt" AS challenge_created_at,
