@@ -451,7 +451,9 @@ export class TopcoderReportsService {
 
   async getMemberPayments(startDate?: string, endDate?: string) {
     const defaultEnd = new Date();
-    const defaultStart = new Date(defaultEnd.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const defaultStart = new Date(
+      defaultEnd.getTime() - 30 * 24 * 60 * 60 * 1000,
+    );
 
     const start = startDate ?? defaultStart.toISOString().slice(0, 10);
     const end = endDate ?? defaultEnd.toISOString().slice(0, 10);
