@@ -449,6 +449,56 @@ export class TopcoderReportsService {
     }));
   }
 
+  async getMemberPayments(startDate?: string, endDate?: string) {
+    const defaultEnd = new Date();
+    const defaultStart = new Date(defaultEnd.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const start = startDate ?? defaultStart.toISOString().slice(0, 10);
+    const end = endDate ?? defaultEnd.toISOString().slice(0, 10);
+
+    const query = this.sql.load("reports/topcoder/member-payments.sql");
+    type MemberPaymentRow = {
+      "payment_create_date.date_date": Date | string | null;
+      "payment.payment_id": string | number | null;
+      "payment.payment_desc": string | null;
+      "challenge.challenge_system_id": string | null;
+      "payment.payment_status_desc": string | null;
+      "payment.payment_type_desc": string | null;
+      "payee.handle": string | null;
+      "payee.payment_method_desc": string | null;
+      "billing_account_budgets.billing_account_name": string | null;
+      "billing_account_budgets.customer_name": string | null;
+      "sfdc_account.name": string | null;
+      "member_profile_basic.user_id": string | number | null;
+      "sfdc_account.parent_name": string | null;
+      "challenge.create_date": Date | string | null;
+      "user_payment.gross_amount": string | number | null;
+    };
+
+    const rows = await this.db.query<MemberPaymentRow>(query, [start, end]);
+
+    return rows.map((row) => ({
+      paymentCreateDate: this.normalizeDate(
+        row["payment_create_date.date_date"],
+      ),
+      paymentId: row["payment.payment_id"] ?? null,
+      paymentDesc: row["payment.payment_desc"] ?? null,
+      challengeSystemId: row["challenge.challenge_system_id"] ?? null,
+      paymentStatus: row["payment.payment_status_desc"] ?? null,
+      paymentType: row["payment.payment_type_desc"] ?? null,
+      payeeHandle: row["payee.handle"] ?? null,
+      payeePaymentMethod: row["payee.payment_method_desc"] ?? null,
+      billingAccountName:
+        row["billing_account_budgets.billing_account_name"] ?? null,
+      customerName: row["billing_account_budgets.customer_name"] ?? null,
+      sfdcAccountName: row["sfdc_account.name"] ?? null,
+      memberUserId: row["member_profile_basic.user_id"] ?? null,
+      parentName: row["sfdc_account.parent_name"] ?? null,
+      challengeCreatedAt: this.normalizeDate(row["challenge.create_date"]),
+      grossAmount: this.toNullableNumber(row["user_payment.gross_amount"]),
+    }));
+  }
+
   async getRegistrantCountries(challengeId: string) {
     const query = this.sql.load("reports/topcoder/registrant-countries.sql");
     const rows = await this.db.query<RegistrantCountriesRow>(query, [

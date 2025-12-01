@@ -75,6 +75,18 @@ export class TopcoderReportsController {
     return this.reports.get30DayPayments();
   }
 
+  @Get("/member-payments")
+  @ApiOperation({
+    summary:
+      "List of member payments (optional query params: startDate, endDate in YYYY-MM-DD)",
+  })
+  getMemberPayments(
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string,
+  ) {
+    return this.reports.getMemberPayments(startDate, endDate);
+  }
+
   @Get("/90-day-member-spend")
   @ApiOperation({
     summary: "Total gross amount paid to members in the last 90 days",
