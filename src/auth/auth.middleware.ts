@@ -19,7 +19,7 @@ export class AuthMiddleware implements NestMiddleware {
     );
     let issuersValue = this.configService.get<string>(
       "VALID_ISSUERS",
-      '["https://api.topcoder.com","https://topcoder-dev.auth0.com/"]',
+      '["https://api.topcoder.com","https://topcoder-dev.auth0.com/","https://topcoder.auth0.com/"]',
     );
 
     // The tc-core-library-js authenticator expects a string that is a valid JSON array.
