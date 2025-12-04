@@ -61,7 +61,7 @@ DATABASE_URL="postgresql://user:password@localhost:5432/lookups?schema=public"
 AUTH_SECRET="mysecret"
 
 # A JSON array string of valid token issuers.
-VALID_ISSUERS='["https://topcoder-dev.auth0.com/","https://topcoder.auth0.com/","https://api.topcoder.com"]'
+VALID_ISSUERS='["https://topcoder-dev.auth0.com/","https://auth.topcoder-dev.com/","https://topcoder.auth0.com/","https://auth.topcoder.com/","https://api.topcoder.com","https://api.topcoder-dev.com"]'
 
 ## Running the Application
 
