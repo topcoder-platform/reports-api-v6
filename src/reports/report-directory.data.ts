@@ -151,6 +151,14 @@ const maxPaymentParam: ReportParameter = {
   location: "query",
 };
 
+const paymentStatusParam: ReportParameter = {
+  name: "status",
+  type: "string[]",
+  description:
+    "Payment status codes to filter by (for example ON_HOLD, PROCESSING, CANCELLED). Leave blank to include all statuses.",
+  location: "query",
+};
+
 const paymentsFilters = [
   billingAccountIdsParam,
   challengeNameParam,
@@ -160,6 +168,7 @@ const paymentsFilters = [
   handlesParam,
   minPaymentParam,
   maxPaymentParam,
+  paymentStatusParam,
 ];
 
 const baFeesDateParams: ReportParameter[] = [

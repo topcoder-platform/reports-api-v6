@@ -239,6 +239,7 @@ describe("PaymentsReportQueryDto validation", () => {
       minPaymentAmount: 100,
       maxPaymentAmount: 1000,
       challengeStatus: ["COMPLETED", "ACTIVE"],
+      status: ["ON_HOLD", "PROCESSING"],
     });
     expect(errors).toHaveLength(0);
   });
@@ -387,6 +388,27 @@ describe("PaymentsReportQueryDto validation", () => {
     });
     expect(errors).toHaveLength(0);
     expect(dto.challengeStatus).toEqual(["COMPLETED"]);
+  });
+
+  it("accepts payment status values", async () => {
+    const { errors } = await validatePaymentDto({
+      status: ["ON_HOLD", "PROCESSING"],
+    });
+    expect(errors).toHaveLength(0);
+  });
+
+  it("rejects empty payment status entries", async () => {
+    const { errors } = await validatePaymentDto({ status: [""] });
+    expect(errors.some((err) => err.property === "status")).toBe(true);
+  });
+
+  it("transforms single payment status into array", async () => {
+    const { dto, errors } = await validatePaymentDto({
+      // @ts-expect-error intentional single value for transform check
+      status: "PROCESSING",
+    });
+    expect(errors).toHaveLength(0);
+    expect(dto.status).toEqual(["PROCESSING"]);
   });
 });
 

@@ -284,6 +284,18 @@ export class PaymentsReportQueryDto {
   @IsNotEmpty({ each: true })
   @Transform(transformArray)
   challengeStatus?: string[];
+
+  @ApiProperty({
+    required: false,
+    description:
+      "List of payment statuses to filter payments (for example ON_HOLD, PROCESSING, CANCELLED). If omitted, all statuses are included.",
+    example: ["ON_HOLD", "PROCESSING"],
+  })
+  @IsOptional()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  @Transform(transformArray)
+  status?: string[];
 }
 
 export class PaymentsReportResponse {

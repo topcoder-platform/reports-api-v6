@@ -142,6 +142,9 @@ export const mockPaymentQueryDto: Record<string, PaymentsReportQueryDto> = {
   nullChallengeStatus: {
     challengeStatus: [null as unknown as string],
   },
+  paymentStatus: {
+    status: ["ON_HOLD"],
+  },
   full: {
     billingAccountIds: ["80001012", "!90000000"],
     challengeIds: ["e74c3e37-73c9-474e-a838-a38dd4738906"],
@@ -152,6 +155,7 @@ export const mockPaymentQueryDto: Record<string, PaymentsReportQueryDto> = {
     minPaymentAmount: 100,
     maxPaymentAmount: 500,
     challengeStatus: ["COMPLETED"],
+    status: ["PROCESSING"],
   },
 };
 

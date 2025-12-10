@@ -170,6 +170,7 @@ describe("SfdcReportsController", () => {
         challengeIds: "e74c3e37-73c9-474e-a838-a38dd4738906",
         handles: "user_01",
         challengeStatus: "COMPLETED",
+        status: "ON_HOLD",
       });
 
       await controller.getPaymentsReport(dto);
@@ -180,6 +181,7 @@ describe("SfdcReportsController", () => {
           challengeIds: ["e74c3e37-73c9-474e-a838-a38dd4738906"],
           handles: ["user_01"],
           challengeStatus: ["COMPLETED"],
+          status: ["ON_HOLD"],
         }),
       );
     });
