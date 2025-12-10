@@ -122,6 +122,7 @@ export class SfdcReportsService {
       filters.minPaymentAmount,
       filters.maxPaymentAmount,
       filters.challengeStatus,
+      filters.status,
     ]);
 
     this.logger.debug("Mapped payments to the final report format");

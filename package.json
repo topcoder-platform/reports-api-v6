@@ -32,7 +32,7 @@
     "pg": "^8.16.3",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.2",
-    "tc-core-library-js": "github:appirio-tech/tc-core-library-js#security",
+    "tc-core-library-js": "github:topcoder-platform/tc-core-library-js#master",
     "@nestjs/schematics": "^11.0.9",
     "@types/jest": "^29.5.8",
     "@nestjs/testing": "^11.1.9"

@@ -316,6 +316,7 @@ describe("SfdcReportsService - getPaymentsReport", () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     ]);
     expect(result).toEqual(normalizedPaymentData);
   });
@@ -328,6 +329,7 @@ describe("SfdcReportsService - getPaymentsReport", () => {
     expect(mockDbService.query).toHaveBeenCalledWith(mockSqlQuery, [
       ["12345"],
       ["67890"],
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -353,6 +355,7 @@ describe("SfdcReportsService - getPaymentsReport", () => {
       100,
       500,
       ["COMPLETED"],
+      ["PROCESSING"],
     ]);
   });
 
@@ -370,6 +373,25 @@ describe("SfdcReportsService - getPaymentsReport", () => {
       undefined,
       undefined,
       ["COMPLETED"],
+      undefined,
+    ]);
+  });
+
+  it("handles payment status filter", async () => {
+    await service.getPaymentsReport(mockPaymentQueryDto.paymentStatus);
+
+    expect(mockDbService.query).toHaveBeenCalledWith(mockSqlQuery, [
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ["ON_HOLD"],
     ]);
   });
 
@@ -387,6 +409,7 @@ describe("SfdcReportsService - getPaymentsReport", () => {
       undefined,
       undefined,
       [null as unknown as string],
+      undefined,
     ]);
   });
 
@@ -426,6 +449,7 @@ describe("SfdcReportsService - getPaymentsReport", () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     ]);
   });
 
@@ -433,6 +457,7 @@ describe("SfdcReportsService - getPaymentsReport", () => {
     await service.getPaymentsReport(mockPaymentQueryDto.minimal);
 
     expect(mockDbService.query).toHaveBeenCalledWith(mockSqlQuery, [
+      undefined,
       undefined,
       undefined,
       undefined,
