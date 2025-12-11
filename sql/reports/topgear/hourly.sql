@@ -288,5 +288,6 @@ LEFT JOIN LATERAL (
     AND bc."createdAt" > '2025-01-01T00:00:00Z'
 ) cp ON TRUE
 WHERE bc.billing_account_id = '80000062'
-  AND bc."updatedAt" >= now() - interval '100 days'
+  AND (pd.latest_actual_end_date >= now() - interval '100 days'
+  OR bc.status='ACTIVE')
 ORDER BY bc."updatedAt" DESC;
