@@ -10,7 +10,7 @@ WITH base_challenges AS (
     WHERE cb."challengeId" = c.id
       AND cb."billingAccountId" = '80000062'
   ) ba ON TRUE
-  WHERE c."createdAt" >= now() - interval '4 months'
+  WHERE c."updatedAt" >= now() - interval '100 days'
     AND ba.billing_account_id IS NOT NULL
 ),
 project_details AS (
@@ -288,5 +288,6 @@ LEFT JOIN LATERAL (
     AND bc."createdAt" > '2025-01-01T00:00:00Z'
 ) cp ON TRUE
 WHERE bc.billing_account_id = '80000062'
-  AND bc."createdAt" >= now() - interval '4 months'
-ORDER BY bc."createdAt" DESC;
+  AND (pd.latest_actual_end_date >= now() - interval '100 days'
+  OR bc.status='ACTIVE')
+ORDER BY bc."updatedAt" DESC;

@@ -9,6 +9,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { TopcoderReportsService } from "./topcoder-reports.service";
 import { RegistrantCountriesQueryDto } from "./dto/registrant-countries.dto";
+import { MemberPaymentAccrualQueryDto } from "./dto/member-payment-accrual.dto";
 import { TopcoderReportsGuard } from "../../auth/guards/topcoder-reports.guard";
 import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.interceptor";
 
@@ -67,12 +68,14 @@ export class TopcoderReportsController {
     return this.reports.getWeeklyMemberParticipation();
   }
 
-  @Get("/30-day-payments")
+  @Get("/member-payment-accrual")
   @ApiOperation({
-    summary: "Member payments for the last 30 days",
+    summary:
+      "Member payment accruals for the provided date range (defaults to last 3 months)",
   })
-  get30DayPayments() {
-    return this.reports.get30DayPayments();
+  getMemberPaymentAccrual(@Query() query: MemberPaymentAccrualQueryDto) {
+    const { startDate, endDate } = query;
+    return this.reports.getMemberPaymentAccrual(startDate, endDate);
   }
 
   @Get("/90-day-member-spend")

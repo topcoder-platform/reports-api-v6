@@ -449,9 +449,10 @@ export const REPORTS_DIRECTORY: ReportsDirectory = {
         "Weekly distinct registrants and submitters for the last five weeks",
       ),
       report(
-        "30 Day Payments",
-        "/topcoder/30-day-payments",
-        "Member payments for the last 30 days",
+        "Member Payment Accrual",
+        "/topcoder/member-payment-accrual",
+        "Member payment accruals for the provided date range (defaults to last 3 months)",
+        [paymentsStartDateParam, paymentsEndDateParam],
       ),
       report(
         "90 Day Member Spend",

@@ -11,6 +11,32 @@ const { jwtAuthenticator: authenticator } = middleware;
 
 const logger = new Logger("AuthMiddleware");
 
+function resolveAuthorizationHeader(headers: Record<string, unknown>): string {
+  const headerCandidates = [
+    headers["authorization"],
+    headers["x-authorization"],
+    headers["x-forwarded-authorization"],
+    headers["x-original-authorization"],
+  ];
+
+  for (const value of headerCandidates) {
+    if (!value) {
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      const first = value.find(Boolean);
+      if (typeof first === "string") {
+        return first;
+      }
+    } else if (typeof value === "string") {
+      return value;
+    }
+  }
+
+  return "";
+}
+
 function decodeTokenPayload(token: string): Record<string, unknown> | null {
   try {
     const parts = token.split(".");
@@ -55,7 +81,10 @@ export class AuthMiddleware implements NestMiddleware {
   }
 
   use(req: any, res: Response, next: NextFunction) {
-    if (req.headers.authorization) {
+    const authorizationHeader = resolveAuthorizationHeader(req.headers ?? {});
+
+    if (authorizationHeader) {
+      req.headers.authorization = authorizationHeader;
       this.jwtAuthenticator(req, res, (err) => {
         if (err) {
           const token = req.headers.authorization?.replace(/^Bearer\s+/i, "");
