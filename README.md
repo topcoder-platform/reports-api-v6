@@ -8,6 +8,8 @@ All reports will return JSON data with the expected fields for the individual re
 
 Currently, an M2M token is required to pull any report, and each report has its own scope associated with it that must be applied to the M2M token client ID
 
+The report directory (list of endpoints and parameters) is available at `GET /v6/reports/directory` and uses the same authorization rules as other endpoints. The service accepts bearer tokens from the standard `Authorization` header, and also from proxies that forward the token in `X-Authorization`/`X-Forwarded-Authorization`.
+
 ## Layout
 
 Each report will be a separate SQL query, potentially with a few parameters (like a start and an end date, for example).  The individual SQL queries can be found in the `sql` folder and should be able to be run against the `topcoder-services` RDS database in dev or prod, with minimal changes to replace the parameters.

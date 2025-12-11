@@ -18,4 +18,16 @@ export class ReportsController {
   getReports(): ReportsDirectory {
     return REPORTS_DIRECTORY;
   }
+
+  @Get("/directory")
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "List available report endpoints grouped by sub-path (alias for /v6/reports)",
+  })
+  getReportsDirectory(): ReportsDirectory {
+    return REPORTS_DIRECTORY;
+  }
 }
