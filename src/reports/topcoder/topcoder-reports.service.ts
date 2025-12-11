@@ -25,22 +25,21 @@ type MarathonMatchStatsRow = {
   marathon_submission_rate: string | number | null;
 };
 
-type ThirtyDayPaymentRow = {
-  customer: string | null;
-  client_codename: string | null;
-  project_id: string | null;
-  project_name: string | null;
-  billing_account_id: string | null;
-  billing_account_name: string | null;
+type MemberPaymentAccrualRow = {
+  payment_created_at: Date | string | null;
+  payment_id: string | null;
+  payment_description: string | null;
   challenge_id: string | null;
-  challenge_name: string | null;
-  challenge_created_at: Date | string | null;
-  member_id: string | null;
-  member_handle: string | null;
+  payment_status: string | null;
   payment_type: string | null;
-  member_payment: string | number | null;
-  fee: string | number | null;
-  payment_date: Date | string | null;
+  payee_handle: string | null;
+  payment_method: string | null;
+  billing_account_name: string | null;
+  customer_name: string | null;
+  reporting_account_name: string | null;
+  member_id: string | null;
+  challenge_created_date: string | null;
+  user_payment_gross_amount: string | number | null;
 };
 
 @Injectable()
@@ -427,25 +426,32 @@ export class TopcoderReportsService {
     }));
   }
 
-  async get30DayPayments() {
-    const query = this.sql.load("reports/topcoder/30-day-payments.sql");
-    const rows = await this.db.query<ThirtyDayPaymentRow>(query);
+  async getMemberPaymentAccrual(
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const query = this.sql.load("reports/topcoder/member-payment-accrual.sql");
+    const rows = await this.db.query<MemberPaymentAccrualRow>(query, [
+      startDate ?? null,
+      endDate ?? null,
+    ]);
     return rows.map((row) => ({
-      customer: row.customer ?? null,
-      clientCodeName: row.client_codename ?? null,
-      projectId: row.project_id ?? null,
-      projectName: row.project_name ?? null,
-      billingAccountId: row.billing_account_id ?? null,
-      billingAccountName: row.billing_account_name ?? null,
+      paymentCreatedAt: this.normalizeDate(row.payment_created_at),
+      paymentId: row.payment_id ?? null,
+      paymentDescription: row.payment_description ?? null,
       challengeId: row.challenge_id ?? null,
-      challengeName: row.challenge_name ?? null,
-      challengeCreatedAt: this.normalizeDate(row.challenge_created_at),
-      memberId: row.member_id ?? null,
-      memberHandle: row.member_handle ?? null,
+      paymentStatus: row.payment_status ?? null,
       paymentType: row.payment_type ?? null,
-      memberPayment: this.toNullableNumber(row.member_payment),
-      fee: this.toNullableNumber(row.fee),
-      paymentDate: this.normalizeDate(row.payment_date),
+      payeeHandle: row.payee_handle ?? null,
+      payeePaymentMethod: row.payment_method ?? null,
+      billingAccountName: row.billing_account_name ?? null,
+      customerName: row.customer_name ?? null,
+      reportingAccountName: row.reporting_account_name ?? null,
+      memberId: row.member_id ?? null,
+      challengeCreatedAt: row.challenge_created_date ?? null,
+      userPaymentGrossAmount: this.toNullableNumber(
+        row.user_payment_gross_amount,
+      ),
     }));
   }
 
