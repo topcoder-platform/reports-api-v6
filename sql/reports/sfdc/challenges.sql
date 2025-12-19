@@ -1,5 +1,5 @@
 SELECT 
-    p.id as "paymentId",
+    p.payment_id as "paymentId",
     c.id as "challengeId",
     c.name AS "challengeName",
     p.billing_account as "billingAccountId",
