@@ -16,8 +16,8 @@ SELECT
   j.max_salary AS "maxSalary",
   j.hours_per_week AS "hoursPerWeek",
   j.currency,
-  j.created_at AS "createdAt",
-  j.updated_at AS "updatedAt"
+  j.created_at AT TIME ZONE 'America/New_York' AS "createdAt",
+  j.updated_at AT TIME ZONE 'America/New_York' AS "updatedAt"
 FROM taas.jobs j
 WHERE
   j.deleted_at IS NULL
