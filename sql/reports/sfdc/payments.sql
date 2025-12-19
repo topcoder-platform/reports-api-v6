@@ -1,6 +1,6 @@
 SELECT 
     p.payment_id as "paymentId",
-    p.created_at as "paymentDate",
+    p.created_at AT TIME ZONE 'America/New_York' as "paymentDate",
     p.billing_account as "billingAccountId",
     p.payment_status as "paymentStatus",
     p.challenge_fee as "challengeFee",

@@ -32,7 +32,7 @@ SELECT
   reference_id AS "referenceId",
   description,
   payment_status_desc AS "paymentStatus",
-  created_at AS "paymentDate"
+  created_at AT TIME ZONE 'America/New_York' AS "paymentDate"
 FROM payment_data
 WHERE
   ($1::text IS NULL OR payment_status_desc ILIKE $1 OR payment_status::text ILIKE $1)

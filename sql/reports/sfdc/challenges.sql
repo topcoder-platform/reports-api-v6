@@ -1,10 +1,11 @@
 SELECT 
+    p.id as "paymentId",
     c.id as "challengeId",
     c.name AS "challengeName",
     p.billing_account as "billingAccountId",
     c.status as "challengeStatus",
-    c."endDate" as "completeDate",
-    p.created_at as "paymentDate",
+    c."endDate" AT TIME ZONE 'America/New_York' as "completeDate",
+    p.created_at AT TIME ZONE 'America/New_York' as "paymentDate",
     c."taskIsTask" AS "isTask",
     p.challenge_fee as "challengeFee",
     p.total_amount as "memberPayments",
@@ -32,4 +33,3 @@ WHERE
     AND ($10::numeric IS NULL OR (p.total_amount + p.challenge_fee) >= $10::numeric)
     AND ($11::numeric IS NULL OR (p.total_amount + p.challenge_fee) <= $11::numeric)
 ORDER BY c."endDate" DESC, p.created_at DESC
-LIMIT 1000;

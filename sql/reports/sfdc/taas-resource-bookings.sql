@@ -13,8 +13,8 @@ SELECT
   rb.customer_rate AS "customerRate",
   rb.rate_type AS "rateType",
   rb.billing_account_id AS "billingAccountId",
-  rb.created_at AS "createdAt",
-  rb.updated_at AS "updatedAt"
+  rb.created_at AT TIME ZONE 'America/New_York' AS "createdAt",
+  rb.updated_at AT TIME ZONE 'America/New_York' AS "updatedAt"
 FROM taas.resource_bookings rb
 LEFT JOIN identity."user" u ON rb.user_id = u.user_id::text
 WHERE
