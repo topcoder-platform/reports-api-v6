@@ -29,6 +29,24 @@ export class TopgearReportsController {
     return this.reports.getTopgearHourly();
   }
 
+  @Get("topgear-handles")
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports, AppScopes.TopgearHandles)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Return the Topgear handles report for Wipro email accounts",
+  })
+  @ApiQuery({
+    name: "startDate",
+    required: false,
+    type: Date,
+    description:
+      "Filter users created after this date (defaults to current date - 90 days)",
+  })
+  getTopgearHandles(@Query("startDate") startDate?: string) {
+    return this.reports.getTopgearHandles({ startDate });
+  }
+
   @Get("challenge-stats-by-user")
   @UseGuards(PermissionsGuard)
   @Scopes(AppScopes.AllReports, AppScopes.TopgearChallengeStatsByUser)
