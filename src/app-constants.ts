@@ -1,5 +1,6 @@
 export const Scopes = {
   TopgearHourly: "reports:topgear-hourly",
+  TopgearHandles: "reports:topgear-handles",
   TopgearPayments: "reports:topgear-payments",
   TopgearChallenge: "reports:topgear-challenge",
   TopgearCancelledChallenge: "reports:topgear-cancelled-challenge",
