@@ -117,7 +117,7 @@ SELECT
   bc.name                                          AS challenge_name,
   bc.status                                        AS challenge_status,
   ct.name                                          AS challenge_type,
-  re.registration_end_date                         AS registration_end_date,
+  reg.registration_end_date                         AS registration_end_date,
   se.submission_end_date                           AS submission_end_date,
   pd.latest_actual_end_date                        AS completed_date,
   mt.onsite_efforts                                AS onsite_efforts,
@@ -212,8 +212,8 @@ LEFT JOIN tag_list tl
   ON tl.challenge_id = bc.id
 LEFT JOIN group_list gl
   ON gl.challenge_id = bc.id
-LEFT JOIN registration_end re
-  ON re.challenge_id = bc.id
+LEFT JOIN registration_end reg
+  ON reg.challenge_id = bc.id
 LEFT JOIN submission_end se
   ON se.challenge_id = bc.id
 LEFT JOIN LATERAL (
