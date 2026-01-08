@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { DbService } from "../../db/db.service";
 import { SqlLoaderService } from "../../common/sql-loader.service";
+import { alpha3ToCountryName } from "../../common/country.util";
 
 type RegistrantCountriesRow = {
   handle: string | null;
@@ -40,6 +41,49 @@ type MemberPaymentAccrualRow = {
   member_id: string | null;
   challenge_created_date: string | null;
   user_payment_gross_amount: string | number | null;
+};
+
+type RecentMemberDataRow = {
+  handle: string | null;
+  email: string | null;
+  country_code: string | null;
+  role: string | null;
+  skills:
+    | {
+        name: string | null;
+        status: string | null;
+      }[]
+    | null;
+  ratings: {
+    rating?: string | number | null;
+    track?: string | null;
+    subTrack?: string | null;
+    ratingColor?: string | null;
+  } | null;
+  member_since: Date | string | null;
+  open_to_work: boolean | null;
+  work_history:
+    | {
+        industry?: string | null;
+        companyName?: string | null;
+        position?: string | null;
+        startDate?: Date | string | null;
+        endDate?: Date | string | null;
+        working?: boolean | null;
+      }[]
+    | null;
+  education:
+    | {
+        collegeName?: string | null;
+        degree?: string | null;
+        endYear?: string | number | null;
+      }[]
+    | null;
+  trolley_id_verified: boolean | null;
+  challenge_wins: string | number | null;
+  task_wins: string | number | null;
+  registration_count: string | number | null;
+  submissions_over_75: string | number | null;
 };
 
 @Injectable()
@@ -453,6 +497,68 @@ export class TopcoderReportsService {
         row.user_payment_gross_amount,
       ),
     }));
+  }
+
+  async getRecentMemberData(startDate?: string) {
+    const query = this.sql.load("reports/topcoder/recent-member-data.sql");
+    const rows = await this.db.query<RecentMemberDataRow>(query, [
+      startDate ?? null,
+    ]);
+
+    return rows.map((row) => {
+      const skills = Array.isArray(row.skills)
+        ? row.skills.map((skill) => ({
+            name: skill?.name ?? null,
+            status: skill?.status ?? null,
+          }))
+        : [];
+
+      const ratings = row.ratings
+        ? {
+            rating: this.toNullableNumber(row.ratings.rating),
+            track: row.ratings.track ?? null,
+            subTrack: row.ratings.subTrack ?? null,
+            ratingColor: row.ratings.ratingColor ?? null,
+          }
+        : null;
+
+      const workHistory = Array.isArray(row.work_history)
+        ? row.work_history.map((item) => ({
+            industry: item?.industry ?? null,
+            companyName: item?.companyName ?? null,
+            position: item?.position ?? null,
+            startDate: this.normalizeDate(item?.startDate ?? null),
+            endDate: this.normalizeDate(item?.endDate ?? null),
+            working: item?.working ?? null,
+          }))
+        : [];
+
+      const education = Array.isArray(row.education)
+        ? row.education.map((item) => ({
+            collegeName: item?.collegeName ?? null,
+            degree: item?.degree ?? null,
+            endYear: this.toNullableNumber(item?.endYear ?? null),
+          }))
+        : [];
+
+      return {
+        handle: row.handle ?? null,
+        email: row.email ?? null,
+        country: alpha3ToCountryName(row.country_code),
+        role: row.role ?? null,
+        skills,
+        ratings,
+        memberSince: this.normalizeDate(row.member_since),
+        openToWork: row.open_to_work ?? null,
+        workHistory,
+        education,
+        trolleyIdVerified: row.trolley_id_verified ?? false,
+        challengeWins: Number(row.challenge_wins ?? 0),
+        taskWins: Number(row.task_wins ?? 0),
+        registrationCount: Number(row.registration_count ?? 0),
+        submissionsOver75: Number(row.submissions_over_75 ?? 0),
+      };
+    });
   }
 
   async getRegistrantCountries(challengeId: string) {

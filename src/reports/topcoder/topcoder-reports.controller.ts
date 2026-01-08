@@ -10,6 +10,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { TopcoderReportsService } from "./topcoder-reports.service";
 import { RegistrantCountriesQueryDto } from "./dto/registrant-countries.dto";
 import { MemberPaymentAccrualQueryDto } from "./dto/member-payment-accrual.dto";
+import { RecentMemberDataQueryDto } from "./dto/recent-member-data.dto";
 import { TopcoderReportsGuard } from "../../auth/guards/topcoder-reports.guard";
 import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.interceptor";
 
@@ -76,6 +77,16 @@ export class TopcoderReportsController {
   getMemberPaymentAccrual(@Query() query: MemberPaymentAccrualQueryDto) {
     const { startDate, endDate } = query;
     return this.reports.getMemberPaymentAccrual(startDate, endDate);
+  }
+
+  @Get("/recent-member-data")
+  @ApiOperation({
+    summary:
+      "Members who registered and were paid since the start date (defaults to Jan 1, 2024)",
+  })
+  getRecentMemberData(@Query() query: RecentMemberDataQueryDto) {
+    const { startDate } = query;
+    return this.reports.getRecentMemberData(startDate);
   }
 
   @Get("/90-day-member-spend")

@@ -455,6 +455,12 @@ export const REPORTS_DIRECTORY: ReportsDirectory = {
         [paymentsStartDateParam, paymentsEndDateParam],
       ),
       report(
+        "Recent Member Data",
+        "/topcoder/recent-member-data",
+        "Members who registered and were paid since the start date (defaults to Jan 1, 2024)",
+        [paymentsStartDateParam],
+      ),
+      report(
         "90 Day Member Spend",
         "/topcoder/90-day-member-spend",
         "Total gross amount paid to members in the last 90 days",
