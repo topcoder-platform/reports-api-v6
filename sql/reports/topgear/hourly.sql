@@ -96,6 +96,7 @@ registration_end AS (
     MAX(COALESCE(cp."actualEndDate", cp."scheduledEndDate")) AS registration_end_date
   FROM challenges."ChallengePhase" cp
   JOIN challenges."Phase" p ON p.id = cp."phaseId"
+  JOIN base_challenges bc ON bc.id = cp."challengeId"
   WHERE p.name = 'Registration'
   GROUP BY cp."challengeId"
 ),
@@ -105,6 +106,7 @@ submission_end AS (
     MAX(COALESCE(cp."actualEndDate", cp."scheduledEndDate")) AS submission_end_date
   FROM challenges."ChallengePhase" cp
   JOIN challenges."Phase" p ON p.id = cp."phaseId"
+  JOIN base_challenges bc ON bc.id = cp."challengeId"
   WHERE p.name IN ('Topcoder Submission', 'Submission')
   GROUP BY cp."challengeId"
 )
