@@ -266,4 +266,5 @@ LEFT JOIN registration_counts rc
   ON rc.member_id = em.member_id
 LEFT JOIN submissions_over_75 so
   ON so.member_id = em.member_id
+WHERE COALESCE(m.email, '') NOT ILIKE '%@wipro.com%'
 ORDER BY m.handle;
