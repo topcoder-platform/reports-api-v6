@@ -1,13 +1,9 @@
 WITH params AS (
   SELECT COALESCE(NULLIF($1, '')::timestamptz, TIMESTAMPTZ '2024-01-01') AS start_date
 ),
-registrants AS (
-  SELECT DISTINCT r."memberId" AS member_id
-  FROM resources."Resource" r
-  JOIN resources."ResourceRole" rr
-    ON rr.id = r."roleId"
-  JOIN params p
-    ON r."createdAt" >= p.start_date
+registrant_roles AS (
+  SELECT rr.id
+  FROM resources."ResourceRole" rr
   WHERE rr."nameLower" IN ('submitter', 'registrant')
 ),
 latest_payment AS (
@@ -31,10 +27,16 @@ paid_members AS (
     AND w.type = 'PAYMENT'
 ),
 eligible_members AS (
-  SELECT DISTINCT r.member_id
-  FROM registrants r
-  JOIN paid_members p
-    ON p.member_id = r.member_id
+  SELECT pm.member_id
+  FROM paid_members pm
+  CROSS JOIN params p
+  WHERE EXISTS (
+    SELECT 1
+    FROM resources."Resource" r
+    WHERE r."memberId" = pm.member_id
+      AND r."createdAt" >= p.start_date
+      AND r."roleId" IN (SELECT id FROM registrant_roles)
+  )
 ),
 role_counts AS (
   SELECT
@@ -183,11 +185,9 @@ registration_counts AS (
     r."memberId" AS member_id,
     COUNT(DISTINCT r."challengeId") AS registration_count
   FROM resources."Resource" r
-  JOIN resources."ResourceRole" rr
-    ON rr.id = r."roleId"
   JOIN eligible_members em
     ON em.member_id = r."memberId"
-  WHERE rr."nameLower" IN ('submitter', 'registrant')
+  WHERE r."roleId" IN (SELECT id FROM registrant_roles)
   GROUP BY r."memberId"
 ),
 submissions_over_75 AS (
@@ -245,7 +245,7 @@ FROM eligible_members em
 JOIN members.member m
   ON m."userId"::text = em.member_id
 LEFT JOIN identity."user" u
-  ON u.user_id::text = em.member_id
+  ON u.user_id = m."userId"::numeric(10, 0)
 LEFT JOIN member_roles mr
   ON mr.member_id = em.member_id
 LEFT JOIN skills_agg sk
