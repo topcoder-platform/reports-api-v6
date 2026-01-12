@@ -89,6 +89,24 @@ submitter_roles AS (
   SELECT id
   FROM resources."ResourceRole"
   WHERE COALESCE("nameLower", LOWER(name)) = 'submitter'
+),
+registration_end AS (
+  SELECT
+    cp."challengeId" AS challenge_id,
+    MAX(COALESCE(cp."actualEndDate", cp."scheduledEndDate")) AS registration_end_date
+  FROM challenges."ChallengePhase" cp
+  JOIN challenges."Phase" p ON p.id = cp."phaseId"
+  WHERE p.name = 'Registration'
+  GROUP BY cp."challengeId"
+),
+submission_end AS (
+  SELECT
+    cp."challengeId" AS challenge_id,
+    MAX(COALESCE(cp."actualEndDate", cp."scheduledEndDate")) AS submission_end_date
+  FROM challenges."ChallengePhase" cp
+  JOIN challenges."Phase" p ON p.id = cp."phaseId"
+  WHERE p.name IN ('Topcoder Submission', 'Submission')
+  GROUP BY cp."challengeId"
 )
 SELECT
   bc."updatedAt"                                   AS modify_date,
@@ -99,8 +117,8 @@ SELECT
   bc.name                                          AS challenge_name,
   bc.status                                        AS challenge_status,
   ct.name                                          AS challenge_type,
-  bc."registrationEndDate"                         AS registration_end_date,
-  bc."submissionEndDate"                           AS submission_end_date,
+  reg.registration_end_date                         AS registration_end_date,
+  se.submission_end_date                           AS submission_end_date,
   pd.latest_actual_end_date                        AS completed_date,
   mt.onsite_efforts                                AS onsite_efforts,
   mt.offsite_efforts                               AS offsite_efforts,
@@ -194,6 +212,10 @@ LEFT JOIN tag_list tl
   ON tl.challenge_id = bc.id
 LEFT JOIN group_list gl
   ON gl.challenge_id = bc.id
+LEFT JOIN registration_end reg
+  ON reg.challenge_id = bc.id
+LEFT JOIN submission_end se
+  ON se.challenge_id = bc.id
 LEFT JOIN LATERAL (
   SELECT
     MAX(cp."actualEndDate") AS latest_actual_end_date
