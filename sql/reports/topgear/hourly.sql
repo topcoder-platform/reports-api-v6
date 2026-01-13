@@ -105,7 +105,7 @@ submission_end AS (
     MAX(COALESCE(cp."actualEndDate", cp."scheduledEndDate")) AS submission_end_date
   FROM challenges."ChallengePhase" cp
   JOIN challenges."Phase" p ON p.id = cp."phaseId"
-  WHERE p.name IN ('Topcoder Submission', 'Submission')
+  WHERE p.name IN ('Topcoder Submission', 'Topgear Submission', 'Submission')
   GROUP BY cp."challengeId"
 )
 SELECT
