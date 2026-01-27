@@ -106,7 +106,7 @@ submission_end AS (
   FROM challenges."ChallengePhase" cp
   JOIN challenges."Phase" p ON p.id = cp."phaseId"
   WHERE p.name IN ('Topcoder Submission', 'Topgear Submission', 'Submission')
-  GROUP BY cp."challengeId"
+  GROUP BY cp."challengeId", cp."scheduledEndDate"
 )
 SELECT
   bc."updatedAt"                                   AS modify_date,
