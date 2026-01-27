@@ -102,7 +102,7 @@ registration_end AS (
 submission_end AS (
   SELECT
     cp."challengeId" AS challenge_id,
-    MAX(COALESCE(cp."actualEndDate", cp."scheduledEndDate")) AS submission_end_date
+    cp."scheduledEndDate" AS submission_end_date
   FROM challenges."ChallengePhase" cp
   JOIN challenges."Phase" p ON p.id = cp."phaseId"
   WHERE p.name IN ('Topcoder Submission', 'Topgear Submission', 'Submission')
