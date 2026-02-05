@@ -25,5 +25,7 @@ export function transformArray({ value }: { value: unknown }) {
     return [v];
   };
 
-  return Array.isArray(value) ? value.flatMap(splitIfString) : splitIfString(value);
+  return Array.isArray(value)
+    ? value.flatMap(splitIfString)
+    : splitIfString(value);
 }

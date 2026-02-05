@@ -11,6 +11,7 @@ import { TopcoderReportsService } from "./topcoder-reports.service";
 import { RegistrantCountriesQueryDto } from "./dto/registrant-countries.dto";
 import { MemberPaymentAccrualQueryDto } from "./dto/member-payment-accrual.dto";
 import { RecentMemberDataQueryDto } from "./dto/recent-member-data.dto";
+import { WeeklyMemberParticipationQueryDto } from "./dto/weekly-member-participation.dto";
 import { TopcoderReportsGuard } from "../../auth/guards/topcoder-reports.guard";
 import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.interceptor";
 
@@ -63,10 +64,13 @@ export class TopcoderReportsController {
   @Get("/weekly-member-participation")
   @ApiOperation({
     summary:
-      "Weekly distinct registrants and submitters for the last five weeks",
+      "Weekly distinct registrants and submitters for the provided date range (defaults to last five weeks)",
   })
-  getWeeklyMemberParticipation() {
-    return this.reports.getWeeklyMemberParticipation();
+  getWeeklyMemberParticipation(
+    @Query() query: WeeklyMemberParticipationQueryDto,
+  ) {
+    const { startDate, endDate } = query;
+    return this.reports.getWeeklyMemberParticipation(startDate, endDate);
   }
 
   @Get("/member-payment-accrual")

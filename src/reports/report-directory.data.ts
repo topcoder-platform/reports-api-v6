@@ -446,7 +446,8 @@ export const REPORTS_DIRECTORY: ReportsDirectory = {
       report(
         "Weekly Member Participation",
         "/topcoder/weekly-member-participation",
-        "Weekly distinct registrants and submitters for the last five weeks",
+        "Weekly distinct registrants and submitters for the provided date range (defaults to last five weeks)",
+        [paymentsStartDateParam, paymentsEndDateParam],
       ),
       report(
         "Member Payment Accrual",

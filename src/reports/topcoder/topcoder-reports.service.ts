@@ -448,7 +448,7 @@ export class TopcoderReportsService {
     }));
   }
 
-  async getWeeklyMemberParticipation() {
+  async getWeeklyMemberParticipation(startDate?: string, endDate?: string) {
     const query = this.sql.load(
       "reports/topcoder/weekly-member-participation.sql",
     );
@@ -456,7 +456,7 @@ export class TopcoderReportsService {
       "challenge_stats.posting_date_week": string;
       "challenge_stats.count_distinct_registrant": string | number;
       "challenge_stats.count_distinct_submitter": string | number;
-    }>(query);
+    }>(query, [startDate ?? null, endDate ?? null]);
 
     return rows.map((row) => ({
       "challenge_stats.posting_date_week":
@@ -470,10 +470,7 @@ export class TopcoderReportsService {
     }));
   }
 
-  async getMemberPaymentAccrual(
-    startDate?: string,
-    endDate?: string,
-  ) {
+  async getMemberPaymentAccrual(startDate?: string, endDate?: string) {
     const query = this.sql.load("reports/topcoder/member-payment-accrual.sql");
     const rows = await this.db.query<MemberPaymentAccrualRow>(query, [
       startDate ?? null,

@@ -732,11 +732,7 @@ describe("TaasResourceBookingsReportQueryDto validation", () => {
       billingAccountIds: "80001012,80002012 , 80003012",
     });
     expect(errors).toHaveLength(0);
-    expect(dto.billingAccountIds).toEqual([
-      "80001012",
-      "80002012",
-      "80003012",
-    ]);
+    expect(dto.billingAccountIds).toEqual(["80001012", "80002012", "80003012"]);
   });
 
   it("accepts ISO date strings for startDate and endDate", async () => {

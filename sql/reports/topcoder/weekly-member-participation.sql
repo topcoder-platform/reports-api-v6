@@ -1,7 +1,22 @@
-WITH window_bounds AS (
+WITH provided_dates AS (
   SELECT
-    (DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '4 weeks') AS window_start,
-    (DATE_TRUNC('week', CURRENT_DATE) + INTERVAL '1 week') AS window_end
+    NULLIF($1, '')::timestamptz AS start_date,
+    NULLIF($2, '')::timestamptz AS end_date
+),
+window_bounds AS (
+  SELECT
+    COALESCE(
+      pd.start_date,
+      CASE
+        WHEN pd.end_date IS NOT NULL THEN pd.end_date - INTERVAL '5 weeks'
+        ELSE DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '4 weeks'
+      END
+    ) AS window_start,
+    COALESCE(
+      pd.end_date,
+      DATE_TRUNC('week', CURRENT_DATE) + INTERVAL '1 week'
+    ) AS window_end
+  FROM provided_dates pd
 ),
 billing AS (
   SELECT
@@ -18,7 +33,7 @@ billing AS (
   LEFT JOIN projects.projects proj
     ON proj.id::text = NULLIF(TRIM(c."projectId"::text), '')
   LEFT JOIN "billing-accounts"."BillingAccount" project_ba
-    ON project_ba.id = proj."billingAccountId"
+    ON project_ba.id::text = NULLIF(TRIM(proj."billingAccountId"::text), '')
   GROUP BY c.id
 ),
 project_clients AS (

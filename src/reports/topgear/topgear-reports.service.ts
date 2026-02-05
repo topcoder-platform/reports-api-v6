@@ -22,7 +22,8 @@ export class TopgearReportsService {
   }
 
   async getTopgearHandles(opts: { startDate?: string }) {
-    const startDate = parseOptionalDate(opts.startDate) ?? subDays(new Date(), 90);
+    const startDate =
+      parseOptionalDate(opts.startDate) ?? subDays(new Date(), 90);
     const query = this.sql.load("reports/topgear/topgear-handles.sql");
     return this.db.query(query, [startDate.toISOString()]);
   }
