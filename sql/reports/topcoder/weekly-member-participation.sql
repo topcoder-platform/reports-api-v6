@@ -33,7 +33,7 @@ billing AS (
   LEFT JOIN projects.projects proj
     ON proj.id::text = NULLIF(TRIM(c."projectId"::text), '')
   LEFT JOIN "billing-accounts"."BillingAccount" project_ba
-    ON project_ba.id = proj."billingAccountId"
+    ON project_ba.id::text = NULLIF(TRIM(proj."billingAccountId"::text), '')
   GROUP BY c.id
 ),
 project_clients AS (
