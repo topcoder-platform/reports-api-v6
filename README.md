@@ -54,6 +54,9 @@ Create a `.env` file in the root of the project. You can copy the example struct
 # This is used by Prisma to connect to your local PostgreSQL instance.
 DATABASE_URL="postgresql://user:password@localhost:5432/lookups?schema=public"
 
+# Old tc-payments database URL (used by member-tax CSV export script)
+OLD_PAYMENTS_DATABASE_URL="postgresql://user:password@localhost:5432/tc_payments?schema=public"
+
 # ---------------------------------------------------
 # JWT Authentication Secrets
 # These are used by tc-core-library-js for validating JWTs.
@@ -76,6 +79,35 @@ pnpm run dev
 ```
 
 The application will be available at http://localhost:3000.
+
+## Member Tax CSV Export
+
+`member-tax` is generated as an offline CSV export (not an API endpoint).
+The export enriches tax-form name/withholding values and payment-method names from the old payments database.
+
+```bash
+pnpm run export:member-tax -- --output ./member-tax.csv
+```
+
+Optional date window:
+
+```bash
+pnpm run export:member-tax -- --start-date 2025-01-01 --end-date 2026-01-01 --output ./member-tax-2025.csv
+```
+
+## Member Tax Aggregated CSV Export
+
+Aggregated member-payment export (main database only):
+
+```bash
+pnpm run export:member-tax-aggregated -- --output ./member-tax-aggregated.csv
+```
+
+Optional date window:
+
+```bash
+pnpm run export:member-tax-aggregated -- --start-date 2025-01-01 --end-date 2026-01-01 --output ./member-tax-aggregated-2025.csv
+```
 
 ## Public Statistics Endpoints
 
