@@ -4,11 +4,19 @@ WITH submitter_role AS (
   WHERE rr."nameLower" = 'submitter'
   LIMIT 1
 ),
-candidate_challenges AS MATERIALIZED (
+filtered_challenges AS MATERIALIZED (
   SELECT
     c.id,
-    c.status
+    c.status,
+    lp."actualEndDate" AS "challengeCompletedDate"
   FROM challenges."Challenge" c
+  LEFT JOIN LATERAL (
+    SELECT cp."actualEndDate"
+    FROM challenges."ChallengePhase" cp
+    WHERE cp."challengeId" = c.id
+    ORDER BY cp."scheduledEndDate" DESC
+    LIMIT 1
+  ) lp ON true
   WHERE
     -- filter by billing account
     (
@@ -34,29 +42,8 @@ candidate_challenges AS MATERIALIZED (
     AND ($3::text[] IS NULL OR c.status::text = ANY($3::text[]))
     -- exclude task challenge types from this report
     AND COALESCE(c."taskIsTask", false) = false
-),
-latest_phase AS MATERIALIZED (
-  SELECT DISTINCT ON (cp."challengeId")
-    cp."challengeId",
-    cp."actualEndDate"
-  FROM challenges."ChallengePhase" cp
-  JOIN candidate_challenges cc
-    ON cc.id = cp."challengeId"
-  ORDER BY
-    cp."challengeId",
-    cp."scheduledEndDate" DESC
-),
-filtered_challenges AS MATERIALIZED (
-  SELECT
-    cc.id,
-    cc.status,
-    lp."actualEndDate" AS "challengeCompletedDate"
-  FROM candidate_challenges cc
-  LEFT JOIN latest_phase lp
-    ON lp."challengeId" = cc.id
-  WHERE
     -- filter by completion date bounds on the latest challenge phase end date
-    (
+    AND (
       ($4::timestamptz IS NULL AND $5::timestamptz IS NULL)
       OR (
         lp."actualEndDate" IS NOT NULL
@@ -71,18 +58,19 @@ registrants AS MATERIALIZED (
     fc.id AS "challengeId",
     fc.status AS "challengeStatus",
     fc."challengeCompletedDate",
-    res."memberId",
-    MAX(res."memberHandle") AS "registrantHandle"
+    registrant."memberId",
+    registrant."registrantHandle"
   FROM filtered_challenges fc
   JOIN submitter_role sr ON true
-  JOIN resources."Resource" res
-    ON res."challengeId" = fc.id
-    AND res."roleId" = sr.id
-  GROUP BY
-    fc.id,
-    fc.status,
-    fc."challengeCompletedDate",
-    res."memberId"
+  JOIN LATERAL (
+    SELECT
+      res."memberId",
+      MAX(res."memberHandle") AS "registrantHandle"
+    FROM resources."Resource" res
+    WHERE res."challengeId" = fc.id
+      AND res."roleId" = sr.id
+    GROUP BY res."memberId"
+  ) registrant ON true
   LIMIT 1000
 )
 SELECT
