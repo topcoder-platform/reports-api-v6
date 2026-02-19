@@ -13,4 +13,5 @@ INNER JOIN finance.winnings w on p.winnings_id = w.winning_id
 WHERE p.created_at >= $1::timestamptz
   AND p.created_at <= $2::timestamptz
   AND p.billing_account = '80000062'
+  AND w.type = 'PAYMENT'
 ORDER BY p.created_at DESC;
