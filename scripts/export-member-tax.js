@@ -5,7 +5,6 @@ const path = require("path");
 const { Pool } = require("pg");
 
 const CSV_COLUMNS = [
-  "payment.payment_id",
   "payee.handle",
   "payee.email",
   "payee.first_name",
@@ -336,6 +335,11 @@ function writeCsv(outputPath, rows) {
   fs.writeFileSync(outputPath, `${lines.join("\n")}\n`, "utf8");
 }
 
+function toNumberOrZero(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 async function run() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
@@ -436,7 +440,45 @@ async function run() {
       };
     });
 
-    writeCsv(outputPath, mergedRows);
+    const aggregatedByUser = new Map();
+    for (const row of mergedRows) {
+      const userId = String(row.__user_id);
+      const existing = aggregatedByUser.get(userId);
+
+      if (!existing) {
+        aggregatedByUser.set(userId, {
+          ...row,
+          "user_payment.gross_amount": toNumberOrZero(
+            row["user_payment.gross_amount"],
+          ),
+          "user_payment.net_amount": toNumberOrZero(row["user_payment.net_amount"]),
+        });
+        continue;
+      }
+
+      existing["user_payment.gross_amount"] =
+        toNumberOrZero(existing["user_payment.gross_amount"]) +
+        toNumberOrZero(row["user_payment.gross_amount"]);
+      existing["user_payment.net_amount"] =
+        toNumberOrZero(existing["user_payment.net_amount"]) +
+        toNumberOrZero(row["user_payment.net_amount"]);
+    }
+
+    const aggregatedRows = Array.from(aggregatedByUser.values())
+      .map((row) => {
+        const normalized = { ...row };
+        delete normalized.__user_id;
+        delete normalized.__payment_id;
+        delete normalized["payment.payment_id"];
+        return normalized;
+      })
+      .sort((a, b) =>
+        String(a["payee.handle"] ?? "").localeCompare(
+          String(b["payee.handle"] ?? ""),
+        ),
+      );
+
+    writeCsv(outputPath, aggregatedRows);
     console.log(`[member-tax-export] Wrote CSV: ${outputPath}`);
   } finally {
     await Promise.allSettled([mainPool.end(), oldPaymentsPool.end()]);
