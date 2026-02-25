@@ -11,6 +11,8 @@ filtered_challenges AS (
     latest_phase."actualEndDate" as "challengeCompletedDate"
   FROM
     challenges."Challenge" c
+  JOIN challenges."ChallengeType" ct
+    ON ct.id = c."typeId"
   LEFT JOIN LATERAL (
     SELECT cp."actualEndDate"
     FROM challenges."ChallengePhase" cp
@@ -41,6 +43,8 @@ filtered_challenges AS (
     )
     -- filter by challenge status
     AND ($3::text[] IS NULL OR c.status::text = ANY($3::text[]))
+    -- exclude task challenge types from this report
+    AND LOWER(ct.name) NOT IN ('task', 'topgear task')
     -- filter by completion date bounds on the latest challenge phase end date
     AND (
       ($4::timestamptz IS NULL AND $5::timestamptz IS NULL)
@@ -50,21 +54,10 @@ filtered_challenges AS (
         AND ($5::timestamptz IS NULL OR latest_phase."actualEndDate" <= $5::timestamptz)
       )
     )
-)
-SELECT
-  registrants."challengeId",
-  registrants."challengeStatus",
-  cw.handle as "winnerHandle",
-  CASE WHEN sub.placement = 1 THEN true ELSE false END as "isWinner",
-  CASE
-    WHEN registrants."challengeStatus" = 'COMPLETED'
-      THEN registrants."challengeCompletedDate"
-    ELSE null
-  END as "challengeCompletedDate",
-  registrants."registrantHandle",
-  ROUND(sub."finalScore", 2) as "registrantFinalScore"
-FROM (
-  SELECT
+),
+registrants AS (
+  -- keep one submitter resource row per challenge/member
+  SELECT DISTINCT ON (fc.id, res."memberId")
     fc.id as "challengeId",
     fc.status as "challengeStatus",
     fc."challengeCompletedDate",
@@ -75,12 +68,51 @@ FROM (
   JOIN resources."Resource" res
     ON res."challengeId" = fc.id
     AND res."roleId" = sr.id
+  ORDER BY
+    fc.id,
+    res."memberId",
+    res."updatedAt" DESC NULLS LAST,
+    res."createdAt" DESC,
+    res.id DESC
   LIMIT 1000
-) registrants
-LEFT JOIN challenges."ChallengeWinner" cw
-  ON cw."challengeId" = registrants."challengeId"
-  AND cw."userId"::text = registrants."memberId"
-LEFT JOIN reviews."submission" sub
+),
+winners AS (
+  -- keep one winner row per challenge/member
+  SELECT
+    cw."challengeId",
+    cw."userId"::text as "memberId",
+    MAX(cw.handle) as "winnerHandle"
+  FROM challenges."ChallengeWinner" cw
+  WHERE cw.placement = 1
+  GROUP BY cw."challengeId", cw."userId"
+),
+submissions AS (
+  -- keep one submission row per challenge/member
+  SELECT
+    sub."challengeId",
+    sub."memberId",
+    MAX(sub."finalScore") as "finalScore",
+    BOOL_OR(sub.placement = 1) as "isWinner"
+  FROM reviews."submission" sub
+  GROUP BY sub."challengeId", sub."memberId"
+)
+SELECT
+  registrants."challengeId",
+  registrants."challengeStatus",
+  win."winnerHandle",
+  COALESCE(sub."isWinner", false) as "isWinner",
+  CASE
+    WHEN registrants."challengeStatus" = 'COMPLETED'
+      THEN registrants."challengeCompletedDate"
+    ELSE null
+  END as "challengeCompletedDate",
+  registrants."registrantHandle",
+  ROUND(sub."finalScore", 2) as "registrantFinalScore"
+FROM registrants
+LEFT JOIN winners win
+  ON win."challengeId" = registrants."challengeId"
+  AND win."memberId" = registrants."memberId"
+LEFT JOIN submissions sub
   ON sub."challengeId" = registrants."challengeId"
   AND sub."memberId" = registrants."memberId"
 LIMIT 1000;
