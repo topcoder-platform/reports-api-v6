@@ -11,8 +11,6 @@ filtered_challenges AS (
     latest_phase."actualEndDate" as "challengeCompletedDate"
   FROM
     challenges."Challenge" c
-  JOIN challenges."ChallengeType" ct
-    ON ct.id = c."typeId"
   LEFT JOIN LATERAL (
     SELECT cp."actualEndDate"
     FROM challenges."ChallengePhase" cp
@@ -44,7 +42,7 @@ filtered_challenges AS (
     -- filter by challenge status
     AND ($3::text[] IS NULL OR c.status::text = ANY($3::text[]))
     -- exclude task challenge types from this report
-    AND LOWER(ct.name) NOT IN ('task', 'topgear task')
+    AND COALESCE(c."taskIsTask", false) = false
     -- filter by completion date bounds on the latest challenge phase end date
     AND (
       ($4::timestamptz IS NULL AND $5::timestamptz IS NULL)
@@ -70,31 +68,34 @@ registrants AS (
     AND res."roleId" = sr.id
   ORDER BY
     fc.id,
-    res."memberId",
-    res."updatedAt" DESC NULLS LAST,
-    res."createdAt" DESC,
-    res.id DESC
+    res."memberId"
   LIMIT 1000
 ),
 winners AS (
-  -- keep one winner row per challenge/member
+  -- aggregate winners only for already-selected registrants
   SELECT
-    cw."challengeId",
-    cw."userId"::text as "memberId",
+    r."challengeId",
+    r."memberId",
     MAX(cw.handle) as "winnerHandle"
-  FROM challenges."ChallengeWinner" cw
+  FROM registrants r
+  JOIN challenges."ChallengeWinner" cw
+    ON cw."challengeId" = r."challengeId"
+    AND cw."userId"::text = r."memberId"
   WHERE cw.placement = 1
-  GROUP BY cw."challengeId", cw."userId"
+  GROUP BY r."challengeId", r."memberId"
 ),
 submissions AS (
-  -- keep one submission row per challenge/member
+  -- aggregate submissions only for already-selected registrants
   SELECT
-    sub."challengeId",
-    sub."memberId",
+    r."challengeId",
+    r."memberId",
     MAX(sub."finalScore") as "finalScore",
     BOOL_OR(sub.placement = 1) as "isWinner"
-  FROM reviews."submission" sub
-  GROUP BY sub."challengeId", sub."memberId"
+  FROM registrants r
+  JOIN reviews.submission sub
+    ON sub."challengeId" = r."challengeId"
+    AND sub."memberId" = r."memberId"
+  GROUP BY r."challengeId", r."memberId"
 )
 SELECT
   registrants."challengeId",
@@ -114,5 +115,4 @@ LEFT JOIN winners win
   AND win."memberId" = registrants."memberId"
 LEFT JOIN submissions sub
   ON sub."challengeId" = registrants."challengeId"
-  AND sub."memberId" = registrants."memberId"
-LIMIT 1000;
+  AND sub."memberId" = registrants."memberId";
