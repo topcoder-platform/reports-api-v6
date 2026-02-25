@@ -1,7 +1,14 @@
-import { Controller, Get, Query, UseGuards } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Query,
+  UseGuards,
+  UseInterceptors,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiProduces,
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
@@ -11,6 +18,7 @@ import { PaymentsReportResponse } from "../sfdc/sfdc-reports.dto";
 import { Scopes } from "../../auth/decorators/scopes.decorator";
 import { Scopes as AppScopes } from "../../app-constants";
 import { ChallengesReportsService } from "./challenges-reports.service";
+import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.interceptor";
 import { ChallengeRegistrantsQueryDto } from "./dtos/registrants.dto";
 import { ChallengesReportQueryDto } from "./dtos/challenge.dto";
 import {
@@ -19,6 +27,8 @@ import {
 } from "./dtos/submission-links.dto";
 
 @ApiTags("Challenges Reports")
+@ApiProduces("application/json", "text/csv")
+@UseInterceptors(CsvResponseInterceptor)
 @Controller("/challenges")
 export class ChallengesReportsController {
   constructor(private readonly reportsService: ChallengesReportsService) {}
