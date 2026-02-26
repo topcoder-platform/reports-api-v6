@@ -59,4 +59,5 @@ export interface ChallengeRegistrantsResponseDto {
   challengeCompletedDate: string | null;
   registrantFinalScore?: number;
   challengeStatus: string;
+  challengeType: string;
 }
