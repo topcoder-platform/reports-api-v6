@@ -4,20 +4,19 @@ WITH submitter_role AS (
   WHERE rr."nameLower" = 'submitter'
   LIMIT 1
 ),
-filtered_challenges AS (
+filtered_challenges AS MATERIALIZED (
   SELECT
     c.id,
     c.status,
-    latest_phase."actualEndDate" as "challengeCompletedDate"
-  FROM
-    challenges."Challenge" c
+    lp."actualEndDate" AS "challengeCompletedDate"
+  FROM challenges."Challenge" c
   LEFT JOIN LATERAL (
     SELECT cp."actualEndDate"
     FROM challenges."ChallengePhase" cp
     WHERE cp."challengeId" = c.id
     ORDER BY cp."scheduledEndDate" DESC
     LIMIT 1
-  ) latest_phase ON true
+  ) lp ON true
   WHERE
     -- filter by billing account
     (
@@ -47,72 +46,58 @@ filtered_challenges AS (
     AND (
       ($4::timestamptz IS NULL AND $5::timestamptz IS NULL)
       OR (
-        latest_phase."actualEndDate" IS NOT NULL
-        AND ($4::timestamptz IS NULL OR latest_phase."actualEndDate" >= $4::timestamptz)
-        AND ($5::timestamptz IS NULL OR latest_phase."actualEndDate" <= $5::timestamptz)
+        lp."actualEndDate" IS NOT NULL
+        AND ($4::timestamptz IS NULL OR lp."actualEndDate" >= $4::timestamptz)
+        AND ($5::timestamptz IS NULL OR lp."actualEndDate" <= $5::timestamptz)
       )
     )
 ),
-registrants AS (
+registrants AS MATERIALIZED (
   -- keep one submitter resource row per challenge/member
-  SELECT DISTINCT ON (fc.id, res."memberId")
-    fc.id as "challengeId",
-    fc.status as "challengeStatus",
+  SELECT
+    fc.id AS "challengeId",
+    fc.status AS "challengeStatus",
     fc."challengeCompletedDate",
-    res."memberId",
-    res."memberHandle" as "registrantHandle"
+    registrant."memberId",
+    registrant."registrantHandle"
   FROM filtered_challenges fc
   JOIN submitter_role sr ON true
-  JOIN resources."Resource" res
-    ON res."challengeId" = fc.id
-    AND res."roleId" = sr.id
-  ORDER BY
-    fc.id,
-    res."memberId"
+  JOIN LATERAL (
+    SELECT
+      res."memberId",
+      MAX(res."memberHandle") AS "registrantHandle"
+    FROM resources."Resource" res
+    WHERE res."challengeId" = fc.id
+      AND res."roleId" = sr.id
+    GROUP BY res."memberId"
+  ) registrant ON true
   LIMIT 1000
-),
-winners AS (
-  -- aggregate winners only for already-selected registrants
-  SELECT
-    r."challengeId",
-    r."memberId",
-    MAX(cw.handle) as "winnerHandle"
-  FROM registrants r
-  JOIN challenges."ChallengeWinner" cw
-    ON cw."challengeId" = r."challengeId"
-    AND cw."userId"::text = r."memberId"
-  WHERE cw.placement = 1
-  GROUP BY r."challengeId", r."memberId"
-),
-submissions AS (
-  -- aggregate submissions only for already-selected registrants
-  SELECT
-    r."challengeId",
-    r."memberId",
-    MAX(sub."finalScore") as "finalScore",
-    BOOL_OR(sub.placement = 1) as "isWinner"
-  FROM registrants r
-  JOIN reviews.submission sub
-    ON sub."challengeId" = r."challengeId"
-    AND sub."memberId" = r."memberId"
-  GROUP BY r."challengeId", r."memberId"
 )
 SELECT
-  registrants."challengeId",
-  registrants."challengeStatus",
+  r."challengeId",
+  r."challengeStatus",
   win."winnerHandle",
-  COALESCE(sub."isWinner", false) as "isWinner",
+  COALESCE(sub."isWinner", false) AS "isWinner",
   CASE
-    WHEN registrants."challengeStatus" = 'COMPLETED'
-      THEN registrants."challengeCompletedDate"
+    WHEN r."challengeStatus" = 'COMPLETED'
+      THEN r."challengeCompletedDate"
     ELSE null
-  END as "challengeCompletedDate",
-  registrants."registrantHandle",
-  ROUND(sub."finalScore", 2) as "registrantFinalScore"
-FROM registrants
-LEFT JOIN winners win
-  ON win."challengeId" = registrants."challengeId"
-  AND win."memberId" = registrants."memberId"
-LEFT JOIN submissions sub
-  ON sub."challengeId" = registrants."challengeId"
-  AND sub."memberId" = registrants."memberId";
+  END AS "challengeCompletedDate",
+  r."registrantHandle",
+  sub."registrantFinalScore"
+FROM registrants r
+LEFT JOIN LATERAL (
+  SELECT MAX(cw.handle) AS "winnerHandle"
+  FROM challenges."ChallengeWinner" cw
+  WHERE cw."challengeId" = r."challengeId"
+    AND cw."userId"::text = r."memberId"
+    AND cw.placement = 1
+) win ON true
+LEFT JOIN LATERAL (
+  SELECT
+    BOOL_OR(s.placement = 1) AS "isWinner",
+    ROUND(MAX(s."finalScore"), 2) AS "registrantFinalScore"
+  FROM reviews.submission s
+  WHERE s."challengeId" = r."challengeId"
+    AND s."memberId" = r."memberId"
+) sub ON true;
