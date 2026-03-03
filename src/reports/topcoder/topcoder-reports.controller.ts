@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { TopcoderReportsService } from "./topcoder-reports.service";
+import { ChallengeSubmitterDataQueryDto } from "./dto/challenge-submitter-data.dto";
 import { RegistrantCountriesQueryDto } from "./dto/registrant-countries.dto";
 import { MemberPaymentAccrualQueryDto } from "./dto/member-payment-accrual.dto";
 import { RecentMemberDataQueryDto } from "./dto/recent-member-data.dto";
@@ -36,6 +37,16 @@ export class TopcoderReportsController {
   async getRegistrantCountries(@Query() query: RegistrantCountriesQueryDto) {
     const { challengeId } = query;
     return this.reports.getRegistrantCountries(challengeId);
+  }
+
+  @Get("/challenge_submitter_data")
+  @ApiOperation({
+    summary:
+      "Submitter profile data for a challenge, with Marathon Match placements and scores",
+  })
+  getChallengeSubmitterData(@Query() query: ChallengeSubmitterDataQueryDto) {
+    const { challengeId } = query;
+    return this.reports.getChallengeSubmitterData(challengeId);
   }
 
   @Get("/mm-stats/:handle")
