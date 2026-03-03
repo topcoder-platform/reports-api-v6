@@ -12,6 +12,7 @@ import { RegistrantCountriesQueryDto } from "./dto/registrant-countries.dto";
 import { MemberPaymentAccrualQueryDto } from "./dto/member-payment-accrual.dto";
 import { RecentMemberDataQueryDto } from "./dto/recent-member-data.dto";
 import { WeeklyMemberParticipationQueryDto } from "./dto/weekly-member-participation.dto";
+import { CompletedProfilesQueryDto } from "./dto/completed-profiles.dto";
 import { TopcoderReportsGuard } from "../../auth/guards/topcoder-reports.guard";
 import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.interceptor";
 
@@ -239,5 +240,14 @@ export class TopcoderReportsController {
   })
   getMembershipParticipationFunnelData() {
     return this.reports.getMembershipParticipationFunnelData();
+  }
+
+  @Get("/completed-profiles")
+  @ApiOperation({
+    summary: "List of members with 100% completed profiles",
+  })
+  getCompletedProfiles(@Query() query: CompletedProfilesQueryDto) {
+    const { countryCode } = query;
+    return this.reports.getCompletedProfiles(countryCode);
   }
 }
