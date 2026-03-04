@@ -3,10 +3,10 @@
 -- - description (bio)
 -- - profile photo
 -- - at least 3 skills
--- - gig availability set (true or false)
+-- - engagement availability (personalization trait with openToWork, availability boolean, and preferredRoles array)
 -- - at least one work history entry
 -- - at least one education entry
--- - at least one location (address)
+-- - at least one location (city in address AND homeCountryCode)
 
 WITH member_skills AS (
   SELECT
@@ -29,10 +29,26 @@ member_education AS (
   JOIN members."memberTraitEducation" me
     ON me."memberTraitId" = mt.id
 ),
+member_engagement_availability AS (
+  SELECT DISTINCT
+    mt."userId"
+  FROM members."memberTraits" mt
+  JOIN members."memberTraitPersonalization" mtp
+    ON mtp."memberTraitId" = mt.id
+  WHERE mt."traitId" = 'personalization'
+    AND mtp.value IS NOT NULL
+    AND mtp.value::jsonb ? 'openToWork'
+    AND mtp.value::jsonb ->> 'availability' IS NOT NULL
+    AND jsonb_typeof(mtp.value::jsonb -> 'availability') = 'boolean'
+    AND mtp.value::jsonb ? 'preferredRoles'
+    AND jsonb_array_length(mtp.value::jsonb -> 'preferredRoles') > 0
+),
 member_location AS (
   SELECT DISTINCT
     ma."userId"
   FROM members."memberAddress" ma
+  WHERE ma.city IS NOT NULL
+    AND TRIM(ma.city) <> ''
 ),
 completed_profiles AS (
   SELECT
@@ -45,15 +61,17 @@ completed_profiles AS (
   LEFT JOIN member_skills ms ON ms.user_id = m."userId"
   LEFT JOIN member_work_history mwh ON mwh."userId" = m."userId"
   LEFT JOIN member_education me ON me."userId" = m."userId"
+  LEFT JOIN member_engagement_availability mea ON mea."userId" = m."userId"
   LEFT JOIN member_location ml ON ml."userId" = m."userId"
   WHERE m.description IS NOT NULL
     AND m.description <> ''
     AND m."photoURL" IS NOT NULL
     AND m."photoURL" <> ''
-    AND m."availableForGigs" IS NOT NULL
+    AND m."homeCountryCode" IS NOT NULL
     AND COALESCE(ms.skill_count, 0) >= 3
     AND mwh."userId" IS NOT NULL
     AND me."userId" IS NOT NULL
+    AND mea."userId" IS NOT NULL
     AND ml."userId" IS NOT NULL
     AND ($1::text IS NULL OR COALESCE(m."homeCountryCode", m."competitionCountryCode") = $1)
 )
