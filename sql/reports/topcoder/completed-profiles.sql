@@ -37,10 +37,14 @@ member_engagement_availability AS (
     ON mtp."memberTraitId" = mt.id
   WHERE mtp.key = 'openToWork'
     AND mtp.value IS NOT NULL
-    AND mtp.value::jsonb ? 'availability'
-    AND mtp.value::jsonb ->> 'availability' IS NOT NULL
-    AND mtp.value::jsonb ? 'preferredRoles'
-    AND jsonb_array_length(mtp.value::jsonb -> 'preferredRoles') > 0
+    AND (
+      NOT (mtp.value::jsonb ? 'availability')
+      OR (
+        mtp.value::jsonb ? 'availability'
+        AND mtp.value::jsonb ? 'preferredRoles'
+        AND jsonb_array_length(mtp.value::jsonb -> 'preferredRoles') > 0
+      )
+    )
 ),
 member_location AS (
   SELECT DISTINCT
