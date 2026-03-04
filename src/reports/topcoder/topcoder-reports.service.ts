@@ -86,6 +86,13 @@ type RecentMemberDataRow = {
   submissions_over_75: string | number | null;
 };
 
+type CompletedProfileRow = {
+  userId: string | number | null;
+  handle: string | null;
+  countryCode: string | null;
+  countryName: string | null;
+};
+
 type ChallengeSubmitterDataRow = {
   userId: string | number | null;
   handle: string | null;
@@ -634,6 +641,20 @@ export class TopcoderReportsService {
         row.marathon_submission_rate,
       ),
     };
+  }
+
+  async getCompletedProfiles(countryCode?: string) {
+    const query = this.sql.load("reports/topcoder/completed-profiles.sql");
+    const rows = await this.db.query<CompletedProfileRow>(query, [
+      countryCode || null,
+    ]);
+
+    return rows.map((row) => ({
+      userId: row.userId ? Number(row.userId) : null,
+      handle: row.handle || "",
+      countryCode: row.countryCode || undefined,
+      countryName: row.countryName || undefined,
+    }));
   }
 
   private toNullableNumberArray(value: unknown): number[] | null {
