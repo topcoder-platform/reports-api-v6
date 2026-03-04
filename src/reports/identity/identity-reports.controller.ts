@@ -61,7 +61,7 @@ export class IdentityReportsController {
   }
 
   /**
-   * Exports users matched by group ID and/or group description.
+   * Exports users matched by group UUID/legacy ID and/or group name.
    * @param query Query-string filters for group lookup.
    * @returns List of matching identity users.
    */
@@ -69,7 +69,9 @@ export class IdentityReportsController {
   @UseGuards(PermissionsGuard)
   @Scopes(AppScopes.AllReports, AppScopes.Identity.UsersByGroup)
   @ApiBearerAuth()
-  @ApiOperation({ summary: "Export users for a given group (by ID or name)" })
+  @ApiOperation({
+    summary: "Export users for a given group (by UUID/legacy ID or name)",
+  })
   @ApiResponse({ status: 200, description: "Export successful." })
   async getUsersByGroup(@Query() query: UsersByGroupQueryDto) {
     return this.service.getUsersByGroup(query);

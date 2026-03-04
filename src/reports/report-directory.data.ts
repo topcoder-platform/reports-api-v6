@@ -261,15 +261,15 @@ const roleNameParam: ReportParameter = {
 
 const groupIdParam: ReportParameter = {
   name: "groupId",
-  type: "number",
-  description: "Group ID",
+  type: "string",
+  description: "Group UUID or legacy numeric group ID",
   location: "query",
 };
 
 const groupNameParam: ReportParameter = {
   name: "groupName",
   type: "string",
-  description: "Security group description",
+  description: "Group name",
   location: "query",
 };
 
@@ -335,7 +335,7 @@ export const REPORTS_DIRECTORY: ReportsDirectory = {
       report(
         "Users by Group",
         "/identity/users-by-group",
-        "Export user ID, handle, and email for all users belonging to the specified security group",
+        "Export user ID, handle, and email for all users belonging to the specified group",
         [groupIdParam, groupNameParam],
       ),
       postReport(

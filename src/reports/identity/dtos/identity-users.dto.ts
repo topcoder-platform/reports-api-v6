@@ -4,7 +4,6 @@ import {
   ArrayNotEmpty,
   IsArray,
   IsInt,
-  IsNumber,
   IsOptional,
   IsString,
 } from "class-validator";
@@ -26,14 +25,13 @@ export class UsersByRoleQueryDto {
 }
 
 /**
- * Query filters for exporting users by security group.
+ * Query filters for exporting users by group.
  */
 export class UsersByGroupQueryDto {
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  groupId?: number;
+  @IsString()
+  groupId?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()

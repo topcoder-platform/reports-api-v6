@@ -67,7 +67,7 @@ export class IdentityReportsService {
   }
 
   /**
-   * Queries users in a security group by group ID and/or group description.
+   * Queries users in a group by group UUID/legacy ID and/or group name.
    * @param filters Group filters from the request query string.
    * @returns Matching users with ID, handle, and primary email.
    */
