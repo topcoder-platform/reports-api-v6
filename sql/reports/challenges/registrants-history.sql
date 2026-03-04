@@ -75,7 +75,6 @@ registrants AS MATERIALIZED (
       AND res."roleId" = sr.id
     GROUP BY res."memberId"
   ) registrant ON true
-  LIMIT 1000
 )
 SELECT
   r."challengeId",
@@ -85,7 +84,6 @@ SELECT
   (
     COALESCE(win."isWinner", false)
     OR COALESCE(sub."isWinner", false)
-    OR COALESCE(cr."isWinner", false)
   ) AS "isWinner",
   CASE
     WHEN r."challengeStatus" = 'COMPLETED'
@@ -93,7 +91,7 @@ SELECT
     ELSE null
   END AS "challengeCompletedDate",
   r."registrantHandle",
-  COALESCE(sub."registrantFinalScore", cr."registrantFinalScore")
+  COALESCE(sub."registrantFinalScore", sum."registrantFinalScore")
     AS "registrantFinalScore"
 FROM registrants r
 LEFT JOIN LATERAL (
@@ -108,16 +106,19 @@ LEFT JOIN LATERAL (
 LEFT JOIN LATERAL (
   SELECT
     BOOL_OR(s.placement = 1) AS "isWinner",
-    ROUND(MAX(s."finalScore"), 2) AS "registrantFinalScore"
+    COALESCE(ROUND(MAX(s."finalScore")::numeric, 2), ROUND(MAX(s."initialScore")::numeric, 2)) AS "registrantFinalScore"
   FROM reviews.submission s
   WHERE s."challengeId" = r."challengeId"
     AND s."memberId" = r."memberId"
 ) sub ON true
 LEFT JOIN LATERAL (
   SELECT
-    BOOL_OR(cr.placement = 1) AS "isWinner",
-    ROUND(MAX(cr."finalScore")::numeric, 2) AS "registrantFinalScore"
-  FROM reviews."challengeResult" cr
-  WHERE cr."challengeId" = r."challengeId"
-    AND cr."userId" = r."memberId"
-) cr ON true;
+    ROUND(MAX(rs."aggregateScore")::numeric, 2) AS "registrantFinalScore"
+  FROM reviews."reviewSummation" rs
+  WHERE rs."submissionId" IN (
+	SELECT id from reviews.submission 
+	WHERE "challengeId" = r."challengeId"
+   	AND "memberId" = r."memberId"
+  )
+) sum ON true;
+
