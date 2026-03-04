@@ -35,11 +35,10 @@ member_engagement_availability AS (
   FROM members."memberTraits" mt
   JOIN members."memberTraitPersonalization" mtp
     ON mtp."memberTraitId" = mt.id
-  WHERE mt."traitId" = 'personalization'
+  WHERE mtp.key = 'openToWork'
     AND mtp.value IS NOT NULL
-    AND mtp.value::jsonb ? 'openToWork'
+    AND mtp.value::jsonb ? 'availability'
     AND mtp.value::jsonb ->> 'availability' IS NOT NULL
-    AND jsonb_typeof(mtp.value::jsonb -> 'availability') = 'boolean'
     AND mtp.value::jsonb ? 'preferredRoles'
     AND jsonb_array_length(mtp.value::jsonb -> 'preferredRoles') > 0
 ),
