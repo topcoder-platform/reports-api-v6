@@ -23,6 +23,15 @@ export const Scopes = {
     History: "reports:challenge-history",
     Registrants: "reports:challenge-registrants",
     SubmissionLinks: "reports:challenge-submission-links",
+    RegisteredUsers: "reports:challenge-registered-users",
+    Submitters: "reports:challenge-submitters",
+    ValidSubmitters: "reports:challenge-valid-submitters",
+    Winners: "reports:challenge-winners",
+  },
+  Identity: {
+    UsersByRole: "reports:identity-users-by-role",
+    UsersByGroup: "reports:identity-users-by-group",
+    UsersByHandles: "reports:identity-users-by-handles",
   },
 };
 

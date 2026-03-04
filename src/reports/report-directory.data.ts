@@ -1,10 +1,15 @@
 import { ChallengeStatus } from "./challenges/dtos/challenge-status.enum";
 
-export type ReportGroupKey = "challenges" | "sfdc" | "statistics" | "topcoder";
+export type ReportGroupKey =
+  | "challenges"
+  | "sfdc"
+  | "statistics"
+  | "topcoder"
+  | "identity";
 
-type HttpMethod = "GET";
+type HttpMethod = "GET" | "POST";
 
-type ParameterLocation = "query" | "path";
+type ParameterLocation = "query" | "path" | "body";
 
 type ReportParameterType =
   | "string"
@@ -51,6 +56,19 @@ const report = (
   path,
   description,
   method: "GET",
+  parameters,
+});
+
+const postReport = (
+  name: string,
+  path: string,
+  description: string,
+  parameters: ReportParameter[] = [],
+): AvailableReport => ({
+  name,
+  path,
+  description,
+  method: "POST",
   parameters,
 });
 
@@ -137,6 +155,14 @@ const handlesParam: ReportParameter = {
   location: "query",
 };
 
+const handlesBodyParam: ReportParameter = {
+  name: "handles",
+  type: "string[]",
+  description: "List of user handles to look up",
+  required: true,
+  location: "body",
+};
+
 const minPaymentParam: ReportParameter = {
   name: "minPaymentAmount",
   type: "number",
@@ -195,6 +221,14 @@ const registrantCountriesParam: ReportParameter = {
   required: true,
 };
 
+const challengeIdParam: ReportParameter = {
+  name: "challengeId",
+  type: "string",
+  description: "Challenge ID to retrieve report data for",
+  location: "path",
+  required: true,
+};
+
 const challengeSubmitterDataParam: ReportParameter = {
   name: "challengeId",
   type: "string",
@@ -209,6 +243,34 @@ const marathonMatchHandleParam: ReportParameter = {
   description: "Marathon Match competitor handle",
   location: "path",
   required: true,
+};
+
+const roleIdParam: ReportParameter = {
+  name: "roleId",
+  type: "number",
+  description: "Role ID",
+  location: "query",
+};
+
+const roleNameParam: ReportParameter = {
+  name: "roleName",
+  type: "string",
+  description: "Role name",
+  location: "query",
+};
+
+const groupIdParam: ReportParameter = {
+  name: "groupId",
+  type: "number",
+  description: "Group ID",
+  location: "query",
+};
+
+const groupNameParam: ReportParameter = {
+  name: "groupName",
+  type: "string",
+  description: "Security group description",
+  location: "query",
 };
 
 export const REPORTS_DIRECTORY: ReportsDirectory = {
@@ -233,6 +295,54 @@ export const REPORTS_DIRECTORY: ReportsDirectory = {
         "/challenges/submission-links",
         "Return the submission links report",
         submissionLinksFilters,
+      ),
+      report(
+        "Challenge Registered Users",
+        "/challenges/:challengeId/registered-users",
+        "Return the challenge registered users report",
+        [challengeIdParam],
+      ),
+      report(
+        "Challenge Submitters",
+        "/challenges/:challengeId/submitters",
+        "Return the challenge submitters report",
+        [challengeIdParam],
+      ),
+      report(
+        "Challenge Valid Submitters",
+        "/challenges/:challengeId/valid-submitters",
+        "Return the challenge valid submitters report",
+        [challengeIdParam],
+      ),
+      report(
+        "Challenge Winners",
+        "/challenges/:challengeId/winners",
+        "Return the challenge winners report",
+        [challengeIdParam],
+      ),
+    ],
+  },
+  identity: {
+    label: "Identity Reports",
+    basePath: "/identity",
+    reports: [
+      report(
+        "Users by Role",
+        "/identity/users-by-role",
+        "Export user ID, handle, and email for all users assigned to the specified role",
+        [roleIdParam, roleNameParam],
+      ),
+      report(
+        "Users by Group",
+        "/identity/users-by-group",
+        "Export user ID, handle, and email for all users belonging to the specified security group",
+        [groupIdParam, groupNameParam],
+      ),
+      postReport(
+        "Users by Handles",
+        "/identity/users-by-handles",
+        "Export user ID, handle, email, and country for each supplied handle; unknown handles return empty fields",
+        [handlesBodyParam],
       ),
     ],
   },
