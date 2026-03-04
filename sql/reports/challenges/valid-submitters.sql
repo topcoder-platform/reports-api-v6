@@ -23,7 +23,18 @@ valid_submitter_members AS MATERIALIZED (
   JOIN reviews."submission" AS s
     ON s."challengeId" = cc.id
    AND s."memberId" = res."memberId"
-   AND s."finalScore" > 98
+   AND (
+     -- Prefer explicit passing review summation when available (review-api v6 flow).
+     EXISTS (
+       SELECT 1
+       FROM reviews."reviewSummation" AS rs_pass
+       WHERE rs_pass."submissionId" = s.id
+         AND rs_pass."isPassing" = TRUE
+         AND COALESCE(rs_pass."isFinal", TRUE) = TRUE
+     )
+     -- Keep legacy finalScore threshold fallback for older data where summations may be missing.
+     OR s."finalScore" > 98
+   )
   GROUP BY
     cc.id,
     cc.is_marathon_match,
