@@ -93,6 +93,16 @@ type CompletedProfileRow = {
   countryName: string | null;
 };
 
+type ChallengeSubmitterDataRow = {
+  userId: string | number | null;
+  handle: string | null;
+  email: string | null;
+  country: string | null;
+  place: string | number | null;
+  provisionalScores: unknown;
+  finalScore: string | number | null;
+};
+
 @Injectable()
 export class TopcoderReportsService {
   constructor(
@@ -578,6 +588,25 @@ export class TopcoderReportsService {
     }));
   }
 
+  async getChallengeSubmitterData(challengeId: string) {
+    const query = this.sql.load(
+      "reports/topcoder/challenge-submitter-data.sql",
+    );
+    const rows = await this.db.query<ChallengeSubmitterDataRow>(query, [
+      challengeId,
+    ]);
+
+    return rows.map((row) => ({
+      userId: this.toNullableNumber(row.userId),
+      handle: row.handle ?? null,
+      email: row.email ?? null,
+      country: row.country ?? null,
+      place: this.toNullableNumber(row.place),
+      provisionalScores: this.toNullableNumberArray(row.provisionalScores),
+      finalScore: this.toNullableNumber(row.finalScore),
+    }));
+  }
+
   async getMarathonMatchStats(handle: string) {
     const query = this.sql.load("reports/topcoder/mm-stats.sql");
     const rows = await this.db.query<MarathonMatchStatsRow>(query, [handle]);
@@ -626,6 +655,34 @@ export class TopcoderReportsService {
       countryCode: row.countryCode || undefined,
       countryName: row.countryName || undefined,
     }));
+  }
+
+  private toNullableNumberArray(value: unknown): number[] | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    let normalizedValue = value;
+
+    if (typeof normalizedValue === "string") {
+      try {
+        normalizedValue = JSON.parse(normalizedValue);
+      } catch {
+        return null;
+      }
+    }
+
+    if (!Array.isArray(normalizedValue)) {
+      return null;
+    }
+
+    return normalizedValue.reduce<number[]>((scores, item) => {
+      const numericValue = Number(item);
+      if (Number.isFinite(numericValue)) {
+        scores.push(numericValue);
+      }
+      return scores;
+    }, []);
   }
 
   private toNullableNumber(value: string | number | null | undefined) {

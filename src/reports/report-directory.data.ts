@@ -195,6 +195,14 @@ const registrantCountriesParam: ReportParameter = {
   required: true,
 };
 
+const challengeSubmitterDataParam: ReportParameter = {
+  name: "challengeId",
+  type: "string",
+  description: "Challenge ID to retrieve submitter profile data for",
+  location: "query",
+  required: true,
+};
+
 const marathonMatchHandleParam: ReportParameter = {
   name: "handle",
   type: "string",
@@ -426,6 +434,12 @@ export const REPORTS_DIRECTORY: ReportsDirectory = {
         "/topcoder/registrant-countries",
         "Countries of all registrants for the specified challenge",
         [registrantCountriesParam],
+      ),
+      report(
+        "challenge_submitter_data",
+        "/topcoder/challenge_submitter_data",
+        "Submitter profile data for a challenge, with Marathon Match placements and scores",
+        [challengeSubmitterDataParam],
       ),
       report(
         "Marathon Match Stats",
