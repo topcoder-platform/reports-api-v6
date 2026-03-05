@@ -7,12 +7,12 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { SCOPES_KEY } from "../decorators/scopes.decorator";
-import { ScopeRoleAccess, UserRoles } from "../../app-constants";
+import { ScopeRoleAccess, AdminRoles } from "../../app-constants";
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   private static readonly adminRoles = new Set(
-    Object.values(UserRoles).map((role) => role.toLowerCase()),
+    Object.values(AdminRoles).map((role) => role.toLowerCase()),
   );
   private static readonly scopedRoleAccess = new Map(
     Object.entries(ScopeRoleAccess).map(([scope, roles]) => [
