@@ -38,3 +38,7 @@ export const Scopes = {
 export const UserRoles = {
   Admin: "Administrator",
 };
+
+export const ScopeRoleAccess: Record<string, readonly string[]> = {
+  [Scopes.Identity.UsersByHandles]: ["Talent Manager", "Project Manager"],
+};
