@@ -26,6 +26,10 @@ export const Scopes = {
   },
 };
 
-export const UserRoles = {
+export const AdminRoles = {
   Admin: "Administrator",
+};
+
+export const UserRoles = {
+  TalentManager: "Talent Manager",
 };

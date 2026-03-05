@@ -6,13 +6,16 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 
-import { Scopes, UserRoles } from "../../app-constants";
+import { Scopes, AdminRoles, UserRoles } from "../../app-constants";
 
 @Injectable()
 export class TopcoderReportsGuard implements CanActivate {
   private static readonly adminRoles = new Set(
-    Object.values(UserRoles).map((role) => role.toLowerCase()),
+    Object.values(AdminRoles).map((role) => role.toLowerCase()),
   );
+  private static readonly completedProfilesRoles = new Set([
+    UserRoles.TalentManager.toLowerCase(),
+  ]);
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
@@ -34,7 +37,10 @@ export class TopcoderReportsGuard implements CanActivate {
     }
 
     const roles: string[] = authUser.roles ?? [];
-    if (this.isAdmin(roles)) {
+    if (
+      this.isAdmin(roles) ||
+      this.canAccessCompletedProfiles(context, roles)
+    ) {
       return true;
     }
 
@@ -54,6 +60,21 @@ export class TopcoderReportsGuard implements CanActivate {
   private isAdmin(roles: string[]): boolean {
     return roles.some((role) =>
       TopcoderReportsGuard.adminRoles.has(role?.toLowerCase()),
+    );
+  }
+
+  private canAccessCompletedProfiles(
+    context: ExecutionContext,
+    roles: string[],
+  ): boolean {
+    const handlerName = context.getHandler().name;
+
+    if (handlerName !== "getCompletedProfiles") {
+      return false;
+    }
+
+    return roles.some((role) =>
+      TopcoderReportsGuard.completedProfilesRoles.has(role?.toLowerCase()),
     );
   }
 }
