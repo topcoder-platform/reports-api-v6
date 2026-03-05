@@ -7,12 +7,18 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { SCOPES_KEY } from "../decorators/scopes.decorator";
-import { AdminRoles } from "../../app-constants";
+import { ScopeRoleAccess, AdminRoles } from "../../app-constants";
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   private static readonly adminRoles = new Set(
     Object.values(AdminRoles).map((role) => role.toLowerCase()),
+  );
+  private static readonly scopedRoleAccess = new Map(
+    Object.entries(ScopeRoleAccess).map(([scope, roles]) => [
+      scope.toLowerCase(),
+      new Set(roles.map((role) => role.toLowerCase())),
+    ]),
   );
 
   constructor(private reflector: Reflector) {}
@@ -41,6 +47,10 @@ export class PermissionsGuard implements CanActivate {
     } else {
       const roles: string[] = authUser.roles ?? [];
       if (this.isAdmin(roles)) {
+        return true;
+      }
+
+      if (this.hasRequiredRoleAccess(roles, requiredScopes)) {
         return true;
       }
 
@@ -73,5 +83,24 @@ export class PermissionsGuard implements CanActivate {
     return roles.some((role) =>
       PermissionsGuard.adminRoles.has(role?.toLowerCase()),
     );
+  }
+
+  private hasRequiredRoleAccess(
+    roles: string[],
+    requiredScopes: string[],
+  ): boolean {
+    if (!roles?.length || !requiredScopes?.length) {
+      return false;
+    }
+
+    const normalizedRoles = roles.map((role) => role?.toLowerCase());
+    return requiredScopes.some((scope) => {
+      const allowedRoles = PermissionsGuard.scopedRoleAccess.get(
+        scope?.toLowerCase(),
+      );
+      return (
+        !!allowedRoles && normalizedRoles.some((role) => allowedRoles.has(role))
+      );
+    });
   }
 }

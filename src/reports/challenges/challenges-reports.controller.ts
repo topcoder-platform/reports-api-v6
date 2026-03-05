@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Param,
   Query,
   UseGuards,
   UseInterceptors,
@@ -25,6 +26,7 @@ import {
   SubmissionLinksDto,
   SubmissionLinksQueryDto,
 } from "./dtos/submission-links.dto";
+import { ChallengeUsersPathParamDto } from "./dtos/challenge-users.dto";
 
 @ApiTags("Challenges Reports")
 @ApiProduces("application/json", "text/csv")
@@ -81,6 +83,70 @@ export class ChallengesReportsController {
   })
   async getSubmissionLinks(@Query() query: SubmissionLinksQueryDto) {
     const report = await this.reportsService.getSubmissionLinks(query);
+    return report;
+  }
+
+  @Get("/:challengeId/registered-users")
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports, AppScopes.Challenge.RegisteredUsers)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Return the challenge registered users report",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Export successful.",
+  })
+  async getRegisteredUsers(@Param() params: ChallengeUsersPathParamDto) {
+    const report = await this.reportsService.getRegisteredUsers(params);
+    return report;
+  }
+
+  @Get("/:challengeId/submitters")
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports, AppScopes.Challenge.Submitters)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Return the challenge submitters report",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Export successful.",
+  })
+  async getSubmitters(@Param() params: ChallengeUsersPathParamDto) {
+    const report = await this.reportsService.getSubmitters(params);
+    return report;
+  }
+
+  @Get("/:challengeId/valid-submitters")
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports, AppScopes.Challenge.ValidSubmitters)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Return the challenge valid submitters report",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Export successful.",
+  })
+  async getValidSubmitters(@Param() params: ChallengeUsersPathParamDto) {
+    const report = await this.reportsService.getValidSubmitters(params);
+    return report;
+  }
+
+  @Get("/:challengeId/winners")
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports, AppScopes.Challenge.Winners)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Return the challenge winners report",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Export successful.",
+  })
+  async getWinners(@Param() params: ChallengeUsersPathParamDto) {
+    const report = await this.reportsService.getWinners(params);
     return report;
   }
 }
