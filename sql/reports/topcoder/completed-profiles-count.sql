@@ -28,22 +28,22 @@ WHERE m.description IS NOT NULL
     INNER JOIN members."memberTraitEducation" me ON me."memberTraitId" = mt.id
     WHERE mt."userId" = m."userId"
   )
-  -- AND EXISTS (
-  --   SELECT 1
-  --   FROM members."memberTraits" mt
-  --   INNER JOIN members."memberTraitPersonalization" mtp ON mtp."memberTraitId" = mt.id
-  --   WHERE mt."userId" = m."userId"
-  --     AND mtp.key = 'openToWork'
-  --     AND mtp.value IS NOT NULL
-  --     AND (
-  --       NOT (mtp.value::jsonb ? 'availability')
-  --       OR (
-  --         mtp.value::jsonb ? 'availability'
-  --         AND mtp.value::jsonb ? 'preferredRoles'
-  --         AND jsonb_array_length(mtp.value::jsonb -> 'preferredRoles') > 0
-  --       )
-  --     )
-  -- )
+  AND EXISTS (
+    SELECT 1
+    FROM members."memberTraits" mt
+    INNER JOIN members."memberTraitPersonalization" mtp ON mtp."memberTraitId" = mt.id
+    WHERE mt."userId" = m."userId"
+      AND mtp.key = 'openToWork'
+      AND mtp.value IS NOT NULL
+      AND (
+        NOT (mtp.value::jsonb ? 'availability')
+        OR (
+          mtp.value::jsonb ? 'availability'
+          AND mtp.value::jsonb ? 'preferredRoles'
+          AND jsonb_array_length(mtp.value::jsonb -> 'preferredRoles') > 0
+        )
+      )
+  )
   AND EXISTS (
     SELECT 1
     FROM members."memberAddress" ma
