@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { IsOptional, IsString } from "class-validator";
+import { IsNumberString, IsOptional, IsString } from "class-validator";
 
 export class CompletedProfilesQueryDto {
   @ApiPropertyOptional({
@@ -9,4 +9,20 @@ export class CompletedProfilesQueryDto {
   @IsOptional()
   @IsString()
   countryCode?: string;
+
+  @ApiPropertyOptional({
+    description: "Page number (1-based)",
+    example: "1",
+  })
+  @IsOptional()
+  @IsNumberString()
+  page?: string;
+
+  @ApiPropertyOptional({
+    description: "Number of records per page",
+    example: "50",
+  })
+  @IsOptional()
+  @IsNumberString()
+  perPage?: string;
 }

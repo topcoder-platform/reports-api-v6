@@ -258,7 +258,14 @@ export class TopcoderReportsController {
     summary: "List of members with 100% completed profiles",
   })
   getCompletedProfiles(@Query() query: CompletedProfilesQueryDto) {
-    const { countryCode } = query;
-    return this.reports.getCompletedProfiles(countryCode);
+    const { countryCode, page, perPage } = query;
+    const parsedPage = Math.max(Number(page || 1), 1);
+    const parsedPerPage = Math.min(Math.max(Number(perPage || 50), 1), 200);
+
+    return this.reports.getCompletedProfiles(
+      countryCode,
+      parsedPage,
+      parsedPerPage,
+    );
   }
 }
