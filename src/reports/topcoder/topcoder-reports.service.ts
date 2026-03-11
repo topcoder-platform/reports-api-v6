@@ -91,6 +91,7 @@ type CompletedProfileRow = {
   handle: string | null;
   countryCode: string | null;
   countryName: string | null;
+  openToWork?: { availability?: string; preferredRoles?: string[] } | null;
 };
 
 type ChallengeSubmitterDataRow = {
@@ -654,6 +655,7 @@ export class TopcoderReportsService {
       handle: row.handle || "",
       countryCode: row.countryCode || undefined,
       countryName: row.countryName || undefined,
+      openToWork: row.openToWork ?? null,
     }));
   }
 

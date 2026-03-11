@@ -19,7 +19,15 @@ SELECT
   m."userId" AS "userId",
   m.handle,
   COALESCE(m."homeCountryCode", m."competitionCountryCode") AS "countryCode",
-  m.country AS "countryName"
+  m.country AS "countryName",
+  (
+    SELECT mtp.value
+    FROM members."memberTraits" mt
+    INNER JOIN members."memberTraitPersonalization" mtp ON mtp."memberTraitId" = mt.id
+    WHERE mt."userId" = m."userId"
+      AND mtp.key = 'openToWork'
+    LIMIT 1
+  ) AS "openToWork"
 FROM members.member m
 INNER JOIN member_skills ms ON ms.user_id = m."userId"
 WHERE m.description IS NOT NULL
