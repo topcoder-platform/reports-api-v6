@@ -1,17 +1,10 @@
 WITH challenge_context AS (
-  SELECT
-    c.id,
-    ct.name AS "challengeType",
-    (ct.name = 'Marathon Match') AS is_marathon_match
+  SELECT c.id
   FROM challenges."Challenge" AS c
-  JOIN challenges."ChallengeType" AS ct
-    ON ct.id = c."typeId"
   WHERE c.id = $1::text
 ),
 registered_members AS MATERIALIZED (
   SELECT
-    cc.id AS "challengeId",
-    cc.is_marathon_match,
     res."memberId",
     MAX(res."memberHandle") AS "memberHandle"
   FROM challenge_context AS cc
@@ -20,10 +13,7 @@ registered_members AS MATERIALIZED (
   JOIN resources."ResourceRole" AS rr
     ON rr.id = res."roleId"
    AND rr.name = 'Submitter'
-  GROUP BY
-    cc.id,
-    cc.is_marathon_match,
-    res."memberId"
+  GROUP BY res."memberId"
 )
 SELECT
   COALESCE(
@@ -33,22 +23,20 @@ SELECT
       ELSE NULL
     END
   ) AS "userId",
-  COALESCE(u.handle, rm."memberHandle") AS "handle",
-  e.address AS "email",
-  -- Resolve competition country first, then fall back to home country.
+  COALESCE(
+    NULLIF(TRIM(u.handle), ''),
+    NULLIF(TRIM(mem.handle), ''),
+    rm."memberHandle"
+  ) AS "handle",
+  COALESCE(e.address, NULLIF(TRIM(mem.email), '')) AS "email",
   COALESCE(
     comp_code.name,
     comp_id.name,
     home_code.name,
     home_id.name,
-    mem."competitionCountryCode",
-    mem."homeCountryCode"
-  ) AS "country",
-  -- Marathon Match score support is kept in schema; non-MM rows return NULL.
-  CASE
-    WHEN rm.is_marathon_match THEN mm_score."submissionScore"
-    ELSE NULL
-  END AS "submissionScore"
+    NULLIF(TRIM(mem."competitionCountryCode"), ''),
+    NULLIF(TRIM(mem."homeCountryCode"), '')
+  ) AS "country"
 FROM registered_members AS rm
 LEFT JOIN identity."user" AS u
   ON rm."memberId" ~ '^[0-9]+$'
@@ -67,16 +55,6 @@ LEFT JOIN lookups."Country" AS comp_code
   ON UPPER(comp_code."countryCode") = UPPER(mem."competitionCountryCode")
 LEFT JOIN lookups."Country" AS comp_id
   ON UPPER(comp_id.id) = UPPER(mem."competitionCountryCode")
-LEFT JOIN LATERAL (
-  -- For MM, use the best aggregateScore across this member's submissions.
-  SELECT ROUND(MAX(rs."aggregateScore")::numeric, 2) AS "submissionScore"
-  FROM reviews."submission" AS s
-  JOIN reviews."reviewSummation" AS rs
-    ON rs."submissionId" = s.id
-  WHERE s."challengeId" = rm."challengeId"
-    AND s."memberId" = rm."memberId"
-) AS mm_score ON true
 ORDER BY
-  "submissionScore" DESC NULLS LAST,
   "handle" ASC NULLS LAST,
   "userId" ASC NULLS LAST;

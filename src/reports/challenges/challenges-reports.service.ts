@@ -14,6 +14,10 @@ import {
   ChallengeUsersPathParamDto,
 } from "./dtos/challenge-users.dto";
 
+type ChallengeUserReportQueryRow = ChallengeUserRecordDto & {
+  isMarathonMatch?: boolean | null;
+};
+
 @Injectable()
 export class ChallengesReportsService {
   private readonly logger = new Logger(ChallengesReportsService.name);
@@ -84,7 +88,7 @@ export class ChallengesReportsService {
   /**
    * Retrieves all users registered for the specified challenge.
    * @param filters Path params containing challengeId.
-   * @returns Registered user records with handle, email, country, and MM score when applicable.
+   * @returns Registered user records with handle, email, and country details.
    * @throws Does not throw. Logs query errors and returns an empty array.
    */
   async getRegisteredUsers(
@@ -108,7 +112,7 @@ export class ChallengesReportsService {
   /**
    * Retrieves users who submitted at least one submission for the specified challenge.
    * @param filters Path params containing challengeId.
-   * @returns Submitter records with handle, email, country, and MM score when applicable.
+   * @returns Submitter records with core profile fields and the export-specific score columns for the challenge type.
    * @throws Does not throw. Logs query errors and returns an empty array.
    */
   async getSubmitters(
@@ -118,11 +122,11 @@ export class ChallengesReportsService {
     const query = this.sql.load("reports/challenges/submitters.sql");
 
     try {
-      const results = await this.db.query<ChallengeUserRecordDto>(query, [
+      const results = await this.db.query<ChallengeUserReportQueryRow>(query, [
         filters.challengeId,
       ]);
 
-      return results;
+      return this.formatChallengeUserReport(results);
     } catch (e) {
       this.logger.error(e);
       return [];
@@ -132,7 +136,7 @@ export class ChallengesReportsService {
   /**
    * Retrieves users with at least one passing submission for the specified challenge.
    * @param filters Path params containing challengeId.
-   * @returns Valid submitter records with handle, email, country, and MM score when applicable.
+   * @returns Valid submitter records with core profile fields and the export-specific score columns for the challenge type.
    * @throws Does not throw. Logs query errors and returns an empty array.
    */
   async getValidSubmitters(
@@ -142,11 +146,11 @@ export class ChallengesReportsService {
     const query = this.sql.load("reports/challenges/valid-submitters.sql");
 
     try {
-      const results = await this.db.query<ChallengeUserRecordDto>(query, [
+      const results = await this.db.query<ChallengeUserReportQueryRow>(query, [
         filters.challengeId,
       ]);
 
-      return results;
+      return this.formatChallengeUserReport(results);
     } catch (e) {
       this.logger.error(e);
       return [];
@@ -156,7 +160,7 @@ export class ChallengesReportsService {
   /**
    * Retrieves winner records for the specified challenge.
    * @param filters Path params containing challengeId.
-   * @returns Winner records with handle, email, country, and MM score when applicable.
+   * @returns Winner records with core profile fields and the export-specific score columns for the challenge type.
    * @throws Does not throw. Logs query errors and returns an empty array.
    */
   async getWinners(
@@ -166,14 +170,50 @@ export class ChallengesReportsService {
     const query = this.sql.load("reports/challenges/winners.sql");
 
     try {
-      const results = await this.db.query<ChallengeUserRecordDto>(query, [
+      const results = await this.db.query<ChallengeUserReportQueryRow>(query, [
         filters.challengeId,
       ]);
 
-      return results;
+      return this.formatChallengeUserReport(results);
     } catch (e) {
       this.logger.error(e);
       return [];
     }
+  }
+
+  /**
+   * Normalizes raw challenge user report rows into the exported column shape.
+   * @param records SQL rows for one challenge report, including the internal Marathon Match flag.
+   * @returns Export-ready records with either submissionScore or Marathon Match-specific columns.
+   * @throws Does not throw. It is used as a pure formatter inside the challenge report service methods.
+   */
+  private formatChallengeUserReport(
+    records: ChallengeUserReportQueryRow[],
+  ): ChallengeUserRecordDto[] {
+    if (!records.length) {
+      return [];
+    }
+
+    const isMarathonMatch = records.some(
+      (record) => record.isMarathonMatch === true,
+    );
+
+    return records.map((record) => {
+      const normalized: ChallengeUserRecordDto = {
+        userId: record.userId,
+        handle: record.handle,
+        email: record.email ?? null,
+        country: record.country ?? null,
+      };
+
+      if (isMarathonMatch) {
+        normalized.provisionalScore = record.provisionalScore ?? null;
+        normalized.finalRank = record.finalRank ?? null;
+        return normalized;
+      }
+
+      normalized.submissionScore = record.submissionScore ?? null;
+      return normalized;
+    });
   }
 }

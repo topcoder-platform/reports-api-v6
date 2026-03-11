@@ -1,3 +1,5 @@
+import { Scopes as AppScopes } from "../app-constants";
+import { AuthUserLike, hasAccessToScopes } from "../auth/permissions.util";
 import { ChallengeStatus } from "./challenges/dtos/challenge-status.enum";
 
 export type ReportGroupKey =
@@ -44,33 +46,110 @@ export type ReportGroup = {
   reports: AvailableReport[];
 };
 
-export type ReportsDirectory = Record<ReportGroupKey, ReportGroup>;
+export type ReportsDirectory = Partial<Record<ReportGroupKey, ReportGroup>>;
+
+type RegisteredReport = AvailableReport & {
+  requiredScopes: readonly string[];
+};
+
+type RegisteredReportGroup = Omit<ReportGroup, "reports"> & {
+  reports: RegisteredReport[];
+};
+
+type RegisteredReportsDirectory = Record<ReportGroupKey, RegisteredReportGroup>;
 
 const report = (
   name: string,
   path: string,
   description: string,
+  requiredScopes: readonly string[] = [],
   parameters: ReportParameter[] = [],
-): AvailableReport => ({
+): RegisteredReport => ({
   name,
   path,
   description,
   method: "GET",
   parameters,
+  requiredScopes,
 });
 
 const postReport = (
   name: string,
   path: string,
   description: string,
+  requiredScopes: readonly string[] = [],
   parameters: ReportParameter[] = [],
-): AvailableReport => ({
+): RegisteredReport => ({
   name,
   path,
   description,
   method: "POST",
   parameters,
+  requiredScopes,
 });
+
+const challengeReport = (
+  name: string,
+  path: string,
+  description: string,
+  scope: string,
+  parameters: ReportParameter[] = [],
+): RegisteredReport =>
+  report(name, path, description, [AppScopes.AllReports, scope], parameters);
+
+const identityReport = (
+  name: string,
+  path: string,
+  description: string,
+  scope: string,
+  parameters: ReportParameter[] = [],
+): RegisteredReport =>
+  report(name, path, description, [AppScopes.AllReports, scope], parameters);
+
+const identityPostReport = (
+  name: string,
+  path: string,
+  description: string,
+  scope: string,
+  parameters: ReportParameter[] = [],
+): RegisteredReport =>
+  postReport(
+    name,
+    path,
+    description,
+    [AppScopes.AllReports, scope],
+    parameters,
+  );
+
+const sfdcReport = (
+  name: string,
+  path: string,
+  description: string,
+  scope: string,
+  parameters: ReportParameter[] = [],
+): RegisteredReport =>
+  report(name, path, description, [AppScopes.AllReports, scope], parameters);
+
+const topcoderReport = (
+  name: string,
+  path: string,
+  description: string,
+  parameters: ReportParameter[] = [],
+): RegisteredReport =>
+  report(
+    name,
+    path,
+    description,
+    [AppScopes.AllReports, AppScopes.TopcoderReports],
+    parameters,
+  );
+
+const publicReport = (
+  name: string,
+  path: string,
+  description: string,
+  parameters: ReportParameter[] = [],
+): RegisteredReport => report(name, path, description, [], parameters);
 
 const challengeStatusParam: ReportParameter = {
   name: "challengeStatus",
@@ -273,51 +352,58 @@ const groupNameParam: ReportParameter = {
   location: "query",
 };
 
-export const REPORTS_DIRECTORY: ReportsDirectory = {
+const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
   challenges: {
     label: "Challenges Reports",
     basePath: "/challenges",
     reports: [
-      report(
+      challengeReport(
         "Challenge History",
         "/challenges",
         "Return the challenge history report",
+        AppScopes.Challenge.History,
         challengeHistoryFilters,
       ),
-      report(
+      challengeReport(
         "Challenge Registrants",
         "/challenges/registrants",
         "Return the challenge registrants history report",
+        AppScopes.Challenge.Registrants,
         challengeHistoryFilters,
       ),
-      report(
+      challengeReport(
         "Submission Links",
         "/challenges/submission-links",
         "Return the submission links report",
+        AppScopes.Challenge.SubmissionLinks,
         submissionLinksFilters,
       ),
-      report(
+      challengeReport(
         "Challenge Registered Users",
         "/challenges/:challengeId/registered-users",
         "Return the challenge registered users report",
+        AppScopes.Challenge.RegisteredUsers,
         [challengeIdParam],
       ),
-      report(
+      challengeReport(
         "Challenge Submitters",
         "/challenges/:challengeId/submitters",
-        "Return the challenge submitters report",
+        "Return the challenge submitters report. Marathon Match exports include provisionalScore and finalRank ordered by the current effective rank.",
+        AppScopes.Challenge.Submitters,
         [challengeIdParam],
       ),
-      report(
+      challengeReport(
         "Challenge Valid Submitters",
         "/challenges/:challengeId/valid-submitters",
-        "Return the challenge valid submitters report",
+        "Return the challenge valid submitters report. Marathon Match exports include provisionalScore and finalRank ordered by the current effective rank.",
+        AppScopes.Challenge.ValidSubmitters,
         [challengeIdParam],
       ),
-      report(
+      challengeReport(
         "Challenge Winners",
         "/challenges/:challengeId/winners",
-        "Return the challenge winners report",
+        "Return the challenge winners report with placement winners only. Marathon Match exports include provisionalScore and finalRank.",
+        AppScopes.Challenge.Winners,
         [challengeIdParam],
       ),
     ],
@@ -326,22 +412,25 @@ export const REPORTS_DIRECTORY: ReportsDirectory = {
     label: "Identity Reports",
     basePath: "/identity",
     reports: [
-      report(
+      identityReport(
         "Users by Role",
         "/identity/users-by-role",
         "Export user ID, handle, and email for all users assigned to the specified role",
+        AppScopes.Identity.UsersByRole,
         [roleIdParam, roleNameParam],
       ),
-      report(
+      identityReport(
         "Users by Group",
         "/identity/users-by-group",
         "Export user ID, handle, and email for all users belonging to the specified group",
+        AppScopes.Identity.UsersByGroup,
         [groupIdParam, groupNameParam],
       ),
-      postReport(
+      identityPostReport(
         "Users by Handles",
         "/identity/users-by-handles",
         "Export user ID, handle, email, and country for each supplied handle; unknown handles return empty fields",
+        AppScopes.Identity.UsersByHandles,
         [handlesBodyParam],
       ),
     ],
@@ -350,16 +439,18 @@ export const REPORTS_DIRECTORY: ReportsDirectory = {
     label: "SFDC Reports",
     basePath: "/sfdc",
     reports: [
-      report(
+      sfdcReport(
         "Payments",
         "/sfdc/payments",
         "SFDC Payments report",
+        AppScopes.SFDC.PaymentsReport,
         paymentsFilters,
       ),
-      report(
+      sfdcReport(
         "BA Fees",
         "/sfdc/ba-fees",
         "Report of BA to fee / member payment",
+        AppScopes.SFDC.BA,
         baFeesDateParams,
       ),
     ],
@@ -368,162 +459,167 @@ export const REPORTS_DIRECTORY: ReportsDirectory = {
     label: "Statistics",
     basePath: "/statistics",
     reports: [
-      report(
+      publicReport(
         "SRM Top Rated",
         "/statistics/srm/top-rated",
         "Highest rated SRMs (static)",
       ),
-      report(
+      publicReport(
         "SRM Country Ratings",
         "/statistics/srm/country-ratings",
         "SRM country ratings (static)",
       ),
-      report(
+      publicReport(
         "SRM Competitions Count",
         "/statistics/srm/competitions-count",
         "SRM number of competitions (static)",
       ),
-      report(
+      publicReport(
         "MM Top Rated",
         "/statistics/mm/top-rated",
         "Highest rated Marathon Matches (static)",
       ),
-      report(
+      publicReport(
         "MM Country Ratings",
         "/statistics/mm/country-ratings",
         "Marathon Match country ratings (static)",
       ),
-      report(
+      publicReport(
         "MM Top 10 Finishes",
         "/statistics/mm/top-10-finishes",
         "Marathon Match Top 10 finishes (static)",
       ),
-      report(
+      publicReport(
         "MM Competitions Count",
         "/statistics/mm/competitions-count",
         "Marathon Match number of competitions (static)",
       ),
-      report(
+      publicReport(
         "Member Count",
         "/statistics/general/member-count",
         "Total number of member records",
       ),
-      report(
+      publicReport(
         "Total Prizes",
         "/statistics/general/total-prizes",
         "Total amount of all payments",
       ),
-      report(
+      publicReport(
         "Completed Challenges",
         "/statistics/general/completed-challenges",
         "Total number of completed challenges",
       ),
-      report(
+      publicReport(
         "Countries Represented",
         "/statistics/general/countries-represented",
         "Member count by country (desc)",
       ),
-      report(
+      publicReport(
         "First Place by Country",
         "/statistics/general/first-place-by-country",
         "First place finishes by country (desc)",
       ),
-      report(
+      publicReport(
         "Copiloted Challenges",
         "/statistics/general/copiloted-challenges",
         "Copiloted challenges by member (desc)",
       ),
-      report(
+      publicReport(
         "Reviews by Member",
         "/statistics/general/reviews-by-member",
         "Review participation by member (desc)",
       ),
-      report(
+      publicReport(
         "UI Design Wins",
         "/statistics/design/ui-design-wins",
         "Design 'Challenge' wins by member (desc)",
       ),
-      report(
+      publicReport(
         "Design First2Finish Wins",
         "/statistics/design/f2f-wins",
         "Design First2Finish wins by member (desc)",
       ),
-      report(
+      publicReport(
         "LUX First Place Wins",
         "/statistics/design/lux-first-place-wins",
         "Design LUX first place wins by member (desc)",
       ),
-      report(
+      publicReport(
         "LUX Placements",
         "/statistics/design/lux-placements",
         "Design LUX placements by member (desc)",
       ),
-      report(
+      publicReport(
         "RUX Placements",
         "/statistics/design/rux-placements",
         "Design RUX placements by member (desc)",
       ),
-      report(
+      publicReport(
         "First-time Design Submitters",
         "/statistics/design/first-time-submitters",
         "First-time design submitters in last 3 months",
       ),
-      report(
+      publicReport(
         "Design Countries Represented",
         "/statistics/design/countries-represented",
         "Design submitters by country (desc)",
       ),
-      report(
+      publicReport(
         "Design First Place by Country",
         "/statistics/design/first-place-by-country",
         "Design first place finishes by country (desc)",
       ),
-      report(
+      publicReport(
         "RUX First Place Wins",
         "/statistics/design/rux-first-place-wins",
         "RUX first place design challenge wins by member (desc)",
       ),
-      report(
+      publicReport(
         "Wireframe Wins",
         "/statistics/design/wireframe-wins",
         "Design wireframe challenge wins by member (desc)",
       ),
-      report(
+      publicReport(
         "Development Challenge Wins",
         "/statistics/development/code-wins",
         "Development challenge wins by member (desc)",
       ),
-      report(
+      publicReport(
         "Development First2Finish Wins",
         "/statistics/development/f2f-wins",
         "Development First2Finish wins by member (desc)",
       ),
-      report(
+      publicReport(
         "Prototype Wins",
         "/statistics/development/prototype-wins",
         "Development prototype challenge wins by member (desc)",
       ),
-      report(
+      publicReport(
         "Development First Place Wins",
         "/statistics/development/first-place-wins",
         "Development overall wins by member (desc)",
       ),
-      report(
+      publicReport(
         "First-time Development Submitters",
         "/statistics/development/first-time-submitters",
         "First-time development submitters in last 3 months",
       ),
-      report(
+      publicReport(
         "Development Countries Represented",
         "/statistics/development/countries-represented",
         "Development submitters by country (desc)",
       ),
-      report(
+      publicReport(
+        "Development First Place by Country",
+        "/statistics/development/first-place-by-country",
+        "Development first place finishes by country (desc)",
+      ),
+      publicReport(
         "Development Challenges by Technology",
         "/statistics/development/challenges-technology",
         "Development challenges by standardized skill (desc)",
       ),
-      report(
+      publicReport(
         "QA Wins",
         "/statistics/qa/wins",
         "Quality Assurance challenge wins by member (desc)",
@@ -534,138 +630,138 @@ export const REPORTS_DIRECTORY: ReportsDirectory = {
     label: "Topcoder Reports",
     basePath: "/topcoder",
     reports: [
-      report(
+      topcoderReport(
         "Member Count",
         "/topcoder/member-count",
         "Total number of active members",
       ),
-      report(
+      topcoderReport(
         "Registrant Countries",
         "/topcoder/registrant-countries",
         "Countries of all registrants for the specified challenge",
         [registrantCountriesParam],
       ),
-      report(
+      topcoderReport(
         "challenge_submitter_data",
         "/topcoder/challenge_submitter_data",
         "Submitter profile data for a challenge, with Marathon Match placements and scores",
         [challengeSubmitterDataParam],
       ),
-      report(
+      topcoderReport(
         "Marathon Match Stats",
         "/topcoder/mm-stats/:handle",
         "Marathon match performance snapshot for a specific handle",
         [marathonMatchHandleParam],
       ),
-      report(
+      topcoderReport(
         "Total Copilots",
         "/topcoder/total-copilots",
         "Total number of Copilots",
       ),
-      report(
+      topcoderReport(
         "Weekly Active Copilots",
         "/topcoder/weekly-active-copilots",
         "Weekly challenge and copilot counts by track for the last six months",
       ),
-      report(
+      topcoderReport(
         "Weekly Member Participation",
         "/topcoder/weekly-member-participation",
         "Weekly distinct registrants and submitters for the provided date range (defaults to last five weeks)",
         [paymentsStartDateParam, paymentsEndDateParam],
       ),
-      report(
+      topcoderReport(
         "Member Payment Accrual",
         "/topcoder/member-payment-accrual",
         "Member payment accruals for the provided date range (defaults to last 3 months)",
         [paymentsStartDateParam, paymentsEndDateParam],
       ),
-      report(
+      topcoderReport(
         "Recent Member Data",
         "/topcoder/recent-member-data",
         "Members who registered and were paid since the start date (defaults to Jan 1, 2024)",
         [paymentsStartDateParam],
       ),
-      report(
+      topcoderReport(
         "90 Day Member Spend",
         "/topcoder/90-day-member-spend",
         "Total gross amount paid to members in the last 90 days",
       ),
-      report(
+      topcoderReport(
         "90 Day Members Paid",
         "/topcoder/90-day-members-paid",
         "Total number of distinct members paid in the last 90 days",
       ),
-      report(
+      topcoderReport(
         "90 Day New Members",
         "/topcoder/90-day-new-members",
         "Total number of new active members created in the last 90 days",
       ),
-      report(
+      topcoderReport(
         "90 Day Active Copilots",
         "/topcoder/90-day-active-copilots",
         "Total number of distinct copilots active in the last 90 days",
       ),
-      report(
+      topcoderReport(
         "90 Day User Login",
         "/topcoder/90-day-user-login",
         "Total number of active members who logged in during the last 90 days",
       ),
-      report(
+      topcoderReport(
         "90 Day Challenge Volume",
         "/topcoder/90-day-challenge-volume",
         "Total number of challenges launched in the last 90 days",
       ),
-      report(
+      topcoderReport(
         "90 Day Challenge Duration",
         "/topcoder/90-day-challenge-duration",
         "Total duration and count of completed challenges in the last 90 days",
       ),
-      report(
+      topcoderReport(
         "90 Day Challenge Registrants",
         "/topcoder/90-day-challenge-registrants",
         "Distinct challenge registrants and submitters in the last 90 days",
       ),
-      report(
+      topcoderReport(
         "90 Day Challenge Submitters",
         "/topcoder/90-day-challenge-submitters",
         "Distinct challenge registrants and submitters in the last 90 days",
       ),
-      report(
+      topcoderReport(
         "90 Day Challenge Member Cost",
         "/topcoder/90-day-challenge-member-cost",
         "Member payment totals and averages for challenges completed in the last 90 days",
       ),
-      report(
+      topcoderReport(
         "90 Day Task Member Cost",
         "/topcoder/90-day-task-member-cost",
         "Member payment totals and averages for tasks completed in the last 90 days",
       ),
-      report(
+      topcoderReport(
         "90 Day Fulfillment",
         "/topcoder/90-day-fulfillment",
         "Share of challenges completed versus cancelled in the last 90 days",
       ),
-      report(
+      topcoderReport(
         "90 Day Fulfillment With Tasks",
         "/topcoder/90-day-fulfillment-with-tasks",
         "Share of challenges and tasks completed versus cancelled in the last 90 days",
       ),
-      report(
+      topcoderReport(
         "Weekly Challenge Fulfillment",
         "/topcoder/weekly-challenge-fulfillment",
         "Weekly share of challenges completed versus cancelled for the last four weeks",
       ),
-      report(
+      topcoderReport(
         "Weekly Challenge Volume",
         "/topcoder/weekly-challenge-volume",
         "Weekly challenge counts by task indicator for the last four weeks",
       ),
-      report(
+      topcoderReport(
         "90 Day Membership Participation Funnel",
         "/topcoder/90-day-membership-participation-funnel",
         "New member counts with design and development participation indicators for the last 90 days",
       ),
-      report(
+      topcoderReport(
         "Membership Participation Funnel Data",
         "/topcoder/membership-participation-funnel-data",
         "Weekly new member counts with design and development participation indicators for the last four weeks",
@@ -673,3 +769,81 @@ export const REPORTS_DIRECTORY: ReportsDirectory = {
     ],
   },
 };
+
+function toAvailableReport(
+  reportDefinition: RegisteredReport,
+): AvailableReport {
+  return {
+    description: reportDefinition.description,
+    method: reportDefinition.method,
+    name: reportDefinition.name,
+    parameters: reportDefinition.parameters,
+    path: reportDefinition.path,
+  };
+}
+
+function toReportGroup(group: RegisteredReportGroup): ReportGroup {
+  return {
+    ...group,
+    reports: group.reports.map(toAvailableReport),
+  };
+}
+
+/**
+ * Lists every scope that can unlock at least one catalog entry.
+ * The directory endpoints use this to allow callers who can access any report.
+ */
+export const REPORTS_DIRECTORY_REQUIRED_SCOPES = Array.from(
+  new Set(
+    Object.values(REGISTERED_REPORTS_DIRECTORY).flatMap((group) =>
+      group.reports.flatMap((reportDefinition) =>
+        reportDefinition.requiredScopes.filter(
+          (scope) => scope !== AppScopes.AllReports,
+        ),
+      ),
+    ),
+  ),
+);
+
+export const REPORTS_DIRECTORY: ReportsDirectory = Object.fromEntries(
+  Object.entries(REGISTERED_REPORTS_DIRECTORY).map(([key, group]) => [
+    key,
+    toReportGroup(group),
+  ]),
+) as ReportsDirectory;
+
+/**
+ * Returns the subset of the report catalog that the authenticated caller can run.
+ * Empty groups are omitted from the response.
+ */
+export function getAccessibleReportsDirectory(
+  authUser?: AuthUserLike,
+): ReportsDirectory {
+  if (!authUser) {
+    return {};
+  }
+
+  const accessibleGroups = Object.entries(REGISTERED_REPORTS_DIRECTORY).flatMap(
+    ([key, group]) => {
+      const accessibleReports = group.reports.filter((reportDefinition) =>
+        hasAccessToScopes(authUser, reportDefinition.requiredScopes),
+      );
+
+      if (!accessibleReports.length) {
+        return [];
+      }
+
+      return [
+        [
+          key,
+          {
+            ...group,
+            reports: accessibleReports.map(toAvailableReport),
+          },
+        ] as const,
+      ];
+    },
+  );
+
+  return Object.fromEntries(accessibleGroups) as ReportsDirectory;
+}

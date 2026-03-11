@@ -16,7 +16,8 @@ export class ChallengeUsersPathParamDto {
 
 /**
  * User record returned by challenge user reports including resolved country.
- * For Marathon Match challenges, submissionScore contains the best aggregate score.
+ * Standard challenge submission-based reports expose submissionScore.
+ * Marathon Match submission-based reports expose provisionalScore and finalRank.
  */
 export interface ChallengeUserRecordDto {
   userId: number;
@@ -24,4 +25,6 @@ export interface ChallengeUserRecordDto {
   email: string | null;
   country: string | null;
   submissionScore?: number | null;
+  provisionalScore?: number | null;
+  finalRank?: number | null;
 }

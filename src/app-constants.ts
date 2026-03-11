@@ -39,6 +39,27 @@ export const UserRoles = {
   Admin: "Administrator",
 };
 
+export const ReportAccessRoles = {
+  ProductManager: "Product Manager",
+  ProjectManager: "Project Manager",
+  TalentManager: "Talent Manager",
+};
+
+const challengeReportAccessRoles = [
+  ReportAccessRoles.ProductManager,
+  ReportAccessRoles.TalentManager,
+] as const;
+
 export const ScopeRoleAccess: Record<string, readonly string[]> = {
-  [Scopes.Identity.UsersByHandles]: ["Talent Manager", "Project Manager"],
+  [Scopes.Challenge.History]: challengeReportAccessRoles,
+  [Scopes.Challenge.Registrants]: challengeReportAccessRoles,
+  [Scopes.Challenge.SubmissionLinks]: challengeReportAccessRoles,
+  [Scopes.Challenge.RegisteredUsers]: challengeReportAccessRoles,
+  [Scopes.Challenge.Submitters]: challengeReportAccessRoles,
+  [Scopes.Challenge.ValidSubmitters]: challengeReportAccessRoles,
+  [Scopes.Challenge.Winners]: challengeReportAccessRoles,
+  [Scopes.Identity.UsersByHandles]: [
+    ReportAccessRoles.TalentManager,
+    ReportAccessRoles.ProjectManager,
+  ],
 };

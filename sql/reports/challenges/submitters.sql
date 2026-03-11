@@ -1,16 +1,44 @@
 WITH challenge_context AS (
   SELECT
     c.id,
-    ct.name AS "challengeType",
     (ct.name = 'Marathon Match') AS is_marathon_match
   FROM challenges."Challenge" AS c
   JOIN challenges."ChallengeType" AS ct
     ON ct.id = c."typeId"
   WHERE c.id = $1::text
 ),
+submission_metrics AS (
+  SELECT
+    s."memberId",
+    COALESCE(
+      final_review."aggregateScore",
+      s."finalScore"::double precision,
+      s."initialScore"::double precision
+    ) AS standard_score,
+    provisional_review.provisional_score,
+    final_review."aggregateScore" AS final_score_raw
+  FROM challenge_context AS cc
+  JOIN reviews."submission" AS s
+    ON s."challengeId" = cc.id
+   AND s."memberId" IS NOT NULL
+  LEFT JOIN LATERAL (
+    SELECT rs."aggregateScore"
+    FROM reviews."reviewSummation" AS rs
+    WHERE rs."submissionId" = s.id
+      AND COALESCE(rs."isFinal", TRUE) = TRUE
+      AND rs."isProvisional" IS DISTINCT FROM TRUE
+    ORDER BY COALESCE(rs."reviewedDate", rs."createdAt") DESC NULLS LAST, rs.id DESC
+    LIMIT 1
+  ) AS final_review ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT MAX(rs."aggregateScore") AS provisional_score
+    FROM reviews."reviewSummation" AS rs
+    WHERE rs."submissionId" = s.id
+      AND rs."isProvisional" IS TRUE
+  ) AS provisional_review ON TRUE
+),
 submitter_members AS MATERIALIZED (
   SELECT
-    cc.id AS "challengeId",
     cc.is_marathon_match,
     res."memberId",
     MAX(res."memberHandle") AS "memberHandle"
@@ -20,13 +48,41 @@ submitter_members AS MATERIALIZED (
   JOIN resources."ResourceRole" AS rr
     ON rr.id = res."roleId"
    AND rr.name = 'Submitter'
-  JOIN reviews."submission" AS s
-    ON s."challengeId" = cc.id
-   AND s."memberId" = res."memberId"
+  JOIN submission_metrics AS smx
+    ON smx."memberId" = res."memberId"
   GROUP BY
-    cc.id,
     cc.is_marathon_match,
     res."memberId"
+),
+standard_member_scores AS (
+  SELECT
+    sm."memberId",
+    ROUND(MAX(sm.standard_score)::numeric, 2) AS "submissionScore"
+  FROM submission_metrics AS sm
+  GROUP BY sm."memberId"
+),
+mm_member_scores AS (
+  SELECT
+    sm."memberId",
+    MAX(sm.provisional_score) AS provisional_score_raw,
+    MAX(sm.final_score_raw) AS final_score_raw
+  FROM submission_metrics AS sm
+  GROUP BY sm."memberId"
+),
+mm_ranked_scores AS (
+  SELECT
+    mms."memberId",
+    CASE
+      WHEN mms.provisional_score_raw IS NULL THEN NULL
+      ELSE ROUND(mms.provisional_score_raw::numeric, 2)
+    END AS "provisionalScore",
+    CASE
+      WHEN COALESCE(mms.final_score_raw, mms.provisional_score_raw) IS NULL THEN NULL
+      ELSE RANK() OVER (
+        ORDER BY COALESCE(mms.final_score_raw, mms.provisional_score_raw) DESC NULLS LAST
+      )
+    END AS "finalRank"
+  FROM mm_member_scores AS mms
 )
 SELECT
   COALESCE(
@@ -36,22 +92,33 @@ SELECT
       ELSE NULL
     END
   ) AS "userId",
-  COALESCE(u.handle, sm."memberHandle") AS "handle",
-  e.address AS "email",
-  -- Resolve competition country first, then fall back to home country.
+  COALESCE(
+    NULLIF(TRIM(u.handle), ''),
+    NULLIF(TRIM(mem.handle), ''),
+    sm."memberHandle"
+  ) AS "handle",
+  COALESCE(e.address, NULLIF(TRIM(mem.email), '')) AS "email",
   COALESCE(
     comp_code.name,
     comp_id.name,
     home_code.name,
     home_id.name,
-    mem."competitionCountryCode",
-    mem."homeCountryCode"
+    NULLIF(TRIM(mem."competitionCountryCode"), ''),
+    NULLIF(TRIM(mem."homeCountryCode"), '')
   ) AS "country",
-  -- Marathon Match detection controls whether aggregate score is emitted.
+  sm.is_marathon_match AS "isMarathonMatch",
   CASE
-    WHEN sm.is_marathon_match THEN mm_score."submissionScore"
+    WHEN sm.is_marathon_match THEN NULL
+    ELSE sms."submissionScore"
+  END AS "submissionScore",
+  CASE
+    WHEN sm.is_marathon_match THEN mrs."provisionalScore"
     ELSE NULL
-  END AS "submissionScore"
+  END AS "provisionalScore",
+  CASE
+    WHEN sm.is_marathon_match THEN mrs."finalRank"
+    ELSE NULL
+  END AS "finalRank"
 FROM submitter_members AS sm
 LEFT JOIN identity."user" AS u
   ON sm."memberId" ~ '^[0-9]+$'
@@ -70,16 +137,18 @@ LEFT JOIN lookups."Country" AS comp_code
   ON UPPER(comp_code."countryCode") = UPPER(mem."competitionCountryCode")
 LEFT JOIN lookups."Country" AS comp_id
   ON UPPER(comp_id.id) = UPPER(mem."competitionCountryCode")
-LEFT JOIN LATERAL (
-  -- For MM, use the best aggregateScore across this member's submissions.
-  SELECT ROUND(MAX(rs."aggregateScore")::numeric, 2) AS "submissionScore"
-  FROM reviews."submission" AS s
-  JOIN reviews."reviewSummation" AS rs
-    ON rs."submissionId" = s.id
-  WHERE s."challengeId" = sm."challengeId"
-    AND s."memberId" = sm."memberId"
-) AS mm_score ON true
+LEFT JOIN standard_member_scores AS sms
+  ON sms."memberId" = sm."memberId"
+LEFT JOIN mm_ranked_scores AS mrs
+  ON mrs."memberId" = sm."memberId"
 ORDER BY
-  "submissionScore" DESC NULLS LAST,
+  CASE
+    WHEN sm.is_marathon_match THEN mrs."finalRank"
+    ELSE NULL
+  END ASC NULLS LAST,
+  CASE
+    WHEN sm.is_marathon_match THEN NULL
+    ELSE sms."submissionScore"
+  END DESC NULLS LAST,
   "handle" ASC NULLS LAST,
   "userId" ASC NULLS LAST;
