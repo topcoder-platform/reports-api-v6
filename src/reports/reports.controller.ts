@@ -19,7 +19,7 @@ export class ReportsController {
   @ApiBearerAuth()
   @ApiOperation({
     summary:
-      "List available report endpoints grouped by sub-path and filtered by the caller's permissions",
+      "List available report endpoints grouped by category and filtered by the caller's permissions",
   })
   getReports(@Req() request: { authUser?: AuthUserLike }): ReportsDirectory {
     return getAccessibleReportsDirectory(request.authUser);
@@ -31,7 +31,7 @@ export class ReportsController {
   @ApiBearerAuth()
   @ApiOperation({
     summary:
-      "List available report endpoints grouped by sub-path and filtered by the caller's permissions (alias for /v6/reports)",
+      "List available report endpoints grouped by category and filtered by the caller's permissions (alias for /v6/reports)",
   })
   getReportsDirectory(
     @Req() request: { authUser?: AuthUserLike },

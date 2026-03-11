@@ -67,6 +67,26 @@ describe("getAccessibleReportsDirectory", () => {
     expect(directory.topcoder).toBeUndefined();
   });
 
+  it("returns all topcoder-scoped report categories for machine tokens", () => {
+    const directory = getAccessibleReportsDirectory({
+      isMachine: true,
+      scopes: [Scopes.TopcoderReports],
+    });
+
+    expect(
+      directory.topcoder?.reports.map((report) => report.path),
+    ).not.toContain("/topcoder/recent-member-data");
+    expect(
+      directory.topcoder?.reports.map((report) => report.path),
+    ).not.toContain("/topcoder/member-payment-accrual");
+    expect(directory.member?.reports.map((report) => report.path)).toEqual([
+      "/topcoder/recent-member-data",
+    ]);
+    expect(directory.admin?.reports.map((report) => report.path)).toEqual([
+      "/topcoder/member-payment-accrual",
+    ]);
+  });
+
   it("returns an empty directory when no JWT user is present", () => {
     expect(getAccessibleReportsDirectory()).toEqual({});
   });

@@ -7,6 +7,8 @@ export type ReportGroupKey =
   | "sfdc"
   | "statistics"
   | "topcoder"
+  | "member"
+  | "admin"
   | "identity";
 
 type HttpMethod = "GET" | "POST";
@@ -670,18 +672,6 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
         [paymentsStartDateParam, paymentsEndDateParam],
       ),
       topcoderReport(
-        "Member Payment Accrual",
-        "/topcoder/member-payment-accrual",
-        "Member payment accruals for the provided date range (defaults to last 3 months)",
-        [paymentsStartDateParam, paymentsEndDateParam],
-      ),
-      topcoderReport(
-        "Recent Member Data",
-        "/topcoder/recent-member-data",
-        "Members who registered and were paid since the start date (defaults to Jan 1, 2024)",
-        [paymentsStartDateParam],
-      ),
-      topcoderReport(
         "90 Day Member Spend",
         "/topcoder/90-day-member-spend",
         "Total gross amount paid to members in the last 90 days",
@@ -765,6 +755,30 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
         "Membership Participation Funnel Data",
         "/topcoder/membership-participation-funnel-data",
         "Weekly new member counts with design and development participation indicators for the last four weeks",
+      ),
+    ],
+  },
+  member: {
+    label: "Member Reports",
+    basePath: "/topcoder",
+    reports: [
+      topcoderReport(
+        "Recent Member Data",
+        "/topcoder/recent-member-data",
+        "Members who registered and were paid since the start date (defaults to Jan 1, 2024)",
+        [paymentsStartDateParam],
+      ),
+    ],
+  },
+  admin: {
+    label: "Admin Reports",
+    basePath: "/topcoder",
+    reports: [
+      topcoderReport(
+        "Member Payment Accrual",
+        "/topcoder/member-payment-accrual",
+        "Member payment accruals for the provided date range (defaults to last 3 months)",
+        [paymentsStartDateParam, paymentsEndDateParam],
       ),
     ],
   },
