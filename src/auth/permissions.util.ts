@@ -1,4 +1,4 @@
-import { ScopeRoleAccess, UserRoles } from "../app-constants";
+import { AdminRoles, ScopeRoleAccess } from "../app-constants";
 
 export type AuthUserLike = {
   isMachine?: boolean;
@@ -10,7 +10,7 @@ export type AuthUserLike = {
 const topcoderRolePrefixPattern = /^topcoder\s+/i;
 
 const adminRoles = new Set(
-  Object.values(UserRoles).map((role) => role.toLowerCase()),
+  Object.values(AdminRoles).map((role) => role.toLowerCase()),
 );
 
 const scopedRoleAccess = new Map(
@@ -49,7 +49,10 @@ function normalizeScopes(
   return normalizeClaims(values, /\s+/);
 }
 
-function getNormalizedRoles(authUser?: AuthUserLike): string[] {
+/**
+ * Returns normalized role claims from either `roles` or `role`.
+ */
+export function getNormalizedRoles(authUser?: AuthUserLike): string[] {
   return [
     ...normalizeRoles(authUser?.roles),
     ...normalizeRoles(authUser?.role),

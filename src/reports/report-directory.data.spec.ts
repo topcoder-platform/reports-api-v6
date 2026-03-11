@@ -1,4 +1,4 @@
-import { Scopes, UserRoles } from "../app-constants";
+import { AdminRoles, Scopes, UserRoles } from "../app-constants";
 import {
   REPORTS_DIRECTORY,
   getAccessibleReportsDirectory,
@@ -8,14 +8,14 @@ describe("getAccessibleReportsDirectory", () => {
   it("returns the full directory for administrators", () => {
     expect(
       getAccessibleReportsDirectory({
-        roles: [UserRoles.Admin],
+        roles: [AdminRoles.Admin],
       }),
     ).toEqual(REPORTS_DIRECTORY);
   });
 
   it("returns public reports plus all challenge reports for product managers", () => {
     const directory = getAccessibleReportsDirectory({
-      roles: ["Product Manager"],
+      roles: [UserRoles.ProductManager],
     });
 
     expect(Object.keys(directory).sort()).toEqual(["challenges", "statistics"]);
@@ -29,7 +29,7 @@ describe("getAccessibleReportsDirectory", () => {
 
   it("returns challenge reports and role-mapped identity reports for talent managers", () => {
     const directory = getAccessibleReportsDirectory({
-      roles: ["Talent Manager"],
+      roles: [UserRoles.TalentManager],
     });
 
     expect(Object.keys(directory).sort()).toEqual([
@@ -44,7 +44,7 @@ describe("getAccessibleReportsDirectory", () => {
 
   it("returns bulk member lookup for topcoder project managers", () => {
     const directory = getAccessibleReportsDirectory({
-      roles: ["Project Manager"],
+      roles: [UserRoles.ProjectManager],
     });
 
     expect(directory.identity?.reports.map((report) => report.path)).toEqual([
