@@ -66,19 +66,13 @@ mm_member_scores AS (
   FROM submission_metrics AS sm
   GROUP BY sm."memberId"
 ),
-mm_ranked_scores AS (
+mm_winner_scores AS (
   SELECT
     mms."memberId",
     CASE
       WHEN mms.provisional_score_raw IS NULL THEN NULL
       ELSE ROUND(mms.provisional_score_raw::numeric, 2)
-    END AS "provisionalScore",
-    CASE
-      WHEN COALESCE(mms.final_score_raw, mms.provisional_score_raw) IS NULL THEN NULL
-      ELSE RANK() OVER (
-        ORDER BY COALESCE(mms.final_score_raw, mms.provisional_score_raw) DESC NULLS LAST
-      )
-    END AS "finalRank"
+    END AS "provisionalScore"
   FROM mm_member_scores AS mms
 )
 SELECT
@@ -113,7 +107,7 @@ SELECT
     ELSE NULL
   END AS "provisionalScore",
   CASE
-    WHEN wm.is_marathon_match THEN mrs."finalRank"
+    WHEN wm.is_marathon_match THEN wm.placement
     ELSE NULL
   END AS "finalRank"
 FROM winner_members AS wm
@@ -136,17 +130,13 @@ LEFT JOIN lookups."Country" AS comp_id
   ON UPPER(comp_id.id) = UPPER(mem."competitionCountryCode")
 LEFT JOIN standard_member_scores AS sms
   ON sms."memberId" = wm."memberId"
-LEFT JOIN mm_ranked_scores AS mrs
+LEFT JOIN mm_winner_scores AS mrs
   ON mrs."memberId" = wm."memberId"
 ORDER BY
-  CASE
-    WHEN wm.is_marathon_match THEN mrs."finalRank"
-    ELSE wm.placement
-  END ASC NULLS LAST,
+  wm.placement ASC NULLS LAST,
   CASE
     WHEN wm.is_marathon_match THEN NULL
     ELSE sms."submissionScore"
   END DESC NULLS LAST,
-  wm.placement ASC NULLS LAST,
   "handle" ASC NULLS LAST,
   "userId" ASC NULLS LAST;
