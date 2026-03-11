@@ -258,7 +258,7 @@ export class TopcoderReportsController {
     summary: "List of members with 100% completed profiles",
   })
   getCompletedProfiles(@Query() query: CompletedProfilesQueryDto) {
-    const { countryCode } = query;
-    return this.reports.getCompletedProfiles(countryCode);
+    const { countryCode, openToWork } = query;
+    return this.reports.getCompletedProfiles(countryCode, openToWork);
   }
 }

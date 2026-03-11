@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { IsOptional, IsString } from "class-validator";
+import { IsBoolean, IsOptional, IsString } from "class-validator";
 
 export class CompletedProfilesQueryDto {
   @ApiPropertyOptional({
@@ -9,4 +9,12 @@ export class CompletedProfilesQueryDto {
   @IsOptional()
   @IsString()
   countryCode?: string;
+
+  @ApiPropertyOptional({
+    description: "Filter to members who are currently open to work",
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  openToWork?: boolean;
 }

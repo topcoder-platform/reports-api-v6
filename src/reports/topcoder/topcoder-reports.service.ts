@@ -91,6 +91,7 @@ type CompletedProfileRow = {
   handle: string | null;
   countryCode: string | null;
   countryName: string | null;
+  isOpenToWork?: boolean | null;
   openToWork?: { availability?: string; preferredRoles?: string[] } | null;
 };
 
@@ -644,10 +645,11 @@ export class TopcoderReportsService {
     };
   }
 
-  async getCompletedProfiles(countryCode?: string) {
+  async getCompletedProfiles(countryCode?: string, openToWork?: boolean) {
     const query = this.sql.load("reports/topcoder/completed-profiles.sql");
     const rows = await this.db.query<CompletedProfileRow>(query, [
       countryCode || null,
+      typeof openToWork === "boolean" ? openToWork : null,
     ]);
 
     return rows.map((row) => ({
@@ -656,6 +658,7 @@ export class TopcoderReportsService {
       countryCode: row.countryCode || undefined,
       countryName: row.countryName || undefined,
       openToWork: row.openToWork ?? null,
+      isOpenToWork: row.isOpenToWork ?? false,
     }));
   }
 
