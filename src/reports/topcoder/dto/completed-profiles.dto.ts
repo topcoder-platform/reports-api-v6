@@ -1,4 +1,5 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
+import { Transform } from "class-transformer";
 import { IsBoolean, IsOptional, IsString } from "class-validator";
 
 export class CompletedProfilesQueryDto {
@@ -15,6 +16,11 @@ export class CompletedProfilesQueryDto {
     example: true,
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    value === undefined || value === null
+      ? undefined
+      : value === true || value === "true",
+  )
   @IsBoolean()
   openToWork?: boolean;
 }
