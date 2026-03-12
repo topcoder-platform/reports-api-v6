@@ -9,7 +9,9 @@ WITH challenge_context AS (
 ),
 submission_metrics AS (
   SELECT
+    s.id AS submission_id,
     s."memberId",
+    COALESCE(s."submittedDate", s."createdAt") AS submission_timestamp,
     COALESCE(
       final_review."aggregateScore",
       s."finalScore"::double precision,
@@ -31,10 +33,12 @@ submission_metrics AS (
     LIMIT 1
   ) AS final_review ON TRUE
   LEFT JOIN LATERAL (
-    SELECT MAX(rs."aggregateScore") AS provisional_score
+    SELECT rs."aggregateScore" AS provisional_score
     FROM reviews."reviewSummation" AS rs
     WHERE rs."submissionId" = s.id
       AND rs."isProvisional" IS TRUE
+    ORDER BY COALESCE(rs."reviewedDate", rs."createdAt") DESC NULLS LAST, rs.id DESC
+    LIMIT 1
   ) AS provisional_review ON TRUE
 ),
 submitter_members AS MATERIALIZED (
@@ -61,28 +65,36 @@ standard_member_scores AS (
   FROM submission_metrics AS sm
   GROUP BY sm."memberId"
 ),
-mm_member_scores AS (
-  SELECT
+mm_latest_submission_scores AS (
+  SELECT DISTINCT ON (sm."memberId")
     sm."memberId",
-    MAX(sm.provisional_score) AS provisional_score_raw,
-    MAX(sm.final_score_raw) AS final_score_raw
+    sm.provisional_score AS provisional_score_raw,
+    sm.final_score_raw,
+    COALESCE(sm.final_score_raw, sm.provisional_score) AS effective_score_raw,
+    sm.submission_timestamp
   FROM submission_metrics AS sm
-  GROUP BY sm."memberId"
+  ORDER BY
+    sm."memberId",
+    sm.submission_timestamp DESC NULLS LAST,
+    sm.submission_id DESC
 ),
 mm_ranked_scores AS (
   SELECT
-    mms."memberId",
+    mlss."memberId",
     CASE
-      WHEN mms.provisional_score_raw IS NULL THEN NULL
-      ELSE ROUND(mms.provisional_score_raw::numeric, 2)
+      WHEN mlss.provisional_score_raw IS NULL THEN NULL
+      ELSE ROUND(mlss.provisional_score_raw::numeric, 2)
     END AS "provisionalScore",
     CASE
-      WHEN COALESCE(mms.final_score_raw, mms.provisional_score_raw) IS NULL THEN NULL
-      ELSE RANK() OVER (
-        ORDER BY COALESCE(mms.final_score_raw, mms.provisional_score_raw) DESC NULLS LAST
+      WHEN mlss.effective_score_raw IS NULL THEN NULL
+      ELSE ROW_NUMBER() OVER (
+        ORDER BY
+          mlss.effective_score_raw DESC NULLS LAST,
+          mlss.submission_timestamp ASC NULLS LAST,
+          mlss."memberId" ASC
       )
     END AS "finalRank"
-  FROM mm_member_scores AS mms
+  FROM mm_latest_submission_scores AS mlss
 )
 SELECT
   COALESCE(

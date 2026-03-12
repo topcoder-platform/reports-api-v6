@@ -390,14 +390,14 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
       challengeReport(
         "Challenge Submitters",
         "/challenges/:challengeId/submitters",
-        "Return the challenge submitters report. Marathon Match exports include provisionalScore and finalRank ordered by the current effective rank.",
+        "Return the challenge submitters report. Marathon Match exports use the latest submission provisionalScore and current effective rank, with earlier submission times winning score ties.",
         AppScopes.Challenge.Submitters,
         [challengeIdParam],
       ),
       challengeReport(
         "Challenge Valid Submitters",
         "/challenges/:challengeId/valid-submitters",
-        "Return the challenge valid submitters report. Marathon Match exports include provisionalScore and finalRank ordered by the current effective rank.",
+        "Return the challenge valid submitters report. Marathon Match exports use the latest submission provisionalScore and current effective rank, with earlier submission times winning score ties.",
         AppScopes.Challenge.ValidSubmitters,
         [challengeIdParam],
       ),
