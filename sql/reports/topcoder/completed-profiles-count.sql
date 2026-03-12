@@ -43,6 +43,15 @@ WHERE m.description IS NOT NULL
           AND jsonb_array_length(mtp.value::jsonb -> 'preferredRoles') > 0
         )
       )
+      AND (
+        $2::boolean IS NULL
+        OR (
+          (
+            mtp.value::jsonb ? 'availability'
+            AND btrim(mtp.value->>'availability') <> ''
+          ) = $2::boolean
+        )
+      )
   )
   AND EXISTS (
     SELECT 1

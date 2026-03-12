@@ -97,6 +97,8 @@ type CompletedProfileRow = {
   city: string | null;
   skillCount: string | number | null;
   principalSkills: string[] | null;
+  isOpenToWork?: boolean | null;
+  openToWork?: { availability?: string; preferredRoles?: string[] } | null;
 };
 
 type CompletedProfilesCountRow = {
@@ -699,6 +701,8 @@ export class TopcoderReportsService {
           ? Number(row.skillCount)
           : undefined,
       principalSkills: row.principalSkills || undefined,
+      openToWork: row.openToWork ?? null,
+      isOpenToWork: row.isOpenToWork ?? false,
     }));
 
     return {
