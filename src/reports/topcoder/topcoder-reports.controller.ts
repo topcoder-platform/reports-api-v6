@@ -16,11 +16,14 @@ import { WeeklyMemberParticipationQueryDto } from "./dto/weekly-member-participa
 import { CompletedProfilesQueryDto } from "./dto/completed-profiles.dto";
 import { TopcoderReportsGuard } from "../../auth/guards/topcoder-reports.guard";
 import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.interceptor";
+import { Scopes as RequiredScopes } from "../../auth/decorators/scopes.decorator";
+import { Scopes as AppScopes } from "../../app-constants";
 
 @ApiTags("Topcoder Reports")
 @ApiBearerAuth()
 @UseGuards(TopcoderReportsGuard)
 @UseInterceptors(CsvResponseInterceptor)
+@RequiredScopes(AppScopes.AllReports, AppScopes.TopcoderReports)
 @Controller()
 export class TopcoderReportsController {
   constructor(private readonly reports: TopcoderReportsService) {}
@@ -96,6 +99,11 @@ export class TopcoderReportsController {
   }
 
   @Get("/member/recent-member-data")
+  @RequiredScopes(
+    AppScopes.AllReports,
+    AppScopes.TopcoderReports,
+    AppScopes.Member.RecentMemberData,
+  )
   @ApiOperation({
     summary:
       "Members who registered and were paid since the start date (defaults to Jan 1, 2024)",

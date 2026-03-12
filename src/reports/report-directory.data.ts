@@ -762,10 +762,15 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
     label: "Member Reports",
     basePath: "/member",
     reports: [
-      topcoderReport(
+      report(
         "Recent Member Data",
         "/member/recent-member-data",
         "Members who registered and were paid since the start date (defaults to Jan 1, 2024)",
+        [
+          AppScopes.AllReports,
+          AppScopes.TopcoderReports,
+          AppScopes.Member.RecentMemberData,
+        ],
         [paymentsStartDateParam],
       ),
     ],

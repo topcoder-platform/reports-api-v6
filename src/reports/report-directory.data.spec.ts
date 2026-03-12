@@ -27,7 +27,7 @@ describe("getAccessibleReportsDirectory", () => {
     expect(directory.topcoder).toBeUndefined();
   });
 
-  it("returns challenge reports and role-mapped identity reports for talent managers", () => {
+  it("returns challenge, member, and role-mapped identity reports for talent managers", () => {
     const directory = getAccessibleReportsDirectory({
       roles: [UserRoles.TalentManager],
     });
@@ -35,10 +35,14 @@ describe("getAccessibleReportsDirectory", () => {
     expect(Object.keys(directory).sort()).toEqual([
       "challenges",
       "identity",
+      "member",
       "statistics",
     ]);
     expect(directory.identity?.reports.map((report) => report.path)).toEqual([
       "/identity/users-by-handles",
+    ]);
+    expect(directory.member?.reports.map((report) => report.path)).toEqual([
+      "/member/recent-member-data",
     ]);
   });
 

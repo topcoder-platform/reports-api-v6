@@ -5,8 +5,10 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
 
 import { Scopes, UserRoles } from "../../app-constants";
+import { SCOPES_KEY } from "../decorators/scopes.decorator";
 import {
   AuthUserLike,
   getNormalizedRoles,
@@ -18,6 +20,9 @@ export class TopcoderReportsGuard implements CanActivate {
   private static readonly completedProfilesRoles = new Set([
     UserRoles.TalentManager.toLowerCase(),
   ]);
+
+  constructor(private readonly reflector: Reflector) {}
+
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
     const authUser = request.authUser;
@@ -26,9 +31,12 @@ export class TopcoderReportsGuard implements CanActivate {
       throw new UnauthorizedException("You are not authenticated.");
     }
 
-    if (
-      hasAccessToScopes(authUser, [Scopes.TopcoderReports, Scopes.AllReports])
-    ) {
+    const requiredScopes = this.reflector.getAllAndOverride<string[]>(
+      SCOPES_KEY,
+      [context.getHandler(), context.getClass()],
+    ) ?? [Scopes.TopcoderReports, Scopes.AllReports];
+
+    if (hasAccessToScopes(authUser, requiredScopes)) {
       return true;
     }
 

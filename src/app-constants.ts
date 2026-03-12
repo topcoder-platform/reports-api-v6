@@ -6,6 +6,9 @@ export const Scopes = {
   TopgearCancelledChallenge: "reports:topgear-cancelled-challenge",
   AllReports: "reports:all",
   TopcoderReports: "reports:topcoder",
+  Member: {
+    RecentMemberData: "reports:member-recent-member-data",
+  },
   TopgearChallengeTechnology: "reports:topgear-challenge-technology",
   TopgearChallengeStatsByUser: "reports:topgear-challenge-stats-by-user",
   TopgearChallengeRegistrantDetails:
@@ -58,6 +61,7 @@ export const ScopeRoleAccess: Record<string, readonly string[]> = {
   [Scopes.Challenge.Submitters]: challengeReportAccessRoles,
   [Scopes.Challenge.ValidSubmitters]: challengeReportAccessRoles,
   [Scopes.Challenge.Winners]: challengeReportAccessRoles,
+  [Scopes.Member.RecentMemberData]: [UserRoles.TalentManager],
   [Scopes.Identity.UsersByHandles]: [
     UserRoles.TalentManager,
     UserRoles.ProjectManager,

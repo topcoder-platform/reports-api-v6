@@ -24,6 +24,17 @@ describe("permissions.util", () => {
     ).toBe(true);
   });
 
+  it("allows topcoder-prefixed talent manager roles for recent member data", () => {
+    expect(
+      hasAccessToScopes(
+        {
+          roles: ["Topcoder Talent Manager"],
+        },
+        [Scopes.Member.RecentMemberData],
+      ),
+    ).toBe(true);
+  });
+
   it("normalizes comma-separated role claims before checking scoped access", () => {
     expect(
       hasRequiredRoleAccess("Topcoder Talent Manager, Topcoder User", [
