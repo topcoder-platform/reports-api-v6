@@ -653,7 +653,12 @@ export class TopcoderReportsService {
     };
   }
 
-  async getCompletedProfiles(countryCode?: string, page = 1, perPage = 50) {
+  async getCompletedProfiles(
+    countryCode?: string,
+    page = 1,
+    perPage = 50,
+    openToWork?: boolean,
+  ) {
     const safePage = Number.isFinite(page) ? Math.max(Math.floor(page), 1) : 1;
     const safePerPage = Number.isFinite(perPage)
       ? Math.min(Math.max(Math.floor(perPage), 1), 200)
@@ -665,13 +670,17 @@ export class TopcoderReportsService {
     );
     const countRows = await this.db.query<CompletedProfilesCountRow>(
       countQuery,
-      [countryCode || null],
+      [
+        countryCode || null,
+        typeof openToWork === "boolean" ? openToWork : null,
+      ],
     );
     const total = Number(countRows?.[0]?.total ?? 0);
 
     const query = this.sql.load("reports/topcoder/completed-profiles.sql");
     const rows = await this.db.query<CompletedProfileRow>(query, [
       countryCode || null,
+      typeof openToWork === "boolean" ? openToWork : null,
       safePerPage,
       offset,
     ]);
@@ -689,6 +698,7 @@ export class TopcoderReportsService {
         row.skillCount !== null && row.skillCount !== undefined
           ? Number(row.skillCount)
           : undefined,
+      principalSkills: row.principalSkills || undefined,
     }));
 
     return {
