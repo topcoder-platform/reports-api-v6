@@ -61,7 +61,7 @@ WHERE m.description IS NOT NULL
   AND m."homeCountryCode" IS NOT NULL
   AND ($1::text IS NULL OR COALESCE(m."homeCountryCode", m."competitionCountryCode") = $1)
   AND ($2::boolean IS NULL OR ot.is_open_to_work = $2::boolean)
-  AND ($5::int[] IS NULL OR ms.skill_ids && $5::int[])
+  AND ($5 IS NULL OR ms.skill_ids && $5)
   -- Check work history exists
   AND EXISTS (
     SELECT 1

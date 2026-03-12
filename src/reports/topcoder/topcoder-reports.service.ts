@@ -660,7 +660,7 @@ export class TopcoderReportsService {
     page = 1,
     perPage = 50,
     openToWork?: boolean,
-    skillIds?: number[],
+    skillIds?: string[],
   ) {
     const safePage = Number.isFinite(page) ? Math.max(Math.floor(page), 1) : 1;
     const safePerPage = Number.isFinite(perPage)

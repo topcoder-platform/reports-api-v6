@@ -34,7 +34,7 @@ export class CompletedProfilesQueryDto {
     description: "Filter by member skill IDs",
     type: String,
     isArray: true,
-    example: ["123", "456"],
+    example: ["4b0f5f0a-1234-5678-9abc-def012345678"],
   })
   @IsOptional()
   @Transform(({ value }) => {
@@ -44,7 +44,7 @@ export class CompletedProfilesQueryDto {
     const values = Array.isArray(value) ? value : [value];
     return values.map((v) => String(v)).filter((v) => v.trim().length > 0);
   })
-  @IsNumberString({}, { each: true })
+  @IsString({ each: true })
   skillId?: string[];
 
   @ApiPropertyOptional({

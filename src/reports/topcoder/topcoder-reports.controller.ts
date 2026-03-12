@@ -275,9 +275,7 @@ export class TopcoderReportsController {
       : skillId !== undefined && skillId !== null
         ? [skillId]
         : [];
-    const skillIds = rawSkillIds
-      .map((id) => Number(id))
-      .filter((id) => Number.isFinite(id));
+    const skillIds = rawSkillIds.filter((id) => id && id.trim().length > 0);
 
     return this.reports.getCompletedProfiles(
       countryCode,
