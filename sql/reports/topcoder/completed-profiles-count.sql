@@ -2,7 +2,8 @@
 WITH member_skills AS (
   SELECT
     us.user_id,
-    COUNT(*) AS skill_count
+    COUNT(*) AS skill_count,
+    ARRAY_AGG(DISTINCT us.skill_id) AS skill_ids
   FROM skills.user_skill us
   GROUP BY us.user_id
   HAVING COUNT(*) >= 3
@@ -16,6 +17,7 @@ WHERE m.description IS NOT NULL
   AND m."photoURL" <> ''
   AND m."homeCountryCode" IS NOT NULL
   AND ($1::text IS NULL OR COALESCE(m."homeCountryCode", m."competitionCountryCode") = $1)
+  AND ($3::int[] IS NULL OR ms.skill_ids && $3::int[])
   AND EXISTS (
     SELECT 1
     FROM members."memberTraits" mt

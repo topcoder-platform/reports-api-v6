@@ -10,7 +10,8 @@
 WITH member_skills AS (
   SELECT
     us.user_id,
-    COUNT(*) AS skill_count
+    COUNT(*) AS skill_count,
+    ARRAY_AGG(DISTINCT us.skill_id) AS skill_ids
   FROM skills.user_skill us
   GROUP BY us.user_id
   HAVING COUNT(*) >= 3  -- Filter early to reduce dataset
@@ -60,6 +61,7 @@ WHERE m.description IS NOT NULL
   AND m."homeCountryCode" IS NOT NULL
   AND ($1::text IS NULL OR COALESCE(m."homeCountryCode", m."competitionCountryCode") = $1)
   AND ($2::boolean IS NULL OR ot.is_open_to_work = $2::boolean)
+  AND ($5::int[] IS NULL OR ms.skill_ids && $5::int[])
   -- Check work history exists
   AND EXISTS (
     SELECT 1

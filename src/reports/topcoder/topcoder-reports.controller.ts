@@ -266,15 +266,25 @@ export class TopcoderReportsController {
     summary: "List of members with 100% completed profiles",
   })
   getCompletedProfiles(@Query() query: CompletedProfilesQueryDto) {
-    const { countryCode, page, perPage, openToWork } = query;
+    const { countryCode, page, perPage, openToWork, skillId } = query;
     const parsedPage = Math.max(Number(page || 1), 1);
     const parsedPerPage = Math.min(Math.max(Number(perPage || 50), 1), 200);
+
+    const rawSkillIds = Array.isArray(skillId)
+      ? skillId
+      : skillId !== undefined && skillId !== null
+        ? [skillId]
+        : [];
+    const skillIds = rawSkillIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id));
 
     return this.reports.getCompletedProfiles(
       countryCode,
       parsedPage,
       parsedPerPage,
       openToWork,
+      skillIds.length > 0 ? skillIds : undefined,
     );
   }
 }

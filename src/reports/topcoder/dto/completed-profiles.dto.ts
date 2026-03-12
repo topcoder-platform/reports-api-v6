@@ -30,6 +30,24 @@ export class CompletedProfilesQueryDto {
   openToWork?: boolean;
 
   @ApiPropertyOptional({
+    name: "skillId",
+    description: "Filter by member skill IDs",
+    type: String,
+    isArray: true,
+    example: ["123", "456"],
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    const values = Array.isArray(value) ? value : [value];
+    return values.map((v) => String(v)).filter((v) => v.trim().length > 0);
+  })
+  @IsNumberString({}, { each: true })
+  skillId?: string[];
+
+  @ApiPropertyOptional({
     description: "Page number (1-based)",
     example: "1",
   })

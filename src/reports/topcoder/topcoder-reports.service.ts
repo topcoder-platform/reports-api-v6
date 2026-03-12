@@ -660,12 +660,16 @@ export class TopcoderReportsService {
     page = 1,
     perPage = 50,
     openToWork?: boolean,
+    skillIds?: number[],
   ) {
     const safePage = Number.isFinite(page) ? Math.max(Math.floor(page), 1) : 1;
     const safePerPage = Number.isFinite(perPage)
       ? Math.min(Math.max(Math.floor(perPage), 1), 200)
       : 50;
     const offset = (safePage - 1) * safePerPage;
+
+    const hasSkillIds = Array.isArray(skillIds) && skillIds.length > 0;
+    const skillIdsParam = hasSkillIds ? skillIds : null;
 
     const countQuery = this.sql.load(
       "reports/topcoder/completed-profiles-count.sql",
@@ -675,6 +679,7 @@ export class TopcoderReportsService {
       [
         countryCode || null,
         typeof openToWork === "boolean" ? openToWork : null,
+        skillIdsParam,
       ],
     );
     const total = Number(countRows?.[0]?.total ?? 0);
@@ -685,6 +690,7 @@ export class TopcoderReportsService {
       typeof openToWork === "boolean" ? openToWork : null,
       safePerPage,
       offset,
+      skillIdsParam,
     ]);
 
     const data = rows.map((row) => ({
