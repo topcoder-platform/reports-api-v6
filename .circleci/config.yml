@@ -65,7 +65,7 @@ workflows:
             only:
               - develop
               - pm-1127_1
-              - PM-4158_completed-profiles-report
+              - PM-4198_customer-portal-completed-profiles-report-updates
 
     # Production builds are exectuted only on tagged commits to the
     # master branch.
