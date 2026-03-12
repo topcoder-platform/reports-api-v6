@@ -18,10 +18,15 @@ WITH member_skills AS (
 SELECT
   m."userId" AS "userId",
   m.handle,
+  m."firstName" AS "firstName",
+  m."lastName" AS "lastName",
+  m."photoURL" AS "photoURL",
   COALESCE(m."homeCountryCode", m."competitionCountryCode") AS "countryCode",
   m.country AS "countryName",
   ot.open_to_work_value AS "openToWork",
-  ot.is_open_to_work AS "isOpenToWork"
+  ot.is_open_to_work AS "isOpenToWork",
+  ma.city,
+  ms.skill_count AS "skillCount"
 FROM members.member m
 INNER JOIN member_skills ms ON ms.user_id = m."userId"
 LEFT JOIN LATERAL (
@@ -38,6 +43,16 @@ LEFT JOIN LATERAL (
   ORDER BY mt."updatedAt" DESC
   LIMIT 1
 ) ot ON TRUE
+LEFT JOIN LATERAL (
+  SELECT
+    ma.city
+  FROM members."memberAddress" ma
+  WHERE ma."userId" = m."userId"
+    AND ma.city IS NOT NULL
+    AND TRIM(ma.city) <> ''
+  ORDER BY ma.id ASC
+  LIMIT 1
+) ma ON TRUE
 WHERE m.description IS NOT NULL
   AND m.description <> ''
   AND m."photoURL" IS NOT NULL
@@ -77,4 +92,6 @@ WHERE m.description IS NOT NULL
       AND ma.city IS NOT NULL
       AND TRIM(ma.city) <> ''
   )
-ORDER BY m.handle;
+ORDER BY m.handle
+LIMIT $3::int
+OFFSET $4::int;

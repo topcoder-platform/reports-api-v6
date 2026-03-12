@@ -27,7 +27,7 @@ describe("getAccessibleReportsDirectory", () => {
     expect(directory.topcoder).toBeUndefined();
   });
 
-  it("returns challenge reports and role-mapped identity reports for talent managers", () => {
+  it("returns challenge, member, and role-mapped identity reports for talent managers", () => {
     const directory = getAccessibleReportsDirectory({
       roles: [UserRoles.TalentManager],
     });
@@ -35,10 +35,14 @@ describe("getAccessibleReportsDirectory", () => {
     expect(Object.keys(directory).sort()).toEqual([
       "challenges",
       "identity",
+      "member",
       "statistics",
     ]);
     expect(directory.identity?.reports.map((report) => report.path)).toEqual([
       "/identity/users-by-handles",
+    ]);
+    expect(directory.member?.reports.map((report) => report.path)).toEqual([
+      "/member/recent-member-data",
     ]);
   });
 
@@ -65,6 +69,26 @@ describe("getAccessibleReportsDirectory", () => {
     expect(directory.sfdc).toBeUndefined();
     expect(directory.statistics?.reports.length).toBeGreaterThan(0);
     expect(directory.topcoder).toBeUndefined();
+  });
+
+  it("returns all topcoder-scoped report categories for machine tokens", () => {
+    const directory = getAccessibleReportsDirectory({
+      isMachine: true,
+      scopes: [Scopes.TopcoderReports],
+    });
+
+    expect(
+      directory.topcoder?.reports.map((report) => report.path),
+    ).not.toContain("/topcoder/recent-member-data");
+    expect(
+      directory.topcoder?.reports.map((report) => report.path),
+    ).not.toContain("/topcoder/member-payment-accrual");
+    expect(directory.member?.reports.map((report) => report.path)).toEqual([
+      "/member/recent-member-data",
+    ]);
+    expect(directory.admin?.reports.map((report) => report.path)).toEqual([
+      "/admin/member-payment-accrual",
+    ]);
   });
 
   it("returns an empty directory when no JWT user is present", () => {

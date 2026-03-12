@@ -1,6 +1,11 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform } from "class-transformer";
-import { IsBoolean, IsOptional, IsString } from "class-validator";
+import {
+  IsBoolean,
+  IsNumberString,
+  IsOptional,
+  IsString,
+} from "class-validator";
 
 export class CompletedProfilesQueryDto {
   @ApiPropertyOptional({
@@ -23,4 +28,20 @@ export class CompletedProfilesQueryDto {
   )
   @IsBoolean()
   openToWork?: boolean;
+
+  @ApiPropertyOptional({
+    description: "Page number (1-based)",
+    example: "1",
+  })
+  @IsOptional()
+  @IsNumberString()
+  page?: string;
+
+  @ApiPropertyOptional({
+    description: "Number of records per page",
+    example: "50",
+  })
+  @IsOptional()
+  @IsNumberString()
+  perPage?: string;
 }

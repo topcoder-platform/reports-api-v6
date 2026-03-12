@@ -89,10 +89,18 @@ type RecentMemberDataRow = {
 type CompletedProfileRow = {
   userId: string | number | null;
   handle: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  photoURL: string | null;
   countryCode: string | null;
   countryName: string | null;
-  isOpenToWork?: boolean | null;
-  openToWork?: { availability?: string; preferredRoles?: string[] } | null;
+  city: string | null;
+  skillCount: string | number | null;
+  principalSkills: string[] | null;
+};
+
+type CompletedProfilesCountRow = {
+  total: string | number | null;
 };
 
 type ChallengeSubmitterDataRow = {
@@ -645,21 +653,61 @@ export class TopcoderReportsService {
     };
   }
 
-  async getCompletedProfiles(countryCode?: string, openToWork?: boolean) {
+  async getCompletedProfiles(
+    countryCode?: string,
+    page = 1,
+    perPage = 50,
+    openToWork?: boolean,
+  ) {
+    const safePage = Number.isFinite(page) ? Math.max(Math.floor(page), 1) : 1;
+    const safePerPage = Number.isFinite(perPage)
+      ? Math.min(Math.max(Math.floor(perPage), 1), 200)
+      : 50;
+    const offset = (safePage - 1) * safePerPage;
+
+    const countQuery = this.sql.load(
+      "reports/topcoder/completed-profiles-count.sql",
+    );
+    const countRows = await this.db.query<CompletedProfilesCountRow>(
+      countQuery,
+      [
+        countryCode || null,
+        typeof openToWork === "boolean" ? openToWork : null,
+      ],
+    );
+    const total = Number(countRows?.[0]?.total ?? 0);
+
     const query = this.sql.load("reports/topcoder/completed-profiles.sql");
     const rows = await this.db.query<CompletedProfileRow>(query, [
       countryCode || null,
       typeof openToWork === "boolean" ? openToWork : null,
+      safePerPage,
+      offset,
     ]);
 
-    return rows.map((row) => ({
+    const data = rows.map((row) => ({
       userId: row.userId ? Number(row.userId) : null,
       handle: row.handle || "",
+      firstName: row.firstName || undefined,
+      lastName: row.lastName || undefined,
+      photoURL: row.photoURL || undefined,
       countryCode: row.countryCode || undefined,
       countryName: row.countryName || undefined,
-      openToWork: row.openToWork ?? null,
-      isOpenToWork: row.isOpenToWork ?? false,
+      city: row.city || undefined,
+      skillCount:
+        row.skillCount !== null && row.skillCount !== undefined
+          ? Number(row.skillCount)
+          : undefined,
+      principalSkills: row.principalSkills || undefined,
     }));
+
+    return {
+      data,
+      page: safePage,
+      perPage: safePerPage,
+      total,
+      totalPages: total > 0 ? Math.ceil(total / safePerPage) : 1,
+    };
   }
 
   private toNullableNumberArray(value: unknown): number[] | null {

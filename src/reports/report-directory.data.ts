@@ -7,6 +7,8 @@ export type ReportGroupKey =
   | "sfdc"
   | "statistics"
   | "topcoder"
+  | "member"
+  | "admin"
   | "identity";
 
 type HttpMethod = "GET" | "POST";
@@ -388,14 +390,14 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
       challengeReport(
         "Challenge Submitters",
         "/challenges/:challengeId/submitters",
-        "Return the challenge submitters report. Marathon Match exports include provisionalScore and finalRank ordered by the current effective rank.",
+        "Return the challenge submitters report. Marathon Match exports use the latest submission provisionalScore and current effective rank, with earlier submission times winning score ties.",
         AppScopes.Challenge.Submitters,
         [challengeIdParam],
       ),
       challengeReport(
         "Challenge Valid Submitters",
         "/challenges/:challengeId/valid-submitters",
-        "Return the challenge valid submitters report. Marathon Match exports include provisionalScore and finalRank ordered by the current effective rank.",
+        "Return the challenge valid submitters report. Marathon Match exports use the latest submission provisionalScore and current effective rank, with earlier submission times winning score ties.",
         AppScopes.Challenge.ValidSubmitters,
         [challengeIdParam],
       ),
@@ -670,18 +672,6 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
         [paymentsStartDateParam, paymentsEndDateParam],
       ),
       topcoderReport(
-        "Member Payment Accrual",
-        "/topcoder/member-payment-accrual",
-        "Member payment accruals for the provided date range (defaults to last 3 months)",
-        [paymentsStartDateParam, paymentsEndDateParam],
-      ),
-      topcoderReport(
-        "Recent Member Data",
-        "/topcoder/recent-member-data",
-        "Members who registered and were paid since the start date (defaults to Jan 1, 2024)",
-        [paymentsStartDateParam],
-      ),
-      topcoderReport(
         "90 Day Member Spend",
         "/topcoder/90-day-member-spend",
         "Total gross amount paid to members in the last 90 days",
@@ -765,6 +755,35 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
         "Membership Participation Funnel Data",
         "/topcoder/membership-participation-funnel-data",
         "Weekly new member counts with design and development participation indicators for the last four weeks",
+      ),
+    ],
+  },
+  member: {
+    label: "Member Reports",
+    basePath: "/member",
+    reports: [
+      report(
+        "Recent Member Data",
+        "/member/recent-member-data",
+        "Members who registered and were paid since the start date (defaults to Jan 1, 2024)",
+        [
+          AppScopes.AllReports,
+          AppScopes.TopcoderReports,
+          AppScopes.Member.RecentMemberData,
+        ],
+        [paymentsStartDateParam],
+      ),
+    ],
+  },
+  admin: {
+    label: "Admin Reports",
+    basePath: "/admin",
+    reports: [
+      topcoderReport(
+        "Member Payment Accrual",
+        "/admin/member-payment-accrual",
+        "Member payment accruals for the provided date range (defaults to last 3 months)",
+        [paymentsStartDateParam, paymentsEndDateParam],
       ),
     ],
   },
