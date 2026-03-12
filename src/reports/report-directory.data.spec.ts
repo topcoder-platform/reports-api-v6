@@ -80,10 +80,10 @@ describe("getAccessibleReportsDirectory", () => {
       directory.topcoder?.reports.map((report) => report.path),
     ).not.toContain("/topcoder/member-payment-accrual");
     expect(directory.member?.reports.map((report) => report.path)).toEqual([
-      "/topcoder/recent-member-data",
+      "/member/recent-member-data",
     ]);
     expect(directory.admin?.reports.map((report) => report.path)).toEqual([
-      "/topcoder/member-payment-accrual",
+      "/admin/member-payment-accrual",
     ]);
   });
 

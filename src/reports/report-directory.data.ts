@@ -760,11 +760,11 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
   },
   member: {
     label: "Member Reports",
-    basePath: "/topcoder",
+    basePath: "/member",
     reports: [
       topcoderReport(
         "Recent Member Data",
-        "/topcoder/recent-member-data",
+        "/member/recent-member-data",
         "Members who registered and were paid since the start date (defaults to Jan 1, 2024)",
         [paymentsStartDateParam],
       ),
@@ -772,11 +772,11 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
   },
   admin: {
     label: "Admin Reports",
-    basePath: "/topcoder",
+    basePath: "/admin",
     reports: [
       topcoderReport(
         "Member Payment Accrual",
-        "/topcoder/member-payment-accrual",
+        "/admin/member-payment-accrual",
         "Member payment accruals for the provided date range (defaults to last 3 months)",
         [paymentsStartDateParam, paymentsEndDateParam],
       ),
