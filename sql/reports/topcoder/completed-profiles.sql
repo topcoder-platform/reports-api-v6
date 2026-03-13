@@ -24,7 +24,8 @@ SELECT
   COALESCE(m."homeCountryCode", m."competitionCountryCode") AS "countryCode",
   m.country AS "countryName",
   ot.open_to_work_value AS "openToWork",
-  ot.is_open_to_work AS "isOpenToWork",
+  m."availableForGigs" AS "isOpenToWork",
+  m."availableForGigs" AS "availableForGigs",
   ma.city,
   ms.skill_count AS "skillCount"
 FROM members.member m
@@ -59,7 +60,10 @@ WHERE m.description IS NOT NULL
   AND m."photoURL" <> ''
   AND m."homeCountryCode" IS NOT NULL
   AND ($1::text IS NULL OR COALESCE(m."homeCountryCode", m."competitionCountryCode") = $1)
-  AND ($2::boolean IS NULL OR ot.is_open_to_work = $2::boolean)
+  AND (
+    $2::boolean IS NULL
+    OR m."availableForGigs" = $2::boolean
+  )
   -- Check work history exists
   AND EXISTS (
     SELECT 1

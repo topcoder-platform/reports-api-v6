@@ -97,6 +97,7 @@ type CompletedProfileRow = {
   city: string | null;
   skillCount: string | number | null;
   principalSkills: string[] | null;
+  availableForGigs?: boolean | null;
   isOpenToWork?: boolean | null;
   openToWork?: { availability?: string; preferredRoles?: string[] } | null;
 };
@@ -701,8 +702,15 @@ export class TopcoderReportsService {
           ? Number(row.skillCount)
           : undefined,
       principalSkills: row.principalSkills || undefined,
+      availableForGigs:
+        typeof row.availableForGigs === "boolean"
+          ? row.availableForGigs
+          : null,
       openToWork: row.openToWork ?? null,
-      isOpenToWork: row.isOpenToWork ?? false,
+      isOpenToWork:
+        typeof row.availableForGigs === "boolean"
+          ? row.availableForGigs
+          : false,
     }));
 
     return {
