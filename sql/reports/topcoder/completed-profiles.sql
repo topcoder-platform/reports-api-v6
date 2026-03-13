@@ -61,7 +61,7 @@ WHERE m.description IS NOT NULL
   AND ($1::text IS NULL OR COALESCE(m."homeCountryCode", m."competitionCountryCode") = $1)
   AND (
     $2::boolean IS NULL
-    OR m."isOpenToWork" = $2::boolean
+    OR m."availableForGigs" = $2::boolean
   )
   -- Check work history exists
   AND EXISTS (
