@@ -18,6 +18,10 @@ WHERE m.description IS NOT NULL
   AND m."homeCountryCode" IS NOT NULL
   AND ($1::text IS NULL OR COALESCE(m."homeCountryCode", m."competitionCountryCode") = $1)
   AND ($3::uuid[] IS NULL OR ms.skill_ids && $3::uuid[])
+  AND (
+    $2::boolean IS NULL
+    OR m."availableForGigs" = $2::boolean
+  )
   AND EXISTS (
     SELECT 1
     FROM members."memberTraits" mt
@@ -43,15 +47,6 @@ WHERE m.description IS NOT NULL
           mtp.value::jsonb ? 'availability'
           AND mtp.value::jsonb ? 'preferredRoles'
           AND jsonb_array_length(mtp.value::jsonb -> 'preferredRoles') > 0
-        )
-      )
-      AND (
-        $2::boolean IS NULL
-        OR (
-          (
-            mtp.value::jsonb ? 'availability'
-            AND btrim(mtp.value->>'availability') <> ''
-          ) = $2::boolean
         )
       )
   )
