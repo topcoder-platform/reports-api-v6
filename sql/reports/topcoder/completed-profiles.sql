@@ -60,7 +60,7 @@ WHERE m.description IS NOT NULL
   AND m."photoURL" <> ''
   AND m."homeCountryCode" IS NOT NULL
   AND ($1::text IS NULL OR COALESCE(m."homeCountryCode", m."competitionCountryCode") = $1)
-  AND ($5::uuid[] IS NULL OR ms.skill_ids && $5::uuid[])
+  AND ($5::uuid[] IS NULL OR ms.skill_ids @> $5::uuid[])
   AND (
     $2::boolean IS NULL
     OR m."availableForGigs" = $2::boolean
