@@ -5,14 +5,23 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
 
 import { Scopes, UserRoles } from "../../app-constants";
+import { SCOPES_KEY } from "../decorators/scopes.decorator";
+import {
+  AuthUserLike,
+  getNormalizedRoles,
+  hasAccessToScopes,
+} from "../permissions.util";
 
 @Injectable()
 export class TopcoderReportsGuard implements CanActivate {
-  private static readonly adminRoles = new Set(
-    Object.values(UserRoles).map((role) => role.toLowerCase()),
-  );
+  private static readonly completedProfilesRoles = new Set([
+    UserRoles.TalentManager.toLowerCase(),
+  ]);
+
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
@@ -22,19 +31,16 @@ export class TopcoderReportsGuard implements CanActivate {
       throw new UnauthorizedException("You are not authenticated.");
     }
 
-    if (authUser.isMachine) {
-      const scopes: string[] = authUser.scopes ?? [];
-      if (this.hasRequiredScope(scopes)) {
-        return true;
-      }
+    const requiredScopes = this.reflector.getAllAndOverride<string[]>(
+      SCOPES_KEY,
+      [context.getHandler(), context.getClass()],
+    ) ?? [Scopes.TopcoderReports, Scopes.AllReports];
 
-      throw new ForbiddenException(
-        "You do not have the required permissions to access this resource.",
-      );
+    if (hasAccessToScopes(authUser, requiredScopes)) {
+      return true;
     }
 
-    const roles: string[] = authUser.roles ?? [];
-    if (this.isAdmin(roles)) {
+    if (this.canAccessCompletedProfiles(context, authUser)) {
       return true;
     }
 
@@ -43,17 +49,18 @@ export class TopcoderReportsGuard implements CanActivate {
     );
   }
 
-  private hasRequiredScope(scopes: string[]): boolean {
-    const normalizedScopes = scopes.map((scope) => scope?.toLowerCase());
-    return (
-      normalizedScopes.includes(Scopes.TopcoderReports.toLowerCase()) ||
-      normalizedScopes.includes(Scopes.AllReports.toLowerCase())
-    );
-  }
+  private canAccessCompletedProfiles(
+    context: ExecutionContext,
+    authUser: AuthUserLike,
+  ): boolean {
+    const handlerName = context.getHandler().name;
 
-  private isAdmin(roles: string[]): boolean {
-    return roles.some((role) =>
-      TopcoderReportsGuard.adminRoles.has(role?.toLowerCase()),
+    if (handlerName !== "getCompletedProfiles") {
+      return false;
+    }
+
+    return getNormalizedRoles(authUser).some((role) =>
+      TopcoderReportsGuard.completedProfilesRoles.has(role),
     );
   }
 }

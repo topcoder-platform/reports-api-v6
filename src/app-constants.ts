@@ -6,6 +6,9 @@ export const Scopes = {
   TopgearCancelledChallenge: "reports:topgear-cancelled-challenge",
   AllReports: "reports:all",
   TopcoderReports: "reports:topcoder",
+  Member: {
+    RecentMemberData: "reports:member-recent-member-data",
+  },
   TopgearChallengeTechnology: "reports:topgear-challenge-technology",
   TopgearChallengeStatsByUser: "reports:topgear-challenge-stats-by-user",
   TopgearChallengeRegistrantDetails:
@@ -23,9 +26,44 @@ export const Scopes = {
     History: "reports:challenge-history",
     Registrants: "reports:challenge-registrants",
     SubmissionLinks: "reports:challenge-submission-links",
+    RegisteredUsers: "reports:challenge-registered-users",
+    Submitters: "reports:challenge-submitters",
+    ValidSubmitters: "reports:challenge-valid-submitters",
+    Winners: "reports:challenge-winners",
+  },
+  Identity: {
+    UsersByRole: "reports:identity-users-by-role",
+    UsersByGroup: "reports:identity-users-by-group",
+    UsersByHandles: "reports:identity-users-by-handles",
   },
 };
 
-export const UserRoles = {
+export const AdminRoles = {
   Admin: "Administrator",
+};
+
+export const UserRoles = {
+  ProductManager: "Product Manager",
+  ProjectManager: "Project Manager",
+  TalentManager: "Talent Manager",
+};
+
+const challengeReportAccessRoles = [
+  UserRoles.ProductManager,
+  UserRoles.TalentManager,
+] as const;
+
+export const ScopeRoleAccess: Record<string, readonly string[]> = {
+  [Scopes.Challenge.History]: challengeReportAccessRoles,
+  [Scopes.Challenge.Registrants]: challengeReportAccessRoles,
+  [Scopes.Challenge.SubmissionLinks]: challengeReportAccessRoles,
+  [Scopes.Challenge.RegisteredUsers]: challengeReportAccessRoles,
+  [Scopes.Challenge.Submitters]: challengeReportAccessRoles,
+  [Scopes.Challenge.ValidSubmitters]: challengeReportAccessRoles,
+  [Scopes.Challenge.Winners]: challengeReportAccessRoles,
+  [Scopes.Member.RecentMemberData]: [UserRoles.TalentManager],
+  [Scopes.Identity.UsersByHandles]: [
+    UserRoles.TalentManager,
+    UserRoles.ProjectManager,
+  ],
 };

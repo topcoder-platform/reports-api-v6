@@ -86,6 +86,35 @@ type RecentMemberDataRow = {
   submissions_over_75: string | number | null;
 };
 
+type CompletedProfileRow = {
+  userId: string | number | null;
+  handle: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  photoURL: string | null;
+  countryCode: string | null;
+  countryName: string | null;
+  city: string | null;
+  skillCount: string | number | null;
+  principalSkills: string[] | null;
+  isOpenToWork?: boolean | null;
+  openToWork?: { availability?: string; preferredRoles?: string[] } | null;
+};
+
+type CompletedProfilesCountRow = {
+  total: string | number | null;
+};
+
+type ChallengeSubmitterDataRow = {
+  userId: string | number | null;
+  handle: string | null;
+  email: string | null;
+  country: string | null;
+  place: string | number | null;
+  provisionalScores: unknown;
+  finalScore: string | number | null;
+};
+
 @Injectable()
 export class TopcoderReportsService {
   constructor(
@@ -571,6 +600,25 @@ export class TopcoderReportsService {
     }));
   }
 
+  async getChallengeSubmitterData(challengeId: string) {
+    const query = this.sql.load(
+      "reports/topcoder/challenge-submitter-data.sql",
+    );
+    const rows = await this.db.query<ChallengeSubmitterDataRow>(query, [
+      challengeId,
+    ]);
+
+    return rows.map((row) => ({
+      userId: this.toNullableNumber(row.userId),
+      handle: row.handle ?? null,
+      email: row.email ?? null,
+      country: row.country ?? null,
+      place: this.toNullableNumber(row.place),
+      provisionalScores: this.toNullableNumberArray(row.provisionalScores),
+      finalScore: this.toNullableNumber(row.finalScore),
+    }));
+  }
+
   async getMarathonMatchStats(handle: string) {
     const query = this.sql.load("reports/topcoder/mm-stats.sql");
     const rows = await this.db.query<MarathonMatchStatsRow>(query, [handle]);
@@ -605,6 +653,102 @@ export class TopcoderReportsService {
         row.marathon_submission_rate,
       ),
     };
+  }
+
+  async getCompletedProfiles(
+    countryCode?: string,
+    page = 1,
+    perPage = 50,
+    openToWork?: boolean,
+    skillIds?: string[],
+  ) {
+    const safePage = Number.isFinite(page) ? Math.max(Math.floor(page), 1) : 1;
+    const safePerPage = Number.isFinite(perPage)
+      ? Math.min(Math.max(Math.floor(perPage), 1), 200)
+      : 50;
+    const offset = (safePage - 1) * safePerPage;
+
+    const hasSkillIds = Array.isArray(skillIds) && skillIds.length > 0;
+    const skillIdsParam = hasSkillIds ? skillIds : null;
+
+    const countQuery = this.sql.load(
+      "reports/topcoder/completed-profiles-count.sql",
+    );
+    const countRows = await this.db.query<CompletedProfilesCountRow>(
+      countQuery,
+      [
+        countryCode || null,
+        typeof openToWork === "boolean" ? openToWork : null,
+        skillIdsParam,
+      ],
+    );
+    const total = Number(countRows?.[0]?.total ?? 0);
+
+    const query = this.sql.load("reports/topcoder/completed-profiles.sql");
+    const rows = await this.db.query<CompletedProfileRow>(query, [
+      countryCode || null,
+      typeof openToWork === "boolean" ? openToWork : null,
+      safePerPage,
+      offset,
+      skillIdsParam,
+    ]);
+
+    const data = rows.map((row) => ({
+      userId: row.userId ? Number(row.userId) : null,
+      handle: row.handle || "",
+      firstName: row.firstName || undefined,
+      lastName: row.lastName || undefined,
+      photoURL: row.photoURL || undefined,
+      countryCode: row.countryCode || undefined,
+      countryName: row.countryName || undefined,
+      city: row.city || undefined,
+      skillCount:
+        row.skillCount !== null && row.skillCount !== undefined
+          ? Number(row.skillCount)
+          : undefined,
+      principalSkills: row.principalSkills || undefined,
+      openToWork: row.openToWork ?? null,
+      isOpenToWork:
+        typeof row.isOpenToWork === "boolean"
+          ? row.isOpenToWork
+          : false,
+    }));
+
+    return {
+      data,
+      page: safePage,
+      perPage: safePerPage,
+      total,
+      totalPages: total > 0 ? Math.ceil(total / safePerPage) : 1,
+    };
+  }
+
+  private toNullableNumberArray(value: unknown): number[] | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    let normalizedValue = value;
+
+    if (typeof normalizedValue === "string") {
+      try {
+        normalizedValue = JSON.parse(normalizedValue);
+      } catch {
+        return null;
+      }
+    }
+
+    if (!Array.isArray(normalizedValue)) {
+      return null;
+    }
+
+    return normalizedValue.reduce<number[]>((scores, item) => {
+      const numericValue = Number(item);
+      if (Number.isFinite(numericValue)) {
+        scores.push(numericValue);
+      }
+      return scores;
+    }, []);
   }
 
   private toNullableNumber(value: string | number | null | undefined) {

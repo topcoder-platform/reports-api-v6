@@ -45,15 +45,28 @@ LEFT JOIN LATERAL (
   WHERE mmr."userId" = mb."userId"
 ) AS max_rating ON TRUE
 LEFT JOIN LATERAL (
-  SELECT mmar.*
+  SELECT COUNT(*) AS competitions
+  FROM members."memberStatsHistory" AS msh
+  WHERE msh."userId" = mb."userId"
+    AND msh."trackId" = 'DATA_SCIENCE'
+    AND msh."typeId" = 'MARATHON_MATCH'
+    AND msh."newRating" IS NOT NULL
+) AS marathon_stats_history ON TRUE
+LEFT JOIN LATERAL (
+  SELECT
+    ms.rating,
+    ms."globalRank" AS rank,
+    ms.challenges,
+    ms.wins,
+    ms."topFiveFinishes",
+    ms."avgRank",
+    marathon_stats_history.competitions
   FROM members."memberStats" AS ms
-  JOIN members."memberDataScienceStats" AS mds
-    ON mds."memberStatsId" = ms.id
-  JOIN members."memberMarathonStats" AS mmar
-    ON mmar."dataScienceStatsId" = mds.id
   WHERE ms."userId" = mb."userId"
+    AND ms."trackId" = 'DATA_SCIENCE'
+    AND ms."typeId" = 'MARATHON_MATCH'
   ORDER BY
-    CASE WHEN ms."isPrivate" THEN 1 ELSE 0 END,
+    ms."isPrivate" ASC,
     ms."updatedAt" DESC NULLS LAST,
     ms.id DESC
   LIMIT 1

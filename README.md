@@ -3,8 +3,8 @@
 This repository houses the reports API for all Topcoder and Topgear reports on the Topcoder platform.  The reports are pulled directly from live data, not a data warehouse, so they should be up-to-date when they are generated and the response is returned.
 
 Reports return JSON data by default. Endpoints that support CSV can also return
-CSV when the request sets `Accept: text/csv` (including the Challenges and
-Topcoder report groups).
+CSV when the request sets `Accept: text/csv` (including the Challenges,
+Topcoder, Member, and Admin report groups).
 
 ## Security
 
