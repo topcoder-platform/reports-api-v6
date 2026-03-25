@@ -56,8 +56,6 @@ LEFT JOIN LATERAL (
 ) ma ON TRUE
 WHERE m.description IS NOT NULL
   AND m.description <> ''
-  AND m."photoURL" IS NOT NULL
-  AND m."photoURL" <> ''
   AND m."homeCountryCode" IS NOT NULL
   AND ($1::text IS NULL OR COALESCE(m."homeCountryCode", m."competitionCountryCode") = $1)
   AND ($5::uuid[] IS NULL OR ms.skill_ids @> $5::uuid[])
