@@ -111,6 +111,14 @@ SELECT
   ) AS "handle",
   COALESCE(e.address, NULLIF(TRIM(mem.email), '')) AS "email",
   COALESCE(
+    NULLIF(TRIM(u.first_name), ''),
+    NULLIF(TRIM(mem."firstName"), '')
+  ) AS "firstName",
+  COALESCE(
+    NULLIF(TRIM(u.last_name), ''),
+    NULLIF(TRIM(mem."lastName"), '')
+  ) AS "lastName",
+  COALESCE(
     comp_code.name,
     comp_id.name,
     home_code.name,
