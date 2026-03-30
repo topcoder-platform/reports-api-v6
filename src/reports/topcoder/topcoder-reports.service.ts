@@ -99,10 +99,7 @@ type CompletedProfileRow = {
   principalSkills: string[] | null;
   isOpenToWork?: boolean | null;
   openToWork?: { availability?: string; preferredRoles?: string[] } | null;
-};
-
-type CompletedProfilesCountRow = {
-  total: string | number | null;
+  totalCount: string | number | null;
 };
 
 type ChallengeSubmitterDataRow = {
@@ -671,19 +668,6 @@ export class TopcoderReportsService {
     const hasSkillIds = Array.isArray(skillIds) && skillIds.length > 0;
     const skillIdsParam = hasSkillIds ? skillIds : null;
 
-    const countQuery = this.sql.load(
-      "reports/topcoder/completed-profiles-count.sql",
-    );
-    const countRows = await this.db.query<CompletedProfilesCountRow>(
-      countQuery,
-      [
-        countryCode || null,
-        typeof openToWork === "boolean" ? openToWork : null,
-        skillIdsParam,
-      ],
-    );
-    const total = Number(countRows?.[0]?.total ?? 0);
-
     const query = this.sql.load("reports/topcoder/completed-profiles.sql");
     const rows = await this.db.query<CompletedProfileRow>(query, [
       countryCode || null,
@@ -692,6 +676,8 @@ export class TopcoderReportsService {
       offset,
       skillIdsParam,
     ]);
+
+    const total = Number(rows?.[0]?.totalCount ?? 0);
 
     const data = rows.map((row) => ({
       userId: row.userId ? Number(row.userId) : null,
@@ -709,9 +695,7 @@ export class TopcoderReportsService {
       principalSkills: row.principalSkills || undefined,
       openToWork: row.openToWork ?? null,
       isOpenToWork:
-        typeof row.isOpenToWork === "boolean"
-          ? row.isOpenToWork
-          : false,
+        typeof row.isOpenToWork === "boolean" ? row.isOpenToWork : false,
     }));
 
     return {
