@@ -91,9 +91,25 @@ SELECT
     ELSE null
   END AS "challengeCompletedDate",
   r."registrantHandle",
+  COALESCE(
+    NULLIF(TRIM(u.first_name), ''),
+    NULLIF(TRIM(mem."firstName"), '')
+  ) AS "firstName",
+
+  COALESCE(
+    NULLIF(TRIM(u.last_name), ''),
+    NULLIF(TRIM(mem."lastName"), '')
+  ) AS "lastName",
   COALESCE(sub."registrantFinalScore", sum."registrantFinalScore")
     AS "registrantFinalScore"
 FROM registrants r
+LEFT JOIN identity."user" u
+  ON r."memberId" ~ '^[0-9]+$'
+ AND u.user_id = r."memberId"::numeric
+
+LEFT JOIN members."member" mem
+  ON r."memberId" ~ '^[0-9]+$'
+ AND mem."userId" = r."memberId"::bigint
 LEFT JOIN LATERAL (
   SELECT
     MAX(cw.handle) AS "winnerHandle",
