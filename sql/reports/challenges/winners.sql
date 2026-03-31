@@ -88,6 +88,14 @@ SELECT
     NULLIF(TRIM(mem.handle), ''),
     wm."winnerHandle"
   ) AS "handle",
+  COALESCE(
+    NULLIF(TRIM(u.first_name), ''),
+    NULLIF(TRIM(mem."firstName"), '')
+  ) AS "firstName",
+  COALESCE(
+    NULLIF(TRIM(u.last_name), ''),
+    NULLIF(TRIM(mem."lastName"), '')
+  ) AS "lastName",
   COALESCE(e.address, NULLIF(TRIM(mem.email), '')) AS "email",
   COALESCE(
     comp_code.name,

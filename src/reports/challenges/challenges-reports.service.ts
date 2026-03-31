@@ -203,6 +203,8 @@ export class ChallengesReportsService {
         userId: record.userId,
         handle: record.handle,
         email: record.email ?? null,
+        firstName: record.firstName ?? null,
+        lastName: record.lastName ?? null,
         country: record.country ?? null,
       };
 
