@@ -25,6 +25,8 @@ export interface ChallengeUserRecordDto {
   userId: number;
   handle: string;
   email: string | null;
+  firstName: string | null;
+  lastName: string | null;
   country: string | null;
   submissionScore?: number | null;
   provisionalScore?: number | null;
