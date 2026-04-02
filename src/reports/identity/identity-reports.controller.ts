@@ -90,7 +90,7 @@ export class IdentityReportsController {
   @ApiBearerAuth()
   @ApiOperation({
     summary:
-      "Export user details (ID, handle, email, country) for a list of handles",
+      "Export user details (ID, handle, firstName, lastName, contactNumber, email, country) for a list of handles",
   })
   @ApiConsumes("application/json", "multipart/form-data")
   @ApiBody({
