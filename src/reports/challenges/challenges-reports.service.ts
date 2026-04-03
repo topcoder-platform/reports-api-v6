@@ -184,7 +184,7 @@ export class ChallengesReportsService {
   /**
    * Normalizes raw challenge user report rows into the exported column shape.
    * @param records SQL rows for one challenge report, including the internal Marathon Match flag.
-   * @returns Export-ready records with either submissionScore or Marathon Match-specific columns.
+   * @returns Export-ready records with either submissionScore or the Marathon Match-specific score and ranking columns.
    * @throws Does not throw. It is used as a pure formatter inside the challenge report service methods.
    */
   private formatChallengeUserReport(
@@ -210,6 +210,7 @@ export class ChallengesReportsService {
 
       if (isMarathonMatch) {
         normalized.provisionalScore = record.provisionalScore ?? null;
+        normalized.finalScore = record.finalScore ?? null;
         normalized.finalRank = record.finalRank ?? null;
         return normalized;
       }
