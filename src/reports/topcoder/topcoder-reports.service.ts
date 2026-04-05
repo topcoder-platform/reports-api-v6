@@ -709,9 +709,7 @@ export class TopcoderReportsService {
       principalSkills: row.principalSkills || undefined,
       openToWork: row.openToWork ?? null,
       isOpenToWork:
-        typeof row.isOpenToWork === "boolean"
-          ? row.isOpenToWork
-          : false,
+        typeof row.isOpenToWork === "boolean" ? row.isOpenToWork : false,
     }));
 
     return {
