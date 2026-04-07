@@ -204,7 +204,7 @@ member_address AS (
     if (country) {
       const pCountry = p(country);
       where.push(
-        `(m."homeCountryCode" ILIKE ${pCountry} OR m."competitionCountryCode" ILIKE ${pCountry})`,
+        `(m."homeCountryCode" ILIKE ${pCountry} OR m."competitionCountryCode" ILIKE ${pCountry} OR m.country ILIKE ${pCountry})`,
       );
     }
 
@@ -232,7 +232,7 @@ SELECT
   )                                                                          AS "isVerified",
   TRIM(
     COALESCE(maddr.city || ' ', '') ||
-    COALESCE(m."competitionCountryCode", COALESCE(m."homeCountryCode", COALESCE(m.country, '')))
+    COALESCE(m.country, COALESCE(m."competitionCountryCode", COALESCE(m."homeCountryCode", '')))
   )                                                                          AS location,
   ${matchedSkillsExpr}                                                       AS "matchedSkills",
   ${matchIndexExpr}                                                          AS "matchIndex"
