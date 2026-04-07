@@ -85,6 +85,13 @@ skill_event_stats AS (
   WHERE se.skill_id = ANY(${pSkillIds}::uuid[])
   GROUP BY se.user_id, se.skill_id
 ),
+deduped_user_skills AS (
+  SELECT DISTINCT
+    us.user_id,
+    us.skill_id
+  FROM skills.user_skill us
+  WHERE us.skill_id = ANY(${pSkillIds}::uuid[])
+),
 user_skill_data AS (
   SELECT
     us.user_id,
@@ -92,7 +99,7 @@ user_skill_data AS (
     sk.name                          AS skill_name,
     COALESCE(ses.wins, 0)            AS wins,
     COALESCE(ses.submitted, 0)       AS submitted
-  FROM skills.user_skill us
+  FROM deduped_user_skills us
   JOIN requested_skills  rs  ON rs.skill_id  = us.skill_id
   JOIN skills.skill      sk  ON sk.id = us.skill_id AND sk.deleted_at IS NULL
   LEFT JOIN skill_event_stats ses
@@ -196,7 +203,9 @@ member_address AS (
 
     if (country) {
       const pCountry = p(country);
-      where.push(`mbi.country ILIKE ${pCountry}`);
+      where.push(
+        `(m."homeCountryCode" ILIKE ${pCountry} OR m."competitionCountryCode" ILIKE ${pCountry})`,
+      );
     }
 
     // Snapshot param count BEFORE adding pagination — count query stops here
@@ -223,7 +232,7 @@ SELECT
   )                                                                          AS "isVerified",
   TRIM(
     COALESCE(maddr.city || ' ', '') ||
-    COALESCE(mbi.country, COALESCE(m.country, ''))
+    COALESCE(m.competitionCountryCode, COALESCE(m.homeCountryCode, COALESCE(m.country, '')))
   )                                                                          AS location,
   ${matchedSkillsExpr}                                                       AS "matchedSkills",
   ${matchIndexExpr}                                                          AS "matchIndex"
