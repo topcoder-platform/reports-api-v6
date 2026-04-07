@@ -232,7 +232,7 @@ SELECT
   )                                                                          AS "isVerified",
   TRIM(
     COALESCE(maddr.city || ' ', '') ||
-    COALESCE(m.competitionCountryCode, COALESCE(m.homeCountryCode, COALESCE(m.country, '')))
+    COALESCE(m."competitionCountryCode", COALESCE(m."homeCountryCode", COALESCE(m.country, '')))
   )                                                                          AS location,
   ${matchedSkillsExpr}                                                       AS "matchedSkills",
   ${matchIndexExpr}                                                          AS "matchIndex"
