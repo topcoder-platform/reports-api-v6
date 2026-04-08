@@ -113,6 +113,20 @@ export class TopcoderReportsController {
     return this.reports.getRecentMemberData(startDate);
   }
 
+  @Get("/member/engagement-data")
+  @RequiredScopes(
+    AppScopes.AllReports,
+    AppScopes.TopcoderReports,
+    AppScopes.Member.EngagementData,
+  )
+  @ApiOperation({
+    summary:
+      "Members who applied to public engagements or have engagement assignments, including project names for assigned members",
+  })
+  getEngagementData() {
+    return this.reports.getEngagementData();
+  }
+
   @Get("/topcoder/90-day-member-spend")
   @ApiOperation({
     summary: "Total gross amount paid to members in the last 90 days",

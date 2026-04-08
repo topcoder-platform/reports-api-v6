@@ -763,6 +763,16 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
     basePath: "/member",
     reports: [
       report(
+        "Engagement Data",
+        "/member/engagement-data",
+        "Members who have applied to public engagements or have any engagement assignments, including project names for assigned members",
+        [
+          AppScopes.AllReports,
+          AppScopes.TopcoderReports,
+          AppScopes.Member.EngagementData,
+        ],
+      ),
+      report(
         "Recent Member Data",
         "/member/recent-member-data",
         "Members who registered and were paid since the start date (defaults to Jan 1, 2024)",

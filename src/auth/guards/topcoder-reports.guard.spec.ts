@@ -11,6 +11,19 @@ import { TopcoderReportsGuard } from "./topcoder-reports.guard";
 @RequiredScopes(AppScopes.AllReports, AppScopes.TopcoderReports)
 class TestTopcoderReportsController {
   /**
+   * Represents the Engagement Data route for guard metadata tests.
+   * Returns no value because the handler body is not exercised in these unit tests.
+   */
+  @RequiredScopes(
+    AppScopes.AllReports,
+    AppScopes.TopcoderReports,
+    AppScopes.Member.EngagementData,
+  )
+  getEngagementData(): undefined {
+    return undefined;
+  }
+
+  /**
    * Represents the Recent Member Data route for guard metadata tests.
    * Returns no value because the handler body is not exercised in these unit tests.
    */
@@ -65,6 +78,16 @@ function createExecutionContext(
 
 describe("TopcoderReportsGuard", () => {
   const guard = new TopcoderReportsGuard(new Reflector());
+
+  it("allows talent managers to access engagement data via route scopes", () => {
+    expect(
+      guard.canActivate(
+        createExecutionContext("getEngagementData", {
+          roles: [UserRoles.TalentManager],
+        }),
+      ),
+    ).toBe(true);
+  });
 
   it("allows talent managers to access recent member data via route scopes", () => {
     expect(
