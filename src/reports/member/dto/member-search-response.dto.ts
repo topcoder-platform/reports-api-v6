@@ -47,6 +47,11 @@ export class MemberResultDto {
   isVerified!: boolean;
 
   @ApiProperty({
+    description: "True when the member is available for gigs.",
+  })
+  openToWork!: boolean;
+
+  @ApiProperty({
     description: 'Member location in "city country" format.',
     example: "Sydney Australia",
   })

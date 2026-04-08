@@ -14,6 +14,7 @@ type RawMemberRow = {
   photoUrl: string | null;
   isRecentlyActive: boolean;
   isVerified: boolean;
+  openToWork: boolean;
   location: string;
   matchedSkills: MatchedSkillDto[] | null;
   matchIndex: number;
@@ -31,6 +32,8 @@ export class MemberSearchService {
       recentlyActive,
       verifiedProfile,
       country,
+      sortBy = "matchIndex",
+      sortOrder = "desc",
       page = 1,
       limit = 8,
     } = dto;
@@ -217,6 +220,11 @@ member_address AS (
     // ---------------------------------------------------------------- queries
     const ctesBlock = ctes.join(",\n");
     const whereClause = where.join(" AND ");
+    const direction = sortOrder === "asc" ? "ASC" : "DESC";
+    const orderByClause =
+      sortBy === "handle"
+        ? `m.handle ${direction}, "matchIndex" DESC NULLS LAST`
+        : `"matchIndex" ${direction} NULLS LAST, m.handle ASC`;
 
     const dataQuery = `
 WITH ${ctesBlock}
@@ -230,6 +238,7 @@ SELECT
     COALESCE(m.verified, false) = true
     OR EXISTS (SELECT 1 FROM verified_via_trolley vt WHERE vt.user_id = m."userId")
   )                                                                          AS "isVerified",
+  COALESCE(m."availableForGigs", false)                                     AS "openToWork",
   TRIM(
     COALESCE(maddr.city || ' ', '') ||
     COALESCE(m.country, COALESCE(m."competitionCountryCode", COALESCE(m."homeCountryCode", '')))
@@ -241,7 +250,7 @@ ${skillJoin}
 LEFT JOIN member_basic_info mbi   ON mbi."userId"   = m."userId"
 LEFT JOIN member_address    maddr ON maddr."userId" = m."userId"
 WHERE ${whereClause}
-ORDER BY "matchIndex" DESC NULLS LAST, m.handle ASC
+ORDER BY ${orderByClause}
 LIMIT ${pLimit} OFFSET ${pOffset}`;
 
     const countQuery = `
@@ -269,6 +278,7 @@ WHERE ${whereClause}`;
       photoUrl: row.photoUrl ?? null,
       isRecentlyActive: row.isRecentlyActive ?? false,
       isVerified: row.isVerified ?? false,
+      openToWork: row.openToWork ?? false,
       location: row.location || "",
       matchedSkills: row.matchedSkills ?? [],
       matchIndex: row.matchIndex ?? 0,

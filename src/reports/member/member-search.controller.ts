@@ -17,7 +17,7 @@ export class MemberSearchController {
   @ApiOperation({
     summary: "Search members for the Talent Search portal",
     description:
-      "Returns a paginated, match-index–sorted list of members that satisfy the supplied filters. " +
+      "Returns a paginated list of members that satisfy the supplied filters, sorted by match index or handle in ascending or descending order. " +
       "Accessible by Administrator and Talent Manager roles only.",
   })
   @ApiResponse({ status: 200, type: MemberSearchResponseDto })

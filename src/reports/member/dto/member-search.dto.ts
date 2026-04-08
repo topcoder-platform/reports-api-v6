@@ -85,6 +85,25 @@ export class MemberSearchBodyDto {
   country?: string;
 
   @ApiPropertyOptional({
+    description:
+      "Sort field for returned members. matchIndex sorts by best skill match first; handle sorts alphabetically.",
+    enum: ["matchIndex", "handle"],
+    default: "matchIndex",
+  })
+  @IsOptional()
+  @IsIn(["matchIndex", "handle"])
+  sortBy?: "matchIndex" | "handle";
+
+  @ApiPropertyOptional({
+    description: "Sort direction for the selected sort field.",
+    enum: ["asc", "desc"],
+    default: "desc",
+  })
+  @IsOptional()
+  @IsIn(["asc", "desc"])
+  sortOrder?: "asc" | "desc";
+
+  @ApiPropertyOptional({
     description: "Page number (1-based). Defaults to 1.",
     minimum: 1,
     default: 1,
