@@ -18,7 +18,10 @@ submission_metrics AS (
       s."initialScore"::double precision
     ) AS standard_score,
     provisional_review.provisional_score,
-    final_review."aggregateScore" AS final_score_raw,
+    COALESCE(
+      final_review."aggregateScore",
+      s."finalScore"::double precision
+    ) AS final_score_raw,
     (
       passing_review.is_passing IS TRUE
       OR COALESCE(s."finalScore"::double precision, 0) > 98
