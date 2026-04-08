@@ -1,7 +1,15 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleDestroy,
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { DbService } from "../../db/db.service";
 import { SqlLoaderService } from "../../common/sql-loader.service";
 import { alpha3ToCountryName } from "../../common/country.util";
+import { Pool } from "pg";
+import * as core from "tc-core-library-js";
 
 type RegistrantCountriesRow = {
   handle: string | null;
@@ -115,12 +123,93 @@ type ChallengeSubmitterDataRow = {
   finalScore: string | number | null;
 };
 
+type EngagementDataBaseRow = {
+  member_id: string | null;
+  fallback_handle: string | null;
+  application_email: string | null;
+  application_address: string | null;
+  application_phone: string | null;
+  application_name: string | null;
+  has_assignment: boolean | null;
+  assigned_project_ids: string[] | null;
+};
+
+type MemberProfileAddress = {
+  streetAddr1?: string | null;
+  streetAddr2?: string | null;
+  city?: string | null;
+  stateCode?: string | null;
+  zip?: string | null;
+};
+
+type MemberProfilePhone = {
+  number?: string | null;
+  type?: string | null;
+};
+
+type MemberProfile = {
+  userId?: string | number | null;
+  handle?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  homeCountryCode?: string | null;
+  country?: string | null;
+  addresses?: MemberProfileAddress[] | null;
+  phones?: MemberProfilePhone[] | null;
+};
+
+type ProjectSummary = {
+  id?: string | number | null;
+  name?: string | null;
+};
+
+type ParsedName = {
+  firstName: string | null;
+  lastName: string | null;
+};
+
 @Injectable()
-export class TopcoderReportsService {
+export class TopcoderReportsService implements OnModuleDestroy {
+  private readonly logger = new Logger(TopcoderReportsService.name);
+  private readonly m2m: {
+    getMachineToken: (
+      clientId: string,
+      clientSecret: string,
+    ) => Promise<string>;
+  };
+  private engagementsPool?: Pool;
+  private readonly memberLookupBatchSize = 50;
+  private readonly projectLookupBatchSize = 10;
+
   constructor(
     private readonly db: DbService,
     private readonly sql: SqlLoaderService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    const authUrl = this.config.get<string>(
+      "AUTH0_URL",
+      "https://topcoder-dev.auth0.com/oauth/token",
+    );
+    const audience = this.config.get<string>(
+      "AUTH0_AUDIENCE",
+      "https://api.topcoder-dev.com",
+    );
+
+    this.m2m = core.auth.m2m({
+      AUTH0_AUDIENCE: audience,
+      AUTH0_URL: authUrl,
+    }) as {
+      getMachineToken: (
+        clientId: string,
+        clientSecret: string,
+      ) => Promise<string>;
+    };
+  }
+
+  async onModuleDestroy() {
+    await this.engagementsPool?.end();
+  }
 
   async getMemberCount() {
     const query = this.sql.load("reports/topcoder/member-count.sql");
@@ -587,6 +676,86 @@ export class TopcoderReportsService {
     });
   }
 
+  /**
+   * Returns the engagement data member report requested by PM-4800.
+   *
+   * The base member list comes from the engagements database, then member
+   * profiles and project names are resolved through existing platform APIs so
+   * the export includes handle, contact details, country, experience state, and
+   * comma-separated project names for assigned members.
+   *
+   * @returns One row per member with the engagement experience summary fields.
+   * @throws Error when required engagement or M2M configuration is missing.
+   */
+  async getEngagementData() {
+    const rows = await this.queryEngagementDataRows();
+
+    if (!rows.length) {
+      return [];
+    }
+
+    const memberIds = Array.from(
+      new Set(
+        rows
+          .map((row) => row.member_id?.trim())
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    const projectIds = Array.from(
+      new Set(
+        rows.flatMap((row) =>
+          (row.assigned_project_ids ?? [])
+            .map((value) => value?.trim())
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ),
+    );
+
+    const token = await this.getM2MToken();
+    const [profilesById, projectNamesById] = await Promise.all([
+      this.fetchMemberProfilesByUserIds(memberIds, token),
+      this.fetchProjectNamesByIds(projectIds, token),
+    ]);
+
+    return rows.map((row) => {
+      const memberId = row.member_id?.trim() ?? "";
+      const member = profilesById.get(memberId);
+      const parsedName = this.parseName(row.application_name);
+      const handle =
+        this.toOptionalString(member?.handle) ?? row.fallback_handle;
+      const projectNames = Array.from(
+        new Set(
+          (row.assigned_project_ids ?? [])
+            .map((projectId) =>
+              projectNamesById.get(projectId?.trim() ?? "")?.trim(),
+            )
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ).sort((left, right) => left.localeCompare(right));
+
+      return {
+        handle: handle ?? null,
+        firstName:
+          this.toOptionalString(member?.firstName) ?? parsedName.firstName,
+        lastName:
+          this.toOptionalString(member?.lastName) ?? parsedName.lastName,
+        country: this.resolveMemberCountry(member),
+        emailId:
+          this.toOptionalString(member?.email) ?? row.application_email ?? null,
+        phoneNumber:
+          this.getPreferredPhoneNumber(member?.phones) ??
+          row.application_phone ??
+          null,
+        address:
+          this.formatAddress(member?.addresses) ??
+          row.application_address ??
+          null,
+        engagementExperience: row.has_assignment ? "Assigned" : "Applicant",
+        projectNames: projectNames.join(", "),
+      };
+    });
+  }
+
   async getRegistrantCountries(challengeId: string) {
     const query = this.sql.load("reports/topcoder/registrant-countries.sql");
     const rows = await this.db.query<RegistrantCountriesRow>(query, [
@@ -719,6 +888,366 @@ export class TopcoderReportsService {
       total,
       totalPages: total > 0 ? Math.ceil(total / safePerPage) : 1,
     };
+  }
+
+  /**
+   * Loads the raw engagement report rows from the engagements database.
+   *
+   * @returns Aggregated rows keyed by member id with applicant fallbacks and
+   * assigned project ids.
+   * @throws Error when the engagements database URL is not configured.
+   */
+  private async queryEngagementDataRows(): Promise<EngagementDataBaseRow[]> {
+    const query = this.sql.load("reports/topcoder/engagement-data.sql");
+    const result =
+      await this.getEngagementsPool().query<EngagementDataBaseRow>(query);
+
+    return result.rows;
+  }
+
+  /**
+   * Returns a cached pg pool for the engagements database.
+   *
+   * @returns Shared pool targeting the engagements database.
+   * @throws Error when ENGAGEMENTS_DB_URL is missing.
+   */
+  private getEngagementsPool(): Pool {
+    if (this.engagementsPool) {
+      return this.engagementsPool;
+    }
+
+    const connectionString = this.config.get<string>("ENGAGEMENTS_DB_URL", "");
+    if (!connectionString) {
+      throw new Error(
+        "ENGAGEMENTS_DB_URL must be configured to generate the engagement data report.",
+      );
+    }
+
+    this.engagementsPool = new Pool({ connectionString });
+    return this.engagementsPool;
+  }
+
+  /**
+   * Fetches member profiles in batches so report rows can be enriched with
+   * profile fields like names, email, country, addresses, and phones.
+   *
+   * @param userIds Report member ids from the engagements database.
+   * @param token Auth token for the member API.
+   * @returns Map of user id to member profile payload.
+   */
+  private async fetchMemberProfilesByUserIds(
+    userIds: string[],
+    token: string,
+  ): Promise<Map<string, MemberProfile>> {
+    const normalizedUserIds = Array.from(
+      new Set(
+        userIds
+          .map((userId) => userId?.trim())
+          .filter((userId): userId is string => Boolean(userId)),
+      ),
+    );
+
+    const profilesById = new Map<string, MemberProfile>();
+
+    for (
+      let startIndex = 0;
+      startIndex < normalizedUserIds.length;
+      startIndex += this.memberLookupBatchSize
+    ) {
+      const batch = normalizedUserIds.slice(
+        startIndex,
+        startIndex + this.memberLookupBatchSize,
+      );
+      const params = new URLSearchParams();
+      const baseUrl = this.getMemberApiBaseUrl();
+
+      if (batch.length === 1) {
+        params.set("userId", batch[0]);
+      } else {
+        batch.forEach((userId) => params.append("userIds", userId));
+        params.set("perPage", String(batch.length));
+      }
+
+      params.set(
+        "fields",
+        [
+          "userId",
+          "handle",
+          "firstName",
+          "lastName",
+          "email",
+          "country",
+          "homeCountryCode",
+          "addresses",
+          "phones",
+        ].join(","),
+      );
+
+      const response = await this.fetchJson<MemberProfile[]>(
+        `${baseUrl}?${params.toString()}`,
+        token,
+      );
+      const members = Array.isArray(response) ? response : [];
+
+      members.forEach((member) => {
+        const userId = member?.userId;
+        if (userId === undefined || userId === null) {
+          return;
+        }
+
+        profilesById.set(String(userId), member);
+      });
+    }
+
+    return profilesById;
+  }
+
+  /**
+   * Resolves project names for the assigned project ids included in the report.
+   *
+   * Missing or inaccessible projects are skipped so the report can still render
+   * the rest of the member data.
+   *
+   * @param projectIds Project ids collected from engagement assignments.
+   * @param token Auth token for the projects API.
+   * @returns Map of project id to project name.
+   */
+  private async fetchProjectNamesByIds(
+    projectIds: string[],
+    token: string,
+  ): Promise<Map<string, string>> {
+    const normalizedProjectIds = Array.from(
+      new Set(
+        projectIds
+          .map((projectId) => projectId?.trim())
+          .filter((projectId): projectId is string => Boolean(projectId)),
+      ),
+    );
+
+    const projectNamesById = new Map<string, string>();
+
+    for (
+      let startIndex = 0;
+      startIndex < normalizedProjectIds.length;
+      startIndex += this.projectLookupBatchSize
+    ) {
+      const batch = normalizedProjectIds.slice(
+        startIndex,
+        startIndex + this.projectLookupBatchSize,
+      );
+
+      const responses = await Promise.all(
+        batch.map((projectId) =>
+          this.fetchJson<ProjectSummary>(
+            `${this.getProjectApiBaseUrl()}/${encodeURIComponent(projectId)}?fields=id,name`,
+            token,
+          ).catch((error: unknown) => {
+            const message =
+              error instanceof Error ? error.message : "Unknown error";
+            this.logger.warn(
+              `Unable to resolve project name for projectId=${projectId}: ${message}`,
+            );
+            return null;
+          }),
+        ),
+      );
+
+      responses.forEach((project) => {
+        const projectId =
+          project?.id === undefined || project?.id === null
+            ? null
+            : String(project.id).trim();
+        const projectName = this.toOptionalString(project?.name);
+
+        if (!projectId || !projectName) {
+          return;
+        }
+
+        projectNamesById.set(projectId, projectName);
+      });
+    }
+
+    return projectNamesById;
+  }
+
+  /**
+   * Retrieves an M2M token used for member and project API lookups.
+   *
+   * @returns Bearer token for platform API requests.
+   * @throws Error when the M2M credentials are not configured.
+   */
+  private async getM2MToken(): Promise<string> {
+    const clientId = this.config.get<string>("M2M_CLIENT_ID");
+    const clientSecret = this.config.get<string>("M2M_CLIENT_SECRET");
+
+    if (!clientId || !clientSecret) {
+      throw new Error(
+        "M2M_CLIENT_ID and M2M_CLIENT_SECRET must be configured for the engagement data report.",
+      );
+    }
+
+    return this.m2m.getMachineToken(clientId, clientSecret);
+  }
+
+  /**
+   * Executes an authenticated GET request and returns the parsed JSON body.
+   *
+   * @param url Absolute platform API URL.
+   * @param token Bearer token for the request.
+   * @returns Parsed JSON response body.
+   * @throws Error when the response is not successful.
+   */
+  private async fetchJson<T>(url: string, token: string): Promise<T> {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Request failed (${response.status}) while fetching ${url}.`,
+      );
+    }
+
+    return (await response.json()) as T;
+  }
+
+  /**
+   * Returns the base v6 members URL used for report enrichment.
+   *
+   * @returns Base URL for member API requests.
+   */
+  private getMemberApiBaseUrl(): string {
+    const apiBaseUrl = this.config.get<string>(
+      "TOPCODER_API_URL_BASE",
+      "https://api.topcoder-dev.com",
+    );
+
+    return `${apiBaseUrl.replace(/\/$/, "")}/v6/members`;
+  }
+
+  /**
+   * Returns the base v6 projects URL used for project-name lookups.
+   *
+   * @returns Base URL for projects API requests.
+   */
+  private getProjectApiBaseUrl(): string {
+    const apiBaseUrl = this.config.get<string>(
+      "TOPCODER_API_URL_BASE",
+      "https://api.topcoder-dev.com",
+    );
+
+    return `${apiBaseUrl.replace(/\/$/, "")}/v6/projects`;
+  }
+
+  /**
+   * Formats the preferred address from a member profile.
+   *
+   * @param addresses Member profile addresses array.
+   * @returns Comma-separated address string or null when unavailable.
+   */
+  private formatAddress(
+    addresses?: MemberProfileAddress[] | null,
+  ): string | null {
+    const address = Array.isArray(addresses) ? addresses[0] : null;
+    if (!address) {
+      return null;
+    }
+
+    const parts = [
+      address.streetAddr1,
+      address.streetAddr2,
+      address.city,
+      address.stateCode,
+      address.zip,
+    ]
+      .map((value) => this.toOptionalString(value))
+      .filter((value): value is string => Boolean(value));
+
+    return parts.length ? parts.join(", ") : null;
+  }
+
+  /**
+   * Selects the preferred phone number from the member profile.
+   *
+   * Mobile numbers are preferred when present because that is how the
+   * engagements UI chooses a single display phone for application forms.
+   *
+   * @param phones Member profile phone list.
+   * @returns Preferred phone number or null when unavailable.
+   */
+  private getPreferredPhoneNumber(
+    phones?: MemberProfilePhone[] | null,
+  ): string | null {
+    const normalizedPhones = Array.isArray(phones)
+      ? phones
+          .map((phone) => ({
+            number: this.toOptionalString(phone?.number),
+            type: this.toOptionalString(phone?.type),
+          }))
+          .filter((phone): phone is { number: string; type: string | null } =>
+            Boolean(phone.number),
+          )
+      : [];
+
+    if (!normalizedPhones.length) {
+      return null;
+    }
+
+    const mobilePhone = normalizedPhones.find((phone) =>
+      phone.type?.toLowerCase().includes("mobile"),
+    );
+
+    return mobilePhone?.number ?? normalizedPhones[0].number;
+  }
+
+  /**
+   * Resolves the report country value from the member profile.
+   *
+   * @param member Member profile returned by member-api.
+   * @returns Country name or null when unavailable.
+   */
+  private resolveMemberCountry(member?: MemberProfile): string | null {
+    const countryFromCode = alpha3ToCountryName(
+      this.toOptionalString(member?.homeCountryCode),
+    );
+
+    return countryFromCode ?? this.toOptionalString(member?.country);
+  }
+
+  /**
+   * Splits a full name into first and last name fallbacks.
+   *
+   * @param value Full-name string captured on the engagement application.
+   * @returns Parsed first and last name values.
+   */
+  private parseName(value?: string | null): ParsedName {
+    const normalizedValue = this.toOptionalString(value);
+    if (!normalizedValue) {
+      return { firstName: null, lastName: null };
+    }
+
+    const parts = normalizedValue.split(/\s+/).filter(Boolean);
+    if (parts.length === 1) {
+      return { firstName: parts[0], lastName: null };
+    }
+
+    return {
+      firstName: parts[0] ?? null,
+      lastName: parts.slice(1).join(" ") || null,
+    };
+  }
+
+  /**
+   * Normalizes optional string values by trimming whitespace and dropping blanks.
+   *
+   * @param value Candidate string value.
+   * @returns Trimmed string or null when empty.
+   */
+  private toOptionalString(value?: string | null): string | null {
+    const normalizedValue = value?.trim();
+    return normalizedValue ? normalizedValue : null;
   }
 
   private toNullableNumberArray(value: unknown): number[] | null {

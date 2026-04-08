@@ -35,6 +35,17 @@ describe("permissions.util", () => {
     ).toBe(true);
   });
 
+  it("allows topcoder-prefixed talent manager roles for engagement data", () => {
+    expect(
+      hasAccessToScopes(
+        {
+          roles: ["Topcoder Talent Manager"],
+        },
+        [Scopes.Member.EngagementData],
+      ),
+    ).toBe(true);
+  });
+
   it("normalizes comma-separated role claims before checking scoped access", () => {
     expect(
       hasRequiredRoleAccess("Topcoder Talent Manager, Topcoder User", [
