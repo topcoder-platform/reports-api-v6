@@ -67,6 +67,7 @@ workflows:
               - pm-1127_1
               - PM-4305
               - PM-4491-fix
+              - PM-3497_talent-search
 
     # Production builds are exectuted only on tagged commits to the
     # master branch.
