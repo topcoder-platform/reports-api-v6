@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, OnModuleDestroy } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { DbService } from "../../db/db.service";
 import { SqlLoaderService } from "../../common/sql-loader.service";
 import { alpha3ToCountryName } from "../../common/country.util";
+import { Pool } from "pg";
 
 type RegistrantCountriesRow = {
   handle: string | null;
@@ -115,12 +117,63 @@ type ChallengeSubmitterDataRow = {
   finalScore: string | number | null;
 };
 
+type EngagementDataBaseRow = {
+  member_id: string | null;
+  fallback_handle: string | null;
+  application_email: string | null;
+  application_address: string | null;
+  application_phone: string | null;
+  application_name: string | null;
+  has_assignment: boolean | null;
+  assigned_project_ids: string[] | null;
+};
+
+type EngagementMemberRow = {
+  user_id: string | number | null;
+  handle: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  country: string | null;
+  street_addr_1: string | null;
+  street_addr_2: string | null;
+  city: string | null;
+  state_code: string | null;
+  zip: string | null;
+  phone_number: string | null;
+};
+
+type FormattableAddress = {
+  streetAddr1?: string | null;
+  streetAddr2?: string | null;
+  city?: string | null;
+  stateCode?: string | null;
+  zip?: string | null;
+};
+
+type EngagementProjectRow = {
+  project_id: string | number | null;
+  project_name: string | null;
+};
+
+type ParsedName = {
+  firstName: string | null;
+  lastName: string | null;
+};
+
 @Injectable()
-export class TopcoderReportsService {
+export class TopcoderReportsService implements OnModuleDestroy {
+  private engagementsPool?: Pool;
+
   constructor(
     private readonly db: DbService,
     private readonly sql: SqlLoaderService,
+    private readonly config: ConfigService,
   ) {}
+
+  async onModuleDestroy() {
+    await this.engagementsPool?.end();
+  }
 
   async getMemberCount() {
     const query = this.sql.load("reports/topcoder/member-count.sql");
@@ -587,6 +640,94 @@ export class TopcoderReportsService {
     });
   }
 
+  /**
+   * Returns the engagement data member report requested by PM-4800.
+   *
+   * The base member list comes from the engagements database, while member
+   * profile/contact fields and project names are resolved directly from the
+   * main reports database so the export stays DB-only.
+   *
+   * @returns One row per member with the engagement experience summary fields.
+   * @throws Error when the engagements database URL is not configured.
+   */
+  async getEngagementData() {
+    const rows = await this.queryEngagementDataRows();
+
+    if (!rows.length) {
+      return [];
+    }
+
+    const memberIds = Array.from(
+      new Set(
+        rows
+          .map((row) => row.member_id?.trim())
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    const projectIds = Array.from(
+      new Set(
+        rows.flatMap((row) =>
+          (row.assigned_project_ids ?? [])
+            .map((value) => value?.trim())
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ),
+    );
+
+    const [membersById, projectNamesById] = await Promise.all([
+      this.fetchEngagementMembersByUserIds(memberIds),
+      this.fetchProjectNamesByIds(projectIds),
+    ]);
+
+    return rows.map((row) => {
+      const memberId = row.member_id?.trim() ?? "";
+      const member = membersById.get(memberId);
+      const parsedName = this.parseName(row.application_name);
+      const handle =
+        this.toOptionalString(member?.handle) ?? row.fallback_handle;
+      const projectNames = Array.from(
+        new Set(
+          (row.assigned_project_ids ?? [])
+            .map((projectId) =>
+              projectNamesById.get(projectId?.trim() ?? "")?.trim(),
+            )
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ).sort((left, right) => left.localeCompare(right));
+
+      return {
+        handle: handle ?? null,
+        firstName:
+          this.toOptionalString(member?.first_name) ?? parsedName.firstName,
+        lastName:
+          this.toOptionalString(member?.last_name) ?? parsedName.lastName,
+        country: this.toOptionalString(member?.country),
+        emailId:
+          this.toOptionalString(member?.email) ?? row.application_email ?? null,
+        phoneNumber:
+          this.toOptionalString(member?.phone_number) ??
+          row.application_phone ??
+          null,
+        address:
+          this.formatAddress(
+            member
+              ? {
+                  streetAddr1: member.street_addr_1,
+                  streetAddr2: member.street_addr_2,
+                  city: member.city,
+                  stateCode: member.state_code,
+                  zip: member.zip,
+                }
+              : null,
+          ) ??
+          row.application_address ??
+          null,
+        engagementExperience: row.has_assignment ? "Assigned" : "Applicant",
+        projectNames: projectNames.join(", "),
+      };
+    });
+  }
+
   async getRegistrantCountries(challengeId: string) {
     const query = this.sql.load("reports/topcoder/registrant-countries.sql");
     const rows = await this.db.query<RegistrantCountriesRow>(query, [
@@ -709,9 +850,7 @@ export class TopcoderReportsService {
       principalSkills: row.principalSkills || undefined,
       openToWork: row.openToWork ?? null,
       isOpenToWork:
-        typeof row.isOpenToWork === "boolean"
-          ? row.isOpenToWork
-          : false,
+        typeof row.isOpenToWork === "boolean" ? row.isOpenToWork : false,
     }));
 
     return {
@@ -721,6 +860,193 @@ export class TopcoderReportsService {
       total,
       totalPages: total > 0 ? Math.ceil(total / safePerPage) : 1,
     };
+  }
+
+  /**
+   * Loads the raw engagement report rows from the engagements database.
+   *
+   * @returns Aggregated rows keyed by member id with applicant fallbacks and
+   * assigned project ids.
+   * @throws Error when the engagements database URL is not configured.
+   */
+  private async queryEngagementDataRows(): Promise<EngagementDataBaseRow[]> {
+    const query = this.sql.load("reports/topcoder/engagement-data.sql");
+    const result =
+      await this.getEngagementsPool().query<EngagementDataBaseRow>(query);
+
+    return result.rows;
+  }
+
+  /**
+   * Returns a cached pg pool for the engagements database.
+   *
+   * @returns Shared pool targeting the engagements database.
+   * @throws Error when ENGAGEMENTS_DB_URL is missing.
+   */
+  private getEngagementsPool(): Pool {
+    if (this.engagementsPool) {
+      return this.engagementsPool;
+    }
+
+    const connectionString = this.config.get<string>("ENGAGEMENTS_DB_URL", "");
+    if (!connectionString) {
+      throw new Error(
+        "ENGAGEMENTS_DB_URL must be configured to generate the engagement data report.",
+      );
+    }
+
+    this.engagementsPool = new Pool({ connectionString });
+    return this.engagementsPool;
+  }
+
+  /**
+   * Fetches member profile rows from the main reports database so the report
+   * can be enriched without member-api calls.
+   *
+   * @param userIds Report member ids from the engagements database.
+   * @returns Map of user id to member profile/contact row.
+   */
+  private async fetchEngagementMembersByUserIds(
+    userIds: string[],
+  ): Promise<Map<string, EngagementMemberRow>> {
+    const normalizedUserIds = Array.from(
+      new Set(
+        userIds
+          .map((userId) => userId?.trim())
+          .filter((userId): userId is string => Boolean(userId)),
+      ),
+    );
+
+    const membersById = new Map<string, EngagementMemberRow>();
+
+    if (!normalizedUserIds.length) {
+      return membersById;
+    }
+
+    const query = this.sql.load("reports/topcoder/engagement-data-members.sql");
+    const rows = await this.db.query<EngagementMemberRow>(query, [
+      normalizedUserIds,
+    ]);
+
+    rows.forEach((member) => {
+      const userId =
+        member?.user_id === undefined || member.user_id === null
+          ? null
+          : String(member.user_id).trim();
+
+      if (!userId) {
+        return;
+      }
+
+      membersById.set(userId, member);
+    });
+
+    return membersById;
+  }
+
+  /**
+   * Resolves project names for the assigned project ids included in the report.
+   *
+   * @param projectIds Project ids collected from engagement assignments.
+   * @returns Map of project id to project name.
+   */
+  private async fetchProjectNamesByIds(
+    projectIds: string[],
+  ): Promise<Map<string, string>> {
+    const normalizedProjectIds = Array.from(
+      new Set(
+        projectIds
+          .map((projectId) => projectId?.trim())
+          .filter((projectId): projectId is string => Boolean(projectId)),
+      ),
+    );
+
+    const projectNamesById = new Map<string, string>();
+
+    if (!normalizedProjectIds.length) {
+      return projectNamesById;
+    }
+
+    const query = this.sql.load(
+      "reports/topcoder/engagement-data-projects.sql",
+    );
+    const rows = await this.db.query<EngagementProjectRow>(query, [
+      normalizedProjectIds,
+    ]);
+
+    rows.forEach((project) => {
+      const projectId =
+        project?.project_id === undefined || project.project_id === null
+          ? null
+          : String(project.project_id).trim();
+      const projectName = this.toOptionalString(project?.project_name);
+
+      if (!projectId || !projectName) {
+        return;
+      }
+
+      projectNamesById.set(projectId, projectName);
+    });
+
+    return projectNamesById;
+  }
+
+  /**
+   * Formats a preferred address row into the report output string.
+   *
+   * @param address Address row selected for a member.
+   * @returns Comma-separated address string or null when unavailable.
+   */
+  private formatAddress(address?: FormattableAddress | null): string | null {
+    if (!address) {
+      return null;
+    }
+
+    const parts = [
+      address.streetAddr1,
+      address.streetAddr2,
+      address.city,
+      address.stateCode,
+      address.zip,
+    ]
+      .map((value) => this.toOptionalString(value))
+      .filter((value): value is string => Boolean(value));
+
+    return parts.length ? parts.join(", ") : null;
+  }
+
+  /**
+   * Splits a full name into first and last name fallbacks.
+   *
+   * @param value Full-name string captured on the engagement application.
+   * @returns Parsed first and last name values.
+   */
+  private parseName(value?: string | null): ParsedName {
+    const normalizedValue = this.toOptionalString(value);
+    if (!normalizedValue) {
+      return { firstName: null, lastName: null };
+    }
+
+    const parts = normalizedValue.split(/\s+/).filter(Boolean);
+    if (parts.length === 1) {
+      return { firstName: parts[0], lastName: null };
+    }
+
+    return {
+      firstName: parts[0] ?? null,
+      lastName: parts.slice(1).join(" ") || null,
+    };
+  }
+
+  /**
+   * Normalizes optional string values by trimming whitespace and dropping blanks.
+   *
+   * @param value Candidate string value.
+   * @returns Trimmed string or null when empty.
+   */
+  private toOptionalString(value?: string | null): string | null {
+    const normalizedValue = value?.trim();
+    return normalizedValue ? normalizedValue : null;
   }
 
   private toNullableNumberArray(value: unknown): number[] | null {

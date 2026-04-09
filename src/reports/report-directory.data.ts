@@ -390,21 +390,21 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
       challengeReport(
         "Challenge Submitters",
         "/challenges/:challengeId/submitters",
-        "Return the challenge submitters report. Marathon Match exports use the latest submission provisionalScore and current effective rank, with earlier submission times winning score ties.",
+        "Return the challenge submitters report. Marathon Match exports use the latest submission provisionalScore and finalScore when available, plus the current effective rank, with earlier submission times winning score ties.",
         AppScopes.Challenge.Submitters,
         [challengeIdParam],
       ),
       challengeReport(
         "Challenge Valid Submitters",
         "/challenges/:challengeId/valid-submitters",
-        "Return the challenge valid submitters report. Marathon Match exports use the latest submission provisionalScore and current effective rank, with earlier submission times winning score ties.",
+        "Return the challenge valid submitters report. Marathon Match exports use the latest submission provisionalScore and finalScore when available, plus the current effective rank, with earlier submission times winning score ties.",
         AppScopes.Challenge.ValidSubmitters,
         [challengeIdParam],
       ),
       challengeReport(
         "Challenge Winners",
         "/challenges/:challengeId/winners",
-        "Return the challenge winners report with placement winners only. Marathon Match exports include provisionalScore and the challenge-result finalRank.",
+        "Return the challenge winners report with placement winners only. Marathon Match exports include provisionalScore, finalScore, and the challenge-result finalRank.",
         AppScopes.Challenge.Winners,
         [challengeIdParam],
       ),
@@ -762,6 +762,16 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
     label: "Member Reports",
     basePath: "/member",
     reports: [
+      report(
+        "Engagement Data",
+        "/member/engagement-data",
+        "Members who have applied to public engagements or have any engagement assignments, including project names for assigned members",
+        [
+          AppScopes.AllReports,
+          AppScopes.TopcoderReports,
+          AppScopes.Member.EngagementData,
+        ],
+      ),
       report(
         "Recent Member Data",
         "/member/recent-member-data",

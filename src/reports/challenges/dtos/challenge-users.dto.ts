@@ -17,16 +17,19 @@ export class ChallengeUsersPathParamDto {
 /**
  * User record returned by challenge user reports including resolved country.
  * Standard challenge submission-based reports expose submissionScore.
- * Marathon Match submission-based reports expose provisionalScore from the
- * latest submission and finalRank by current effective score, breaking ties by
- * earlier submission time.
+ * Marathon Match submission-based reports expose provisionalScore and
+ * finalScore from the latest submission, plus finalRank by current effective
+ * score, breaking ties by earlier submission time.
  */
 export interface ChallengeUserRecordDto {
   userId: number;
   handle: string;
   email: string | null;
+  firstName: string | null;
+  lastName: string | null;
   country: string | null;
   submissionScore?: number | null;
   provisionalScore?: number | null;
+  finalScore?: number | null;
   finalRank?: number | null;
 }
