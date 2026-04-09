@@ -16,7 +16,10 @@ submission_metrics AS (
       s."initialScore"::double precision
     ) AS standard_score,
     provisional_review.provisional_score,
-    final_review."aggregateScore" AS final_score_raw
+    COALESCE(
+      final_review."aggregateScore",
+      s."finalScore"::double precision
+    ) AS final_score_raw
   FROM challenge_context AS cc
   JOIN reviews."submission" AS s
     ON s."challengeId" = cc.id
