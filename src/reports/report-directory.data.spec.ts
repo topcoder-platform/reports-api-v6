@@ -44,6 +44,7 @@ describe("getAccessibleReportsDirectory", () => {
     expect(directory.member?.reports.map((report) => report.path)).toEqual([
       "/member/engagement-data",
       "/member/recent-member-data",
+      "/member/search",
     ]);
   });
 
@@ -87,6 +88,7 @@ describe("getAccessibleReportsDirectory", () => {
     expect(directory.member?.reports.map((report) => report.path)).toEqual([
       "/member/engagement-data",
       "/member/recent-member-data",
+      "/member/search",
     ]);
     expect(directory.admin?.reports.map((report) => report.path)).toEqual([
       "/admin/member-payment-accrual",

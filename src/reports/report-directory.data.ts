@@ -783,6 +783,16 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
         ],
         [paymentsStartDateParam],
       ),
+      postReport(
+        "Member Search",
+        "/member/search",
+        "Search members for the Talent Search portal",
+        [
+          AppScopes.AllReports,
+          AppScopes.TopcoderReports,
+          AppScopes.Member.MemberSearch,
+        ],
+      ),
     ],
   },
   admin: {

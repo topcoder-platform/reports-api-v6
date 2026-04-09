@@ -77,7 +77,7 @@ export class MemberSearchBodyDto {
 
   @ApiPropertyOptional({
     description:
-      "Filter by country name or code as stored in the member location trait (case-insensitive).",
+      "Filter by country name or code as stored in the member location (case-insensitive).",
     example: "Australia",
   })
   @IsOptional()

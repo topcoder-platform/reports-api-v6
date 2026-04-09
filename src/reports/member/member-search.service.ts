@@ -169,12 +169,6 @@ verified_via_trolley AS (
   FROM finance.trolley_recipient tr
   WHERE tr.user_id ~ '^[0-9]+$'
 ),
-member_basic_info AS (
-  SELECT DISTINCT ON ("userId")
-    "userId", country, "currentLocation"
-  FROM members."memberTraitBasicInfo"
-  ORDER BY "userId", "updatedAt" DESC NULLS LAST
-),
 member_address AS (
   SELECT DISTINCT ON ("userId")
     "userId", city
@@ -247,7 +241,6 @@ SELECT
   ${matchIndexExpr}                                                          AS "matchIndex"
 FROM members.member m
 ${skillJoin}
-LEFT JOIN member_basic_info mbi   ON mbi."userId"   = m."userId"
 LEFT JOIN member_address    maddr ON maddr."userId" = m."userId"
 WHERE ${whereClause}
 ORDER BY ${orderByClause}
@@ -258,7 +251,6 @@ WITH ${ctesBlock}
 SELECT COUNT(*)::integer AS total
 FROM members.member m
 ${skillJoin}
-LEFT JOIN member_basic_info mbi ON mbi."userId" = m."userId"
 WHERE ${whereClause}`;
 
     const [rows, countRows] = await Promise.all([
