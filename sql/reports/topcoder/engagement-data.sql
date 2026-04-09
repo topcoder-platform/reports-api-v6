@@ -3,14 +3,14 @@ WITH assignment_members AS (
     NULLIF(BTRIM(a."memberId"), '') AS member_id,
     NULLIF(BTRIM(a."memberHandle"), '') AS fallback_handle,
     NULLIF(BTRIM(e."projectId"), '') AS project_id
-  FROM "EngagementAssignment" a
-  JOIN "Engagement" e
+  FROM engagements."EngagementAssignment" a
+  JOIN engagements."Engagement" e
     ON e.id = a."engagementId"
   WHERE NULLIF(BTRIM(a."memberId"), '') IS NOT NULL
 ),
 assigned_summary AS (
   SELECT
-    member_id,
+    member_id, 
     MAX(fallback_handle) AS fallback_handle,
     ARRAY_REMOVE(ARRAY_AGG(DISTINCT project_id), NULL) AS assigned_project_ids
   FROM assignment_members
@@ -28,8 +28,8 @@ ranked_public_applications AS (
       PARTITION BY app."userId"
       ORDER BY app."updatedAt" DESC, app."createdAt" DESC, app.id DESC
     ) AS rn
-  FROM "EngagementApplication" app
-  JOIN "Engagement" e
+  FROM engagements."EngagementApplication" app
+  JOIN engagements."Engagement" e
     ON e.id = app."engagementId"
   WHERE COALESCE(e."isPrivate", false) = false
     AND NULLIF(BTRIM(app."userId"), '') IS NOT NULL
