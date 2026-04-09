@@ -59,6 +59,10 @@ DATABASE_URL="postgresql://user:password@localhost:5432/lookups?schema=public"
 # Engagements database used by the Engagement Data member report.
 ENGAGEMENTS_DB_URL="postgresql://user:password@localhost:5432/engagements"
 
+# The same report also reads member/profile/project data from the main
+# DATABASE_URL connection, including members.member, members.memberAddress,
+# members.memberPhone, identity.country, and projects.projects.
+
 # Old tc-payments database URL (used by member-tax CSV export script)
 OLD_PAYMENTS_DATABASE_URL="postgresql://user:password@localhost:5432/tc_payments?schema=public"
 
@@ -72,12 +76,6 @@ AUTH_SECRET="mysecret"
 
 # A JSON array string of valid token issuers.
 VALID_ISSUERS='["https://topcoder-dev.auth0.com/","https://auth.topcoder-dev.com/","https://topcoder.auth0.com/","https://auth.topcoder.com/","https://api.topcoder.com","https://api.topcoder-dev.com"]'
-
-# Platform API base URL plus M2M credentials used when reports need member or
-# project enrichment outside the main reports database.
-TOPCODER_API_URL_BASE="https://api.topcoder-dev.com"
-M2M_CLIENT_ID="your-m2m-client-id"
-M2M_CLIENT_SECRET="your-m2m-client-secret"
 
 ## Running the Application
 

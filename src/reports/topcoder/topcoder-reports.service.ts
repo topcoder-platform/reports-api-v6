@@ -1,15 +1,9 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  OnModuleDestroy,
-} from "@nestjs/common";
+import { Injectable, NotFoundException, OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { DbService } from "../../db/db.service";
 import { SqlLoaderService } from "../../common/sql-loader.service";
 import { alpha3ToCountryName } from "../../common/country.util";
 import { Pool } from "pg";
-import * as core from "tc-core-library-js";
 
 type RegistrantCountriesRow = {
   handle: string | null;
@@ -134,7 +128,22 @@ type EngagementDataBaseRow = {
   assigned_project_ids: string[] | null;
 };
 
-type MemberProfileAddress = {
+type EngagementMemberRow = {
+  user_id: string | number | null;
+  handle: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  country: string | null;
+  street_addr_1: string | null;
+  street_addr_2: string | null;
+  city: string | null;
+  state_code: string | null;
+  zip: string | null;
+  phone_number: string | null;
+};
+
+type FormattableAddress = {
   streetAddr1?: string | null;
   streetAddr2?: string | null;
   city?: string | null;
@@ -142,26 +151,9 @@ type MemberProfileAddress = {
   zip?: string | null;
 };
 
-type MemberProfilePhone = {
-  number?: string | null;
-  type?: string | null;
-};
-
-type MemberProfile = {
-  userId?: string | number | null;
-  handle?: string | null;
-  firstName?: string | null;
-  lastName?: string | null;
-  email?: string | null;
-  homeCountryCode?: string | null;
-  country?: string | null;
-  addresses?: MemberProfileAddress[] | null;
-  phones?: MemberProfilePhone[] | null;
-};
-
-type ProjectSummary = {
-  id?: string | number | null;
-  name?: string | null;
+type EngagementProjectRow = {
+  project_id: string | number | null;
+  project_name: string | null;
 };
 
 type ParsedName = {
@@ -171,41 +163,13 @@ type ParsedName = {
 
 @Injectable()
 export class TopcoderReportsService implements OnModuleDestroy {
-  private readonly logger = new Logger(TopcoderReportsService.name);
-  private readonly m2m: {
-    getMachineToken: (
-      clientId: string,
-      clientSecret: string,
-    ) => Promise<string>;
-  };
   private engagementsPool?: Pool;
-  private readonly memberLookupBatchSize = 50;
-  private readonly projectLookupBatchSize = 10;
 
   constructor(
     private readonly db: DbService,
     private readonly sql: SqlLoaderService,
     private readonly config: ConfigService,
-  ) {
-    const authUrl = this.config.get<string>(
-      "AUTH0_URL",
-      "https://topcoder-dev.auth0.com/oauth/token",
-    );
-    const audience = this.config.get<string>(
-      "AUTH0_AUDIENCE",
-      "https://api.topcoder-dev.com",
-    );
-
-    this.m2m = core.auth.m2m({
-      AUTH0_AUDIENCE: audience,
-      AUTH0_URL: authUrl,
-    }) as {
-      getMachineToken: (
-        clientId: string,
-        clientSecret: string,
-      ) => Promise<string>;
-    };
-  }
+  ) {}
 
   async onModuleDestroy() {
     await this.engagementsPool?.end();
@@ -679,13 +643,12 @@ export class TopcoderReportsService implements OnModuleDestroy {
   /**
    * Returns the engagement data member report requested by PM-4800.
    *
-   * The base member list comes from the engagements database, then member
-   * profiles and project names are resolved through existing platform APIs so
-   * the export includes handle, contact details, country, experience state, and
-   * comma-separated project names for assigned members.
+   * The base member list comes from the engagements database, while member
+   * profile/contact fields and project names are resolved directly from the
+   * main reports database so the export stays DB-only.
    *
    * @returns One row per member with the engagement experience summary fields.
-   * @throws Error when required engagement or M2M configuration is missing.
+   * @throws Error when the engagements database URL is not configured.
    */
   async getEngagementData() {
     const rows = await this.queryEngagementDataRows();
@@ -711,15 +674,14 @@ export class TopcoderReportsService implements OnModuleDestroy {
       ),
     );
 
-    const token = await this.getM2MToken();
-    const [profilesById, projectNamesById] = await Promise.all([
-      this.fetchMemberProfilesByUserIds(memberIds, token),
-      this.fetchProjectNamesByIds(projectIds, token),
+    const [membersById, projectNamesById] = await Promise.all([
+      this.fetchEngagementMembersByUserIds(memberIds),
+      this.fetchProjectNamesByIds(projectIds),
     ]);
 
     return rows.map((row) => {
       const memberId = row.member_id?.trim() ?? "";
-      const member = profilesById.get(memberId);
+      const member = membersById.get(memberId);
       const parsedName = this.parseName(row.application_name);
       const handle =
         this.toOptionalString(member?.handle) ?? row.fallback_handle;
@@ -736,18 +698,28 @@ export class TopcoderReportsService implements OnModuleDestroy {
       return {
         handle: handle ?? null,
         firstName:
-          this.toOptionalString(member?.firstName) ?? parsedName.firstName,
+          this.toOptionalString(member?.first_name) ?? parsedName.firstName,
         lastName:
-          this.toOptionalString(member?.lastName) ?? parsedName.lastName,
-        country: this.resolveMemberCountry(member),
+          this.toOptionalString(member?.last_name) ?? parsedName.lastName,
+        country: this.toOptionalString(member?.country),
         emailId:
           this.toOptionalString(member?.email) ?? row.application_email ?? null,
         phoneNumber:
-          this.getPreferredPhoneNumber(member?.phones) ??
+          this.toOptionalString(member?.phone_number) ??
           row.application_phone ??
           null,
         address:
-          this.formatAddress(member?.addresses) ??
+          this.formatAddress(
+            member
+              ? {
+                  streetAddr1: member.street_addr_1,
+                  streetAddr2: member.street_addr_2,
+                  city: member.city,
+                  stateCode: member.state_code,
+                  zip: member.zip,
+                }
+              : null,
+          ) ??
           row.application_address ??
           null,
         engagementExperience: row.has_assignment ? "Assigned" : "Applicant",
@@ -928,17 +900,15 @@ export class TopcoderReportsService implements OnModuleDestroy {
   }
 
   /**
-   * Fetches member profiles in batches so report rows can be enriched with
-   * profile fields like names, email, country, addresses, and phones.
+   * Fetches member profile rows from the main reports database so the report
+   * can be enriched without member-api calls.
    *
    * @param userIds Report member ids from the engagements database.
-   * @param token Auth token for the member API.
-   * @returns Map of user id to member profile payload.
+   * @returns Map of user id to member profile/contact row.
    */
-  private async fetchMemberProfilesByUserIds(
+  private async fetchEngagementMembersByUserIds(
     userIds: string[],
-    token: string,
-  ): Promise<Map<string, MemberProfile>> {
+  ): Promise<Map<string, EngagementMemberRow>> {
     const normalizedUserIds = Array.from(
       new Set(
         userIds
@@ -947,74 +917,41 @@ export class TopcoderReportsService implements OnModuleDestroy {
       ),
     );
 
-    const profilesById = new Map<string, MemberProfile>();
+    const membersById = new Map<string, EngagementMemberRow>();
 
-    for (
-      let startIndex = 0;
-      startIndex < normalizedUserIds.length;
-      startIndex += this.memberLookupBatchSize
-    ) {
-      const batch = normalizedUserIds.slice(
-        startIndex,
-        startIndex + this.memberLookupBatchSize,
-      );
-      const params = new URLSearchParams();
-      const baseUrl = this.getMemberApiBaseUrl();
-
-      if (batch.length === 1) {
-        params.set("userId", batch[0]);
-      } else {
-        batch.forEach((userId) => params.append("userIds", userId));
-        params.set("perPage", String(batch.length));
-      }
-
-      params.set(
-        "fields",
-        [
-          "userId",
-          "handle",
-          "firstName",
-          "lastName",
-          "email",
-          "country",
-          "homeCountryCode",
-          "addresses",
-          "phones",
-        ].join(","),
-      );
-
-      const response = await this.fetchJson<MemberProfile[]>(
-        `${baseUrl}?${params.toString()}`,
-        token,
-      );
-      const members = Array.isArray(response) ? response : [];
-
-      members.forEach((member) => {
-        const userId = member?.userId;
-        if (userId === undefined || userId === null) {
-          return;
-        }
-
-        profilesById.set(String(userId), member);
-      });
+    if (!normalizedUserIds.length) {
+      return membersById;
     }
 
-    return profilesById;
+    const query = this.sql.load("reports/topcoder/engagement-data-members.sql");
+    const rows = await this.db.query<EngagementMemberRow>(query, [
+      normalizedUserIds,
+    ]);
+
+    rows.forEach((member) => {
+      const userId =
+        member?.user_id === undefined || member.user_id === null
+          ? null
+          : String(member.user_id).trim();
+
+      if (!userId) {
+        return;
+      }
+
+      membersById.set(userId, member);
+    });
+
+    return membersById;
   }
 
   /**
    * Resolves project names for the assigned project ids included in the report.
    *
-   * Missing or inaccessible projects are skipped so the report can still render
-   * the rest of the member data.
-   *
    * @param projectIds Project ids collected from engagement assignments.
-   * @param token Auth token for the projects API.
    * @returns Map of project id to project name.
    */
   private async fetchProjectNamesByIds(
     projectIds: string[],
-    token: string,
   ): Promise<Map<string, string>> {
     const normalizedProjectIds = Array.from(
       new Set(
@@ -1026,131 +963,41 @@ export class TopcoderReportsService implements OnModuleDestroy {
 
     const projectNamesById = new Map<string, string>();
 
-    for (
-      let startIndex = 0;
-      startIndex < normalizedProjectIds.length;
-      startIndex += this.projectLookupBatchSize
-    ) {
-      const batch = normalizedProjectIds.slice(
-        startIndex,
-        startIndex + this.projectLookupBatchSize,
-      );
-
-      const responses = await Promise.all(
-        batch.map((projectId) =>
-          this.fetchJson<ProjectSummary>(
-            `${this.getProjectApiBaseUrl()}/${encodeURIComponent(projectId)}?fields=id,name`,
-            token,
-          ).catch((error: unknown) => {
-            const message =
-              error instanceof Error ? error.message : "Unknown error";
-            this.logger.warn(
-              `Unable to resolve project name for projectId=${projectId}: ${message}`,
-            );
-            return null;
-          }),
-        ),
-      );
-
-      responses.forEach((project) => {
-        const projectId =
-          project?.id === undefined || project?.id === null
-            ? null
-            : String(project.id).trim();
-        const projectName = this.toOptionalString(project?.name);
-
-        if (!projectId || !projectName) {
-          return;
-        }
-
-        projectNamesById.set(projectId, projectName);
-      });
+    if (!normalizedProjectIds.length) {
+      return projectNamesById;
     }
+
+    const query = this.sql.load(
+      "reports/topcoder/engagement-data-projects.sql",
+    );
+    const rows = await this.db.query<EngagementProjectRow>(query, [
+      normalizedProjectIds,
+    ]);
+
+    rows.forEach((project) => {
+      const projectId =
+        project?.project_id === undefined || project.project_id === null
+          ? null
+          : String(project.project_id).trim();
+      const projectName = this.toOptionalString(project?.project_name);
+
+      if (!projectId || !projectName) {
+        return;
+      }
+
+      projectNamesById.set(projectId, projectName);
+    });
 
     return projectNamesById;
   }
 
   /**
-   * Retrieves an M2M token used for member and project API lookups.
+   * Formats a preferred address row into the report output string.
    *
-   * @returns Bearer token for platform API requests.
-   * @throws Error when the M2M credentials are not configured.
-   */
-  private async getM2MToken(): Promise<string> {
-    const clientId = this.config.get<string>("M2M_CLIENT_ID");
-    const clientSecret = this.config.get<string>("M2M_CLIENT_SECRET");
-
-    if (!clientId || !clientSecret) {
-      throw new Error(
-        "M2M_CLIENT_ID and M2M_CLIENT_SECRET must be configured for the engagement data report.",
-      );
-    }
-
-    return this.m2m.getMachineToken(clientId, clientSecret);
-  }
-
-  /**
-   * Executes an authenticated GET request and returns the parsed JSON body.
-   *
-   * @param url Absolute platform API URL.
-   * @param token Bearer token for the request.
-   * @returns Parsed JSON response body.
-   * @throws Error when the response is not successful.
-   */
-  private async fetchJson<T>(url: string, token: string): Promise<T> {
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Request failed (${response.status}) while fetching ${url}.`,
-      );
-    }
-
-    return (await response.json()) as T;
-  }
-
-  /**
-   * Returns the base v6 members URL used for report enrichment.
-   *
-   * @returns Base URL for member API requests.
-   */
-  private getMemberApiBaseUrl(): string {
-    const apiBaseUrl = this.config.get<string>(
-      "TOPCODER_API_URL_BASE",
-      "https://api.topcoder-dev.com",
-    );
-
-    return `${apiBaseUrl.replace(/\/$/, "")}/v6/members`;
-  }
-
-  /**
-   * Returns the base v6 projects URL used for project-name lookups.
-   *
-   * @returns Base URL for projects API requests.
-   */
-  private getProjectApiBaseUrl(): string {
-    const apiBaseUrl = this.config.get<string>(
-      "TOPCODER_API_URL_BASE",
-      "https://api.topcoder-dev.com",
-    );
-
-    return `${apiBaseUrl.replace(/\/$/, "")}/v6/projects`;
-  }
-
-  /**
-   * Formats the preferred address from a member profile.
-   *
-   * @param addresses Member profile addresses array.
+   * @param address Address row selected for a member.
    * @returns Comma-separated address string or null when unavailable.
    */
-  private formatAddress(
-    addresses?: MemberProfileAddress[] | null,
-  ): string | null {
-    const address = Array.isArray(addresses) ? addresses[0] : null;
+  private formatAddress(address?: FormattableAddress | null): string | null {
     if (!address) {
       return null;
     }
@@ -1166,54 +1013,6 @@ export class TopcoderReportsService implements OnModuleDestroy {
       .filter((value): value is string => Boolean(value));
 
     return parts.length ? parts.join(", ") : null;
-  }
-
-  /**
-   * Selects the preferred phone number from the member profile.
-   *
-   * Mobile numbers are preferred when present because that is how the
-   * engagements UI chooses a single display phone for application forms.
-   *
-   * @param phones Member profile phone list.
-   * @returns Preferred phone number or null when unavailable.
-   */
-  private getPreferredPhoneNumber(
-    phones?: MemberProfilePhone[] | null,
-  ): string | null {
-    const normalizedPhones = Array.isArray(phones)
-      ? phones
-          .map((phone) => ({
-            number: this.toOptionalString(phone?.number),
-            type: this.toOptionalString(phone?.type),
-          }))
-          .filter((phone): phone is { number: string; type: string | null } =>
-            Boolean(phone.number),
-          )
-      : [];
-
-    if (!normalizedPhones.length) {
-      return null;
-    }
-
-    const mobilePhone = normalizedPhones.find((phone) =>
-      phone.type?.toLowerCase().includes("mobile"),
-    );
-
-    return mobilePhone?.number ?? normalizedPhones[0].number;
-  }
-
-  /**
-   * Resolves the report country value from the member profile.
-   *
-   * @param member Member profile returned by member-api.
-   * @returns Country name or null when unavailable.
-   */
-  private resolveMemberCountry(member?: MemberProfile): string | null {
-    const countryFromCode = alpha3ToCountryName(
-      this.toOptionalString(member?.homeCountryCode),
-    );
-
-    return countryFromCode ?? this.toOptionalString(member?.country);
   }
 
   /**

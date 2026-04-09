@@ -3,51 +3,76 @@ import { DbService } from "../../db/db.service";
 import { SqlLoaderService } from "../../common/sql-loader.service";
 import { TopcoderReportsService } from "./topcoder-reports.service";
 
-jest.mock("tc-core-library-js", () => ({
-  auth: {
-    m2m: jest.fn(() => ({
-      getMachineToken: jest.fn().mockResolvedValue("machine-token"),
-    })),
-  },
-}));
-
 describe("TopcoderReportsService", () => {
-  const originalFetch = global.fetch;
-
   let service: TopcoderReportsService;
+  let db: { query: jest.Mock };
   let sql: { load: jest.Mock };
   let config: { get: jest.Mock };
   let engagementsPoolQuery: jest.Mock;
-  let fetchMock: jest.Mock;
 
   beforeEach(() => {
+    db = {
+      query: jest.fn((query: string) => {
+        if (query === "reports/topcoder/engagement-data-members.sql") {
+          return [
+            {
+              user_id: "101",
+              handle: "assigned_user",
+              first_name: "Ada",
+              last_name: "Lovelace",
+              email: "ada@example.com",
+              country: "United States",
+              street_addr_1: "1 Main St",
+              street_addr_2: null,
+              city: "New York",
+              state_code: "NY",
+              zip: "10001",
+              phone_number: "+1 555 0101",
+            },
+            {
+              user_id: "202",
+              handle: null,
+              first_name: null,
+              last_name: null,
+              email: null,
+              country: "Canada",
+              street_addr_1: null,
+              street_addr_2: null,
+              city: null,
+              state_code: null,
+              zip: null,
+              phone_number: null,
+            },
+          ];
+        }
+
+        if (query === "reports/topcoder/engagement-data-projects.sql") {
+          return [
+            { project_id: "p1", project_name: "Project Alpha" },
+            { project_id: "p2", project_name: "Project Beta" },
+          ];
+        }
+
+        throw new Error(`Unexpected query: ${query}`);
+      }),
+    };
+
     sql = {
-      load: jest.fn().mockReturnValue("SELECT * FROM engagement_data"),
+      load: jest.fn((query: string) => query),
     };
 
     config = {
       get: jest.fn((key: string, defaultValue?: string) => {
-        switch (key) {
-          case "TOPCODER_API_URL_BASE":
-            return "https://api.topcoder.test";
-          case "M2M_CLIENT_ID":
-            return "client-id";
-          case "M2M_CLIENT_SECRET":
-            return "client-secret";
-          case "AUTH0_URL":
-            return defaultValue ?? "https://auth.example.com/oauth/token";
-          case "AUTH0_AUDIENCE":
-            return defaultValue ?? "https://api.topcoder.test";
-          case "ENGAGEMENTS_DB_URL":
-            return "postgresql://localhost:5432/engagements";
-          default:
-            return defaultValue;
+        if (key === "ENGAGEMENTS_DB_URL") {
+          return "postgresql://localhost:5432/engagements";
         }
+
+        return defaultValue;
       }),
     };
 
     service = new TopcoderReportsService(
-      {} as DbService,
+      db as unknown as DbService,
       sql as unknown as SqlLoaderService,
       config as unknown as ConfigService,
     );
@@ -83,69 +108,13 @@ describe("TopcoderReportsService", () => {
         query: engagementsPoolQuery,
       },
     });
-
-    fetchMock = jest.fn((input: string) => {
-      if (input.includes("/v6/members?")) {
-        return {
-          json: () => [
-            {
-              userId: "101",
-              handle: "assigned_user",
-              firstName: "Ada",
-              lastName: "Lovelace",
-              email: "ada@example.com",
-              country: "United States",
-              addresses: [
-                {
-                  streetAddr1: "1 Main St",
-                  city: "New York",
-                  stateCode: "NY",
-                  zip: "10001",
-                },
-              ],
-              phones: [{ type: "mobile", number: "+1 555 0101" }],
-            },
-            {
-              userId: "202",
-              handle: null,
-              firstName: null,
-              lastName: null,
-              email: null,
-              country: "Canada",
-              addresses: [],
-              phones: [],
-            },
-          ],
-          ok: true,
-        };
-      }
-
-      if (input.includes("/v6/projects/p1")) {
-        return {
-          json: () => ({ id: "p1", name: "Project Alpha" }),
-          ok: true,
-        };
-      }
-
-      if (input.includes("/v6/projects/p2")) {
-        return {
-          json: () => ({ id: "p2", name: "Project Beta" }),
-          ok: true,
-        };
-      }
-
-      throw new Error(`Unexpected fetch call for ${input}`);
-    });
-
-    global.fetch = fetchMock as typeof global.fetch;
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
     jest.clearAllMocks();
   });
 
-  it("builds engagement data rows with member enrichment, fallbacks, and project names", async () => {
+  it("builds engagement data rows with DB-backed enrichment, fallbacks, and project names", async () => {
     await expect(service.getEngagementData()).resolves.toEqual([
       {
         handle: "assigned_user",
@@ -174,9 +143,33 @@ describe("TopcoderReportsService", () => {
     expect(sql.load).toHaveBeenCalledWith(
       "reports/topcoder/engagement-data.sql",
     );
-    expect(engagementsPoolQuery).toHaveBeenCalledWith(
-      "SELECT * FROM engagement_data",
+    expect(sql.load).toHaveBeenCalledWith(
+      "reports/topcoder/engagement-data-members.sql",
     );
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(sql.load).toHaveBeenCalledWith(
+      "reports/topcoder/engagement-data-projects.sql",
+    );
+    expect(engagementsPoolQuery).toHaveBeenCalledWith(
+      "reports/topcoder/engagement-data.sql",
+    );
+    expect(db.query).toHaveBeenCalledTimes(2);
+    expect(db.query).toHaveBeenNthCalledWith(
+      1,
+      "reports/topcoder/engagement-data-members.sql",
+      [["101", "202"]],
+    );
+    expect(db.query).toHaveBeenNthCalledWith(
+      2,
+      "reports/topcoder/engagement-data-projects.sql",
+      [["p2", "p1"]],
+    );
+  });
+
+  it("returns an empty list without running enrichment queries when no members qualify", async () => {
+    engagementsPoolQuery.mockResolvedValueOnce({ rows: [] });
+
+    await expect(service.getEngagementData()).resolves.toEqual([]);
+
+    expect(db.query).not.toHaveBeenCalled();
   });
 });
