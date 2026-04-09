@@ -14,7 +14,7 @@ SELECT
   preferred_phone.phone_number
 FROM members.member m
 LEFT JOIN identity.country c
-  ON c.country_code = m."competitionCountryCode"
+  ON c.iso_alpha3_code = m."competitionCountryCode"
 LEFT JOIN LATERAL (
   SELECT
     NULLIF(BTRIM(a."streetAddr1"), '') AS street_addr_1,
