@@ -9,6 +9,7 @@ export const Scopes = {
   Member: {
     EngagementData: "reports:member-engagement-data",
     RecentMemberData: "reports:member-recent-member-data",
+    MemberSearch: "reports:member-search",
   },
   TopgearChallengeTechnology: "reports:topgear-challenge-technology",
   TopgearChallengeStatsByUser: "reports:topgear-challenge-stats-by-user",
@@ -64,6 +65,7 @@ export const ScopeRoleAccess: Record<string, readonly string[]> = {
   [Scopes.Challenge.Winners]: challengeReportAccessRoles,
   [Scopes.Member.EngagementData]: [UserRoles.TalentManager],
   [Scopes.Member.RecentMemberData]: [UserRoles.TalentManager],
+  [Scopes.Member.MemberSearch]: [UserRoles.TalentManager],
   [Scopes.Identity.UsersByHandles]: [
     UserRoles.TalentManager,
     UserRoles.ProjectManager,

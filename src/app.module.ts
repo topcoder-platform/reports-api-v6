@@ -11,6 +11,7 @@ import { SfdcReportsModule } from "./reports/sfdc/sfdc-reports.module";
 import { ChallengesReportsModule } from "./reports/challenges/challenges-reports.module";
 import { IdentityReportsModule } from "./reports/identity/identity-reports.module";
 import { ReportsModule } from "./reports/reports.module";
+import { MemberSearchModule } from "./reports/member/member-search.module";
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ReportsModule } from "./reports/reports.module";
     ChallengesReportsModule,
     IdentityReportsModule,
     ReportsModule,
+    MemberSearchModule,
     HealthModule,
   ],
 })
