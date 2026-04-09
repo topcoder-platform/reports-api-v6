@@ -201,7 +201,7 @@ member_address AS (
     if (country) {
       const pCountry = p(country);
       where.push(
-        `(m."homeCountryCode" ILIKE ${pCountry} OR m."competitionCountryCode" ILIKE ${pCountry} OR m.country ILIKE ${pCountry})`,
+        `(LOWER(m."homeCountryCode") = LOWER(${pCountry}) OR LOWER(m."competitionCountryCode") = LOWER(${pCountry}) OR LOWER(m.country) = LOWER(${pCountry}))`,
       );
     }
 
