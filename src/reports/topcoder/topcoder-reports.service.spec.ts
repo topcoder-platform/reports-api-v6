@@ -21,7 +21,10 @@ describe("TopcoderReportsService", () => {
               first_name: "Ada",
               last_name: "Lovelace",
               email: "ada@example.com",
-              country: "United States",
+              home_country: null,
+              competition_country: null,
+              home_country_code: "JPN",
+              competition_country_code: null,
               street_addr_1: "1 Main St",
               street_addr_2: null,
               city: "New York",
@@ -35,7 +38,10 @@ describe("TopcoderReportsService", () => {
               first_name: null,
               last_name: null,
               email: null,
-              country: "Canada",
+              home_country: null,
+              competition_country: "Sri Lanka",
+              home_country_code: null,
+              competition_country_code: "LKA",
               street_addr_1: null,
               street_addr_2: null,
               city: null,
@@ -114,13 +120,13 @@ describe("TopcoderReportsService", () => {
     jest.clearAllMocks();
   });
 
-  it("builds engagement data rows with DB-backed enrichment, fallbacks, and project names", async () => {
+  it("builds engagement data rows with profile-style country resolution, fallbacks, and project names", async () => {
     await expect(service.getEngagementData()).resolves.toEqual([
       {
         handle: "assigned_user",
         firstName: "Ada",
         lastName: "Lovelace",
-        country: "United States",
+        country: "Japan",
         emailId: "ada@example.com",
         phoneNumber: "+1 555 0101",
         address: "1 Main St, New York, NY, 10001",
@@ -131,7 +137,7 @@ describe("TopcoderReportsService", () => {
         handle: "applicant_user",
         firstName: "Grace",
         lastName: "Hopper",
-        country: "Canada",
+        country: "Sri Lanka",
         emailId: "applicant@example.com",
         phoneNumber: "222-222-2222",
         address: "Applicant Address",
