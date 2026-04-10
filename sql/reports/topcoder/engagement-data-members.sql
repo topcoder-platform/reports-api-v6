@@ -4,8 +4,15 @@ SELECT
   NULLIF(BTRIM(m."firstName"), '') AS first_name,
   NULLIF(BTRIM(m."lastName"), '') AS last_name,
   NULLIF(BTRIM(m.email), '') AS email,
-  COALESCE(NULLIF(BTRIM(c.country_name), ''), NULLIF(BTRIM(m.country), ''))
-    AS country,
+  COALESCE(
+    home_code.name,
+    home_id.name,
+    comp_code.name,
+    comp_id.name,
+    NULLIF(BTRIM(m."homeCountryCode"), ''),
+    NULLIF(BTRIM(m."competitionCountryCode"), ''),
+    NULLIF(BTRIM(m.country), '')
+  ) AS country,
   preferred_address.street_addr_1,
   preferred_address.street_addr_2,
   preferred_address.city,
@@ -13,8 +20,14 @@ SELECT
   preferred_address.zip,
   preferred_phone.phone_number
 FROM members.member m
-LEFT JOIN identity.country c
-  ON c.iso_alpha3_code = m."competitionCountryCode"
+LEFT JOIN lookups."Country" AS home_code
+  ON UPPER(home_code."countryCode") = UPPER(m."homeCountryCode")
+LEFT JOIN lookups."Country" AS home_id
+  ON UPPER(home_id.id) = UPPER(m."homeCountryCode")
+LEFT JOIN lookups."Country" AS comp_code
+  ON UPPER(comp_code."countryCode") = UPPER(m."competitionCountryCode")
+LEFT JOIN lookups."Country" AS comp_id
+  ON UPPER(comp_id.id) = UPPER(m."competitionCountryCode")
 LEFT JOIN LATERAL (
   SELECT
     NULLIF(BTRIM(a."streetAddr1"), '') AS street_addr_1,

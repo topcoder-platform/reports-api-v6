@@ -645,7 +645,8 @@ export class TopcoderReportsService implements OnModuleDestroy {
    *
    * The base member list comes from the engagements database, while member
    * profile/contact fields and project names are resolved directly from the
-   * main reports database so the export stays DB-only.
+   * main reports database so the export stays DB-only. Country resolution
+   * follows the same home-country-first fallback order used by the profile UI.
    *
    * @returns One row per member with the engagement experience summary fields.
    * @throws Error when the engagements database URL is not configured.
