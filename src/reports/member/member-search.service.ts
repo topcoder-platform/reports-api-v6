@@ -81,7 +81,7 @@ skill_event_stats AS (
   SELECT
     se.user_id,
     se.skill_id,
-    COUNT(*) FILTER (WHERE LOWER(set_t.name) = 'challenge_win') AS wins,
+    COUNT(*) FILTER (WHERE LOWER(set_t.name) IN ('challenge_win', 'challenge_2nd_place', 'challenge_3rd_place')) AS wins,
     COUNT(*)                                                     AS submitted
   FROM skills.skill_event se
   JOIN skills.skill_event_type set_t ON set_t.id = se.skill_event_type_id
@@ -235,7 +235,7 @@ SELECT
   COALESCE(m."availableForGigs", false)                                     AS "openToWork",
   TRIM(
     COALESCE(maddr.city || ' ', '') ||
-    COALESCE(m.country, COALESCE(m."competitionCountryCode", COALESCE(m."homeCountryCode", '')))
+    COALESCE(m."homeCountryCode", COALESCE(m.country, COALESCE(m."competitionCountryCode", '')))
   )                                                                          AS location,
   ${matchedSkillsExpr}                                                       AS "matchedSkills",
   ${matchIndexExpr}                                                          AS "matchIndex"
