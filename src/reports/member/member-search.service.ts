@@ -81,10 +81,13 @@ skill_event_stats AS (
   SELECT
     se.user_id,
     se.skill_id,
-    COUNT(*) FILTER (WHERE LOWER(set_t.name) IN ('challenge_win', 'challenge_2nd_place', 'challenge_3rd_place')) AS wins,
+    COUNT(*) FILTER (
+      WHERE LOWER(set_t.name) IN ('challenge_win', 'challenge_2nd_place', 'challenge_3rd_place', 'gig_completion') OR sest.name='engagement'
+    ) AS wins,
     COUNT(*)                                                     AS submitted
   FROM skills.skill_event se
   JOIN skills.skill_event_type set_t ON set_t.id = se.skill_event_type_id
+  JOIN skills.source_type sest ON sest.id = se.source_type_id
   WHERE se.skill_id = ANY(${pSkillIds}::uuid[])
   GROUP BY se.user_id, se.skill_id
 ),
