@@ -1,0 +1,164 @@
+import { NotFoundException } from "@nestjs/common";
+import { Test, TestingModule } from "@nestjs/testing";
+import { DbService } from "../../db/db.service";
+import { MemberSearchService } from "./member-search.service";
+
+describe("MemberSearchService", () => {
+  let service: MemberSearchService;
+
+  const mockDbService = {
+    query: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    mockDbService.query.mockReset();
+
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      providers: [
+        MemberSearchService,
+        { provide: DbService, useValue: mockDbService },
+      ],
+    }).compile();
+
+    service = moduleRef.get<MemberSearchService>(MemberSearchService);
+  });
+
+  it("creates the service", () => {
+    expect(service).toBeDefined();
+  });
+
+  it("runs data and count queries with default pagination and maps response", async () => {
+    mockDbService.query
+      .mockResolvedValueOnce([
+        {
+          id: "123",
+          handle: "tourist",
+          name: "",
+          photoUrl: null,
+          isRecentlyActive: undefined,
+          isVerified: undefined,
+          openToWork: undefined,
+          location: "",
+          matchedSkills: null,
+          matchIndex: undefined,
+        },
+      ])
+      .mockResolvedValueOnce([{ total: 1 }]);
+
+    const result = await service.search({});
+
+    expect(mockDbService.query).toHaveBeenCalledTimes(2);
+
+    const dataSql = mockDbService.query.mock.calls[0][0] as string;
+    const dataParams = mockDbService.query.mock.calls[0][1] as unknown[];
+    const countSql = mockDbService.query.mock.calls[1][0] as string;
+    const countParams = mockDbService.query.mock.calls[1][1] as unknown[];
+
+    expect(dataSql).toContain("WITH recently_active AS");
+    expect(dataSql).not.toContain("requested_skills AS");
+    expect(dataSql).toContain(
+      'ORDER BY "matchIndex" DESC NULLS LAST, m.handle ASC',
+    );
+
+    expect(countSql).toContain("SELECT COUNT(*)::integer AS total");
+
+    expect(dataParams).toEqual([8, 0]);
+    expect(countParams).toEqual([]);
+
+    expect(result).toEqual({
+      total: 1,
+      page: 1,
+      limit: 8,
+      data: [
+        {
+          id: "123",
+          handle: "tourist",
+          name: "tourist",
+          photoUrl: null,
+          isRecentlyActive: false,
+          isVerified: false,
+          openToWork: false,
+          location: "",
+          matchedSkills: [],
+          matchIndex: 0,
+        },
+      ],
+    });
+  });
+
+  it("uses filter params for count query but excludes pagination params", async () => {
+    mockDbService.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: 0 }]);
+
+    await service.search({
+      country: "us",
+      page: 2,
+      limit: 5,
+      sortBy: "handle",
+      sortOrder: "asc",
+    });
+
+    const dataSql = mockDbService.query.mock.calls[0][0] as string;
+    const dataParams = mockDbService.query.mock.calls[0][1] as unknown[];
+    const countParams = mockDbService.query.mock.calls[1][1] as unknown[];
+
+    expect(dataSql).toContain(
+      'ORDER BY m.handle ASC, "matchIndex" DESC NULLS LAST',
+    );
+    expect(dataParams).toEqual(["us", 5, 5]);
+    expect(countParams).toEqual(["us"]);
+  });
+
+  it("deduplicates skills and keeps last wins value when building skill query", async () => {
+    const skillA = "550e8400-e29b-41d4-a716-446655440000";
+    const skillB = "550e8400-e29b-41d4-a716-446655440001";
+
+    mockDbService.query
+      .mockResolvedValueOnce([{ id: skillA }, { id: skillB }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: 0 }]);
+
+    await service.search({
+      skills: [
+        { id: skillA, wins: 2 },
+        { id: skillA, wins: 5 },
+        { id: skillB },
+      ],
+      skillSearchType: "AND",
+      limit: 3,
+      page: 1,
+    });
+
+    expect(mockDbService.query).toHaveBeenCalledTimes(3);
+
+    const validationSql = mockDbService.query.mock.calls[0][0] as string;
+    const validationParams = mockDbService.query.mock.calls[0][1] as unknown[];
+    const dataSql = mockDbService.query.mock.calls[1][0] as string;
+    const dataParams = mockDbService.query.mock.calls[1][1] as unknown[];
+
+    expect(validationSql).toContain("FROM skills.skill");
+    expect(validationParams).toEqual([[skillA, skillB]]);
+
+    expect(dataSql).toContain("requested_skills AS");
+    expect(dataSql).toContain("INNER JOIN user_match_data umd");
+    expect(dataParams).toContainEqual([skillA, skillB]);
+    expect(dataParams).toContainEqual([5, 0]);
+    expect(dataParams).toContain("AND");
+    expect(dataParams).toContain(2);
+  });
+
+  it("throws NotFoundException when any requested skill does not exist", async () => {
+    const missingSkill = "550e8400-e29b-41d4-a716-446655440003";
+
+    mockDbService.query.mockResolvedValueOnce([]);
+
+    await expect(
+      service.search({
+        skills: [{ id: missingSkill }],
+      }),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(mockDbService.query).toHaveBeenCalledTimes(1);
+  });
+});

@@ -42,7 +42,9 @@ describe("getAccessibleReportsDirectory", () => {
       "/identity/users-by-handles",
     ]);
     expect(directory.member?.reports.map((report) => report.path)).toEqual([
+      "/member/engagement-data",
       "/member/recent-member-data",
+      "/member/search",
     ]);
   });
 
@@ -84,7 +86,9 @@ describe("getAccessibleReportsDirectory", () => {
       directory.topcoder?.reports.map((report) => report.path),
     ).not.toContain("/topcoder/member-payment-accrual");
     expect(directory.member?.reports.map((report) => report.path)).toEqual([
+      "/member/engagement-data",
       "/member/recent-member-data",
+      "/member/search",
     ]);
     expect(directory.admin?.reports.map((report) => report.path)).toEqual([
       "/admin/member-payment-accrual",

@@ -16,7 +16,10 @@ submission_metrics AS (
       s."initialScore"::double precision
     ) AS standard_score,
     provisional_review.provisional_score,
-    final_review."aggregateScore" AS final_score_raw
+    COALESCE(
+      final_review."aggregateScore",
+      s."finalScore"::double precision
+    ) AS final_score_raw
   FROM challenge_context AS cc
   JOIN reviews."submission" AS s
     ON s."challengeId" = cc.id
@@ -72,7 +75,11 @@ mm_winner_scores AS (
     CASE
       WHEN mms.provisional_score_raw IS NULL THEN NULL
       ELSE ROUND(mms.provisional_score_raw::numeric, 2)
-    END AS "provisionalScore"
+    END AS "provisionalScore",
+    CASE
+      WHEN mms.final_score_raw IS NULL THEN NULL
+      ELSE ROUND(mms.final_score_raw::numeric, 2)
+    END AS "finalScore"
   FROM mm_member_scores AS mms
 )
 SELECT
@@ -114,6 +121,10 @@ SELECT
     WHEN wm.is_marathon_match THEN mrs."provisionalScore"
     ELSE NULL
   END AS "provisionalScore",
+  CASE
+    WHEN wm.is_marathon_match THEN mrs."finalScore"
+    ELSE NULL
+  END AS "finalScore",
   CASE
     WHEN wm.is_marathon_match THEN wm.placement
     ELSE NULL

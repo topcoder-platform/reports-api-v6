@@ -56,6 +56,13 @@ Create a `.env` file in the root of the project. You can copy the example struct
 # This is used by Prisma to connect to your local PostgreSQL instance.
 DATABASE_URL="postgresql://user:password@localhost:5432/lookups?schema=public"
 
+# Engagements database used by the Engagement Data member report.
+ENGAGEMENTS_DB_URL="postgresql://user:password@localhost:5432/engagements"
+
+# The same report also reads member/profile/project data from the main
+# DATABASE_URL connection, including members.member, members.memberAddress,
+# members.memberPhone, identity.country, and projects.projects.
+
 # Old tc-payments database URL (used by member-tax CSV export script)
 OLD_PAYMENTS_DATABASE_URL="postgresql://user:password@localhost:5432/tc_payments?schema=public"
 
