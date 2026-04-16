@@ -56,7 +56,9 @@ describe("MemberSearchService", () => {
 
     expect(dataSql).toContain("WITH recently_active AS");
     expect(dataSql).not.toContain("requested_skills AS");
-    expect(dataSql).toContain('ORDER BY "matchIndex" DESC NULLS LAST, m.handle ASC');
+    expect(dataSql).toContain(
+      'ORDER BY "matchIndex" DESC NULLS LAST, m.handle ASC',
+    );
 
     expect(countSql).toContain("SELECT COUNT(*)::integer AS total");
 
@@ -85,7 +87,9 @@ describe("MemberSearchService", () => {
   });
 
   it("uses filter params for count query but excludes pagination params", async () => {
-    mockDbService.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{ total: 0 }]);
+    mockDbService.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: 0 }]);
 
     await service.search({
       country: "us",
@@ -99,7 +103,9 @@ describe("MemberSearchService", () => {
     const dataParams = mockDbService.query.mock.calls[0][1] as unknown[];
     const countParams = mockDbService.query.mock.calls[1][1] as unknown[];
 
-    expect(dataSql).toContain('ORDER BY m.handle ASC, "matchIndex" DESC NULLS LAST');
+    expect(dataSql).toContain(
+      'ORDER BY m.handle ASC, "matchIndex" DESC NULLS LAST',
+    );
     expect(dataParams).toEqual(["us", 5, 5]);
     expect(countParams).toEqual(["us"]);
   });
