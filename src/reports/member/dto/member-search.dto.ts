@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  ArrayNotEmpty,
   Max,
   Min,
   ValidateNested,
@@ -77,12 +78,15 @@ export class MemberSearchBodyDto {
 
   @ApiPropertyOptional({
     description:
-      "Filter by country name or code as stored in the member location (case-insensitive).",
-    example: "Australia",
+      "Filter by multiple country names or country codes (case-insensitive).",
+    type: [String],
+    example: ["US", "Australia"],
   })
   @IsOptional()
-  @IsString()
-  country?: string;
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  countries?: string[];
 
   @ApiPropertyOptional({
     description:

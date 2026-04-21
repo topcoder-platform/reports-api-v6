@@ -92,7 +92,7 @@ describe("MemberSearchService", () => {
       .mockResolvedValueOnce([{ total: 0 }]);
 
     await service.search({
-      country: "us",
+      countries: ["us"],
       page: 2,
       limit: 5,
       sortBy: "handle",
@@ -106,8 +106,8 @@ describe("MemberSearchService", () => {
     expect(dataSql).toContain(
       'ORDER BY m.handle ASC, "matchIndex" DESC NULLS LAST',
     );
-    expect(dataParams).toEqual(["us", 5, 5]);
-    expect(countParams).toEqual(["us"]);
+    expect(dataParams).toEqual([["us"], 5, 5]);
+    expect(countParams).toEqual([["us"]]);
   });
 
   it("deduplicates skills and keeps last wins value when building skill query", async () => {
