@@ -202,16 +202,22 @@ member_address AS (
     }
 
     const normalizedCountries = Array.isArray(countries)
-      ? countries.map((value) => String(value).trim()).filter(Boolean)
+      ? [
+          ...new Set(
+            countries
+              .map((value) => String(value).trim().toLowerCase())
+              .filter(Boolean),
+          ),
+        ]
       : [];
 
     if (normalizedCountries.length > 0) {
       const pCountries = p(normalizedCountries);
       where.push(
         `(
-          LOWER(m."homeCountryCode") = ANY(SELECT LOWER(c) FROM unnest(${pCountries}::text[]) AS c)
-          OR LOWER(m."competitionCountryCode") = ANY(SELECT LOWER(c) FROM unnest(${pCountries}::text[]) AS c)
-          OR LOWER(m.country) = ANY(SELECT LOWER(c) FROM unnest(${pCountries}::text[]) AS c)
+          LOWER(m."homeCountryCode") = ANY(${pCountries}::text[])
+          OR LOWER(m."competitionCountryCode") = ANY(${pCountries}::text[])
+          OR LOWER(m.country) = ANY(${pCountries}::text[])
         )`,
       );
     }

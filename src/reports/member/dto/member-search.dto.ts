@@ -8,7 +8,6 @@ import {
   IsOptional,
   IsString,
   IsUUID,
-  ArrayNotEmpty,
   Max,
   Min,
   ValidateNested,
@@ -84,7 +83,6 @@ export class MemberSearchBodyDto {
   })
   @IsOptional()
   @IsArray()
-  @ArrayNotEmpty()
   @IsString({ each: true })
   countries?: string[];
 

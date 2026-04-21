@@ -106,8 +106,25 @@ describe("MemberSearchService", () => {
     expect(dataSql).toContain(
       'ORDER BY m.handle ASC, "matchIndex" DESC NULLS LAST',
     );
+    expect(dataSql).toContain(
+      'LOWER(m."homeCountryCode") = ANY($1::text[])',
+    );
     expect(dataParams).toEqual([["us"], 5, 5]);
     expect(countParams).toEqual([["us"]]);
+  });
+
+  it("treats empty countries as no country filter", async () => {
+    mockDbService.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: 0 }]);
+
+    await service.search({ countries: [] });
+
+    const dataSql = mockDbService.query.mock.calls[0][0] as string;
+    const countParams = mockDbService.query.mock.calls[1][1] as unknown[];
+
+    expect(dataSql).not.toContain('LOWER(m."homeCountryCode") = ANY(');
+    expect(countParams).toEqual([]);
   });
 
   it("deduplicates skills and keeps last wins value when building skill query", async () => {
