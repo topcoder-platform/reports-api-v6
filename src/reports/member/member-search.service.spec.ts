@@ -127,6 +127,26 @@ describe("MemberSearchService", () => {
     expect(countParams).toEqual([]);
   });
 
+  it("does not apply boolean filters when explicitly false", async () => {
+    mockDbService.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: 0 }]);
+
+    await service.search({
+      openToWork: false,
+      recentlyActive: false,
+      verifiedProfile: false,
+    });
+
+    const dataSql = mockDbService.query.mock.calls[0][0] as string;
+
+    expect(dataSql).not.toContain('m."availableForGigs" = true');
+    expect(dataSql).not.toContain(
+      'EXISTS (SELECT 1 FROM recently_active ra WHERE ra.user_id = m."userId")',
+    );
+    expect(dataSql).not.toContain("COALESCE(m.verified, false) = true");
+  });
+
   it("deduplicates skills and keeps last wins value when building skill query", async () => {
     const skillA = "550e8400-e29b-41d4-a716-446655440000";
     const skillB = "550e8400-e29b-41d4-a716-446655440001";
