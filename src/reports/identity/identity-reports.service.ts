@@ -16,6 +16,9 @@ const SUPPORTED_HANDLES_UPLOAD_EXTENSIONS = new Set([".txt", ".csv"]);
 type UsersByHandlesRow = {
   userId: number | null;
   handle: string;
+  firstName: string | null;
+  lastName: string | null;
+  contactNumber: string | null;
   email: string | null;
   country: string | null;
 };
@@ -114,6 +117,9 @@ export class IdentityReportsService {
       return results.map((row) => ({
         userId: row.userId,
         handle: row.handle,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        contactNumber: row.contactNumber,
         email: row.email,
         country: alpha3ToCountryName(row.country) ?? row.country,
       }));

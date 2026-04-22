@@ -431,7 +431,7 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
       identityPostReport(
         "Users by Handles",
         "/identity/users-by-handles",
-        "Export user ID, handle, email, and country for each supplied handle; unknown handles return empty fields",
+        "Export user ID, handle, firstName, lastName, contactNumber, email, and country for each supplied handle; unknown handles return empty fields",
         AppScopes.Identity.UsersByHandles,
         [handlesBodyParam],
       ),

@@ -45,6 +45,9 @@ export class UsersByGroupQueryDto {
 export interface IdentityUserDto {
   userId: number | null;
   handle: string;
+  firstName: string | null;
+  lastName: string | null;
+  contactNumber: string | null;
   email: string | null;
   country: string | null;
 }

@@ -33,7 +33,7 @@ describe("MemberSearchController", () => {
 
   it("delegates search requests to the service and returns response", async () => {
     const body = {
-      country: "Australia",
+      countries: ["Australia"],
       sortBy: "handle" as const,
       sortOrder: "asc" as const,
       page: 2,

@@ -31,7 +31,7 @@ export class MemberSearchService {
       openToWork,
       recentlyActive,
       verifiedProfile,
-      country,
+      countries,
       sortBy = "matchIndex",
       sortOrder = "desc",
       page = 1,
@@ -81,10 +81,13 @@ skill_event_stats AS (
   SELECT
     se.user_id,
     se.skill_id,
-    COUNT(*) FILTER (WHERE LOWER(set_t.name) = 'challenge_win') AS wins,
+    COUNT(*) FILTER (
+      WHERE LOWER(set_t.name) IN ('challenge_win', 'challenge_2nd_place', 'challenge_3rd_place', 'gig_completion') OR sest.name='engagement'
+    ) AS wins,
     COUNT(*)                                                     AS submitted
   FROM skills.skill_event se
   JOIN skills.skill_event_type set_t ON set_t.id = se.skill_event_type_id
+  JOIN skills.source_type sest ON sest.id = se.source_type_id
   WHERE se.skill_id = ANY(${pSkillIds}::uuid[])
   GROUP BY se.user_id, se.skill_id
 ),
@@ -182,26 +185,40 @@ member_address AS (
     // ------------------------------------------------- dynamic WHERE
     const where: string[] = [`m.status = 'ACTIVE'`];
 
-    if (openToWork === true) {
+    if (typeof openToWork === "boolean") {
       where.push(`m."availableForGigs" = true`);
     }
 
-    if (recentlyActive === true) {
+    if (typeof recentlyActive === "boolean") {
       where.push(
         `EXISTS (SELECT 1 FROM recently_active ra WHERE ra.user_id = m."userId")`,
       );
     }
 
-    if (verifiedProfile === true) {
+    if (typeof verifiedProfile === "boolean") {
       where.push(
         `(COALESCE(m.verified, false) = true OR EXISTS (SELECT 1 FROM verified_via_trolley vt WHERE vt.user_id = m."userId"))`,
       );
     }
 
-    if (country) {
-      const pCountry = p(country);
+    const normalizedCountries = Array.isArray(countries)
+      ? [
+          ...new Set(
+            countries
+              .map((value) => String(value).trim().toLowerCase())
+              .filter(Boolean),
+          ),
+        ]
+      : [];
+
+    if (normalizedCountries.length > 0) {
+      const pCountries = p(normalizedCountries);
       where.push(
-        `(LOWER(m."homeCountryCode") = LOWER(${pCountry}) OR LOWER(m."competitionCountryCode") = LOWER(${pCountry}) OR LOWER(m.country) = LOWER(${pCountry}))`,
+        `(
+          LOWER(m."homeCountryCode") = ANY(${pCountries}::text[])
+          OR LOWER(m."competitionCountryCode") = ANY(${pCountries}::text[])
+          OR LOWER(m.country) = ANY(${pCountries}::text[])
+        )`,
       );
     }
 
@@ -235,7 +252,7 @@ SELECT
   COALESCE(m."availableForGigs", false)                                     AS "openToWork",
   TRIM(
     COALESCE(maddr.city || ' ', '') ||
-    COALESCE(m.country, COALESCE(m."competitionCountryCode", COALESCE(m."homeCountryCode", '')))
+    COALESCE(m."homeCountryCode", COALESCE(m.country, COALESCE(m."competitionCountryCode", '')))
   )                                                                          AS location,
   ${matchedSkillsExpr}                                                       AS "matchedSkills",
   ${matchIndexExpr}                                                          AS "matchIndex"
