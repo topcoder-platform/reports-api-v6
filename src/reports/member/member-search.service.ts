@@ -185,17 +185,17 @@ member_address AS (
     // ------------------------------------------------- dynamic WHERE
     const where: string[] = [`m.status = 'ACTIVE'`];
 
-    if (typeof openToWork === "boolean") {
+    if (openToWork === true) {
       where.push(`m."availableForGigs" = true`);
     }
 
-    if (typeof recentlyActive === "boolean") {
+    if (recentlyActive === true) {
       where.push(
         `EXISTS (SELECT 1 FROM recently_active ra WHERE ra.user_id = m."userId")`,
       );
     }
 
-    if (typeof verifiedProfile === "boolean") {
+    if (verifiedProfile === true) {
       where.push(
         `(COALESCE(m.verified, false) = true OR EXISTS (SELECT 1 FROM verified_via_trolley vt WHERE vt.user_id = m."userId"))`,
       );
