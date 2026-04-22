@@ -1,5 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { readFileSync } from "fs";
+import { join } from "path";
 import { SqlLoaderService } from "src/common/sql-loader.service";
 import { DbService } from "../../db/db.service";
 import {
@@ -300,7 +302,21 @@ describe("SfdcReportsService - getPaymentsReport", () => {
     );
   });
 
-  it("runs a basic query successfully", async () => {
+  it("uses external winning references for challenge-backed payment filters", () => {
+    const paymentsSql = readFileSync(
+      join(__dirname, "../../../sql/reports/sfdc/payments.sql"),
+      "utf8",
+    );
+
+    expect(paymentsSql).toContain(
+      "WHEN w.category IS DISTINCT FROM 'ENGAGEMENT_PAYMENT' THEN w.external_id",
+    );
+    expect(paymentsSql).toContain(
+      "($3::text[] IS NULL OR challenge_filter_id = ANY($3::text[]))",
+    );
+  });
+
+  it("returns mixed challenge, engagement, and unresolved challenge payments successfully", async () => {
     const result = await service.getPaymentsReport(
       mockPaymentQueryDto.billingAccount,
     );
@@ -319,6 +335,24 @@ describe("SfdcReportsService - getPaymentsReport", () => {
       undefined,
     ]);
     expect(result).toEqual(normalizedPaymentData);
+    expect(result).toEqual([
+      expect.objectContaining({
+        category: "CHALLENGE_PAYMENT",
+        challengeName: "Sample Challenge 1",
+        challengeStatus: "Completed",
+      }),
+      expect.objectContaining({
+        category: "ENGAGEMENT_PAYMENT",
+        challengeName: "Customer Support Engagement",
+        challengeStatus: null,
+      }),
+      expect.objectContaining({
+        category: "CHALLENGE_PAYMENT",
+        challengeId: "6bc7a37d-37ad-4c52-a2f0-71fa2c84e6e3",
+        challengeName: null,
+        challengeStatus: null,
+      }),
+    ]);
   });
 
   it("splits include/exclude billing account filters", async () => {
@@ -349,7 +383,7 @@ describe("SfdcReportsService - getPaymentsReport", () => {
       ["90000000"],
       ["e74c3e37-73c9-474e-a838-a38dd4738906"],
       ["user_01", "user_02"],
-      "Task Payment for member",
+      "Customer Support Engagement",
       "2023-01-01T00:00:00.000Z",
       "2023-03-01T00:00:00.000Z",
       100,
@@ -377,6 +411,24 @@ describe("SfdcReportsService - getPaymentsReport", () => {
     ]);
   });
 
+  it("passes orphaned challenge-backed external IDs to the challengeIds filter", async () => {
+    await service.getPaymentsReport(mockPaymentQueryDto.orphanedChallenge);
+
+    expect(mockDbService.query).toHaveBeenCalledWith(mockSqlQuery, [
+      undefined,
+      undefined,
+      ["6bc7a37d-37ad-4c52-a2f0-71fa2c84e6e3"],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
+
   it("handles payment status filter", async () => {
     await service.getPaymentsReport(mockPaymentQueryDto.paymentStatus);
 
@@ -392,24 +444,6 @@ describe("SfdcReportsService - getPaymentsReport", () => {
       undefined,
       undefined,
       ["ON_HOLD"],
-    ]);
-  });
-
-  it("handles null challengeStatus for cancellable payments", async () => {
-    await service.getPaymentsReport(mockPaymentQueryDto.nullChallengeStatus);
-
-    expect(mockDbService.query).toHaveBeenCalledWith(mockSqlQuery, [
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      [null as unknown as string],
-      undefined,
     ]);
   });
 

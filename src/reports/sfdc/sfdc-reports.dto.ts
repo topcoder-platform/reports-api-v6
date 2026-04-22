@@ -206,8 +206,9 @@ export class PaymentsReportQueryDto {
 
   @ApiProperty({
     required: false,
-    description: "Challenge name to search for",
-    example: "Task Payment for member",
+    description:
+      "Display name search across challenge names and engagement titles.",
+    example: "Customer Support Engagement",
   })
   @IsOptional()
   @IsString()
@@ -216,7 +217,8 @@ export class PaymentsReportQueryDto {
 
   @ApiProperty({
     required: false,
-    description: "List of challenge IDs",
+    description:
+      "List of challenge IDs for challenge-backed payments only. ENGAGEMENT_PAYMENT rows are not matched by engagement assignment ID through this filter.",
     example: ["e74c3e37-73c9-474e-a838-a38dd4738906"],
   })
   @IsOptional()
@@ -276,7 +278,8 @@ export class PaymentsReportQueryDto {
 
   @ApiProperty({
     required: false,
-    description: "List of challenge statuses to filter payments",
+    description:
+      "List of challenge statuses for challenge-backed payments only. Engagement payment rows have no challenge status and are excluded when this filter is supplied.",
     example: ["COMPLETED", "ACTIVE"],
   })
   @IsOptional()
@@ -300,7 +303,17 @@ export class PaymentsReportQueryDto {
 
 export class PaymentsReportResponse {
   billingAccountId: string;
-  challengeName: string;
+  @ApiProperty({
+    description:
+      'Resolved display name from challenges."Challenge".name for challenge payments or engagements."Engagement".title for engagement payments. Null when the external reference cannot be resolved.',
+    nullable: true,
+    type: String,
+  })
+  challengeName: string | null;
+  @ApiProperty({
+    description:
+      "Reference from finance.winnings.external_id. This is a challenge ID for challenge payments and an engagement assignment ID for ENGAGEMENT_PAYMENT rows.",
+  })
   challengeId: string;
   @ApiProperty({
     description: "Winnings category from finance.winnings.category",
@@ -317,9 +330,12 @@ export class PaymentsReportResponse {
   challengeFee: number;
   paymentAmount: number;
   @ApiProperty({
-    description: "Challenge status from challenges.Challenge.status",
+    description:
+      'Challenge status from challenges."Challenge".status. Null for ENGAGEMENT_PAYMENT rows and challenge-backed rows whose external reference cannot be resolved.',
+    nullable: true,
+    type: String,
   })
-  challengeStatus: string;
+  challengeStatus: string | null;
 }
 
 export class TaasJobsReportQueryDto {
