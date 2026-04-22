@@ -38,7 +38,7 @@ function formatLocation(location: string): string {
     return mappedCountryName;
   }
 
-  return `${parts.slice(0, -1).join(" ")} ${mappedCountryName}`;
+  return `${parts.slice(0, -1).join(" ")}, ${mappedCountryName}`;
 }
 
 @Injectable()
