@@ -134,7 +134,10 @@ type EngagementMemberRow = {
   first_name: string | null;
   last_name: string | null;
   email: string | null;
-  country: string | null;
+  home_country: string | null;
+  competition_country: string | null;
+  home_country_code: string | null;
+  competition_country_code: string | null;
   street_addr_1: string | null;
   street_addr_2: string | null;
   city: string | null;
@@ -645,7 +648,9 @@ export class TopcoderReportsService implements OnModuleDestroy {
    *
    * The base member list comes from the engagements database, while member
    * profile/contact fields and project names are resolved directly from the
-   * main reports database so the export stays DB-only.
+   * main reports database so the export stays DB-only. Country resolution
+   * follows the same home-country-first profile fields used by the profile UI
+   * and avoids the stale legacy members.member.country fallback.
    *
    * @returns One row per member with the engagement experience summary fields.
    * @throws Error when the engagements database URL is not configured.
@@ -701,7 +706,7 @@ export class TopcoderReportsService implements OnModuleDestroy {
           this.toOptionalString(member?.first_name) ?? parsedName.firstName,
         lastName:
           this.toOptionalString(member?.last_name) ?? parsedName.lastName,
-        country: this.toOptionalString(member?.country),
+        country: this.resolveEngagementMemberCountry(member),
         emailId:
           this.toOptionalString(member?.email) ?? row.application_email ?? null,
         phoneNumber:
@@ -942,6 +947,24 @@ export class TopcoderReportsService implements OnModuleDestroy {
     });
 
     return membersById;
+  }
+
+  /**
+   * Resolves the report country using the same home-country-first fields the
+   * profile UI uses for member location display.
+   *
+   * @param member DB-backed member enrichment row for the engagement report.
+   * @returns Resolved country name or null when the profile has no known country.
+   */
+  private resolveEngagementMemberCountry(
+    member?: EngagementMemberRow,
+  ): string | null {
+    return (
+      this.toOptionalString(member?.home_country) ??
+      alpha3ToCountryName(member?.home_country_code) ??
+      this.toOptionalString(member?.competition_country) ??
+      alpha3ToCountryName(member?.competition_country_code)
+    );
   }
 
   /**
