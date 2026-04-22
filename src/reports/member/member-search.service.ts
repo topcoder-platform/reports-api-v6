@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { alpha3ToCountryName } from "../../common/country.util";
 import { DbService } from "../../db/db.service";
 import { MemberSearchBodyDto } from "./dto/member-search.dto";
 import {
@@ -19,6 +20,26 @@ type RawMemberRow = {
   matchedSkills: MatchedSkillDto[] | null;
   matchIndex: number;
 };
+
+function formatLocation(location: string): string {
+  const normalizedLocation = String(location || "").trim();
+  if (!normalizedLocation) {
+    return "";
+  }
+
+  const parts = normalizedLocation.split(/\s+/);
+  const lastPart = parts[parts.length - 1];
+  const mappedCountryName = alpha3ToCountryName(lastPart);
+  if (!mappedCountryName) {
+    return normalizedLocation;
+  }
+
+  if (parts.length === 1) {
+    return mappedCountryName;
+  }
+
+  return `${parts.slice(0, -1).join(" ")} ${mappedCountryName}`;
+}
 
 @Injectable()
 export class MemberSearchService {
@@ -288,7 +309,7 @@ WHERE ${whereClause}`;
       isRecentlyActive: row.isRecentlyActive ?? false,
       isVerified: row.isVerified ?? false,
       openToWork: row.openToWork ?? false,
-      location: row.location || "",
+      location: formatLocation(row.location),
       matchedSkills: row.matchedSkills ?? [],
       matchIndex: row.matchIndex ?? 0,
     }));
