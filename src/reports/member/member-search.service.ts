@@ -31,7 +31,7 @@ export class MemberSearchService {
       openToWork,
       recentlyActive,
       verifiedProfile,
-      country,
+      countries,
       sortBy = "matchIndex",
       sortOrder = "desc",
       page = 1,
@@ -201,10 +201,24 @@ member_address AS (
       );
     }
 
-    if (country) {
-      const pCountry = p(country);
+    const normalizedCountries = Array.isArray(countries)
+      ? [
+          ...new Set(
+            countries
+              .map((value) => String(value).trim().toLowerCase())
+              .filter(Boolean),
+          ),
+        ]
+      : [];
+
+    if (normalizedCountries.length > 0) {
+      const pCountries = p(normalizedCountries);
       where.push(
-        `(LOWER(m."homeCountryCode") = LOWER(${pCountry}) OR LOWER(m."competitionCountryCode") = LOWER(${pCountry}) OR LOWER(m.country) = LOWER(${pCountry}))`,
+        `(
+          LOWER(m."homeCountryCode") = ANY(${pCountries}::text[])
+          OR LOWER(m."competitionCountryCode") = ANY(${pCountries}::text[])
+          OR LOWER(m.country) = ANY(${pCountries}::text[])
+        )`,
       );
     }
 
