@@ -7,6 +7,9 @@ WITH input_handles AS (
 SELECT
   ih.handle_input AS "handle",
   u.user_id AS "userId",
+  NULLIF(TRIM(mem."firstName"), '') AS "firstName",
+  NULLIF(TRIM(mem."lastName"), '') AS "lastName",
+  NULLIF(TRIM(ph.phone_number::text), '') AS "contactNumber",
   pe.address AS "email",
   COALESCE(
     NULLIF(BTRIM(mem."competitionCountryCode"), ''),
@@ -23,6 +26,18 @@ LEFT JOIN LATERAL (
   ORDER BY COALESCE(e.primary_ind, 0) DESC, e.email_id ASC
   LIMIT 1
 ) AS pe
+  ON TRUE
+LEFT JOIN LATERAL (
+  SELECT p."number" AS phone_number
+  FROM members."memberPhone" AS p
+  WHERE p."userId" = u.user_id
+    AND NULLIF(TRIM(p."number"::text), '') IS NOT NULL
+  ORDER BY
+    (p."type" = 'HOME') DESC,
+    p."createdAt" DESC NULLS LAST,
+    p."id" ASC
+  LIMIT 1
+) AS ph
   ON TRUE
 LEFT JOIN members."member" AS mem
   ON mem."userId" = u.user_id
