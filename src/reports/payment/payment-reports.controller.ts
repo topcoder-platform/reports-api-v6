@@ -6,8 +6,8 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { TopcoderReportsService } from "../topcoder/topcoder-reports.service";
-import { MemberPaymentAccrualQueryDto } from "../topcoder/dto/member-payment-accrual.dto";
+import { PaymentReportsService } from "./payment-reports.service";
+import { MemberPaymentAccrualQueryDto } from "./dto/member-payment-accrual.dto";
 import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.interceptor";
 import { AdminPaymentReportsGuard } from "./guards/admin-payment-reports.guard";
 
@@ -17,7 +17,7 @@ import { AdminPaymentReportsGuard } from "./guards/admin-payment-reports.guard";
 @UseInterceptors(CsvResponseInterceptor)
 @Controller()
 export class PaymentReportsController {
-  constructor(private readonly reports: TopcoderReportsService) {}
+  constructor(private readonly reports: PaymentReportsService) {}
 
   @Get("/payment/member-payment-accrual")
   @ApiOperation({

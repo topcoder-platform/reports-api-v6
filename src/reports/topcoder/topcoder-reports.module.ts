@@ -15,6 +15,5 @@ import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.i
     CsvSerializer,
     CsvResponseInterceptor,
   ],
-  exports: [TopcoderReportsService],
 })
 export class TopcoderReportsModule {}
