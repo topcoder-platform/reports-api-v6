@@ -315,6 +315,12 @@ describe("SfdcReportsService - getPaymentsReport", () => {
       "WHEN w.category = 'ENGAGEMENT_PAYMENT' THEN ea.\"engagementId\"",
     );
     expect(paymentsSql).toContain(
+      "WHEN w.category = 'ENGAGEMENT_PAYMENT' THEN 'COMPLETED'",
+    );
+    expect(paymentsSql).toContain(
+      "reported_challenge_status::text = ANY($11::text[])",
+    );
+    expect(paymentsSql).toContain(
       "($3::text[] IS NULL AND $4::text[] IS NULL)",
     );
     expect(paymentsSql).toContain(
@@ -354,7 +360,7 @@ describe("SfdcReportsService - getPaymentsReport", () => {
       expect.objectContaining({
         category: "ENGAGEMENT_PAYMENT",
         challengeName: "Customer Support Engagement",
-        challengeStatus: null,
+        challengeStatus: "Completed",
       }),
       expect.objectContaining({
         category: "CHALLENGE_PAYMENT",

@@ -172,7 +172,10 @@ export const normalizedChallengeData = mockChallengeData.map((challenge) => ({
 
 export const normalizedPaymentData = mockPaymentData.map((payment) => ({
   ...payment,
-  challengeStatus: normalizeChallengeStatus(payment.challengeStatus),
+  challengeStatus:
+    payment.category === "ENGAGEMENT_PAYMENT"
+      ? "Completed"
+      : normalizeChallengeStatus(payment.challengeStatus),
 }));
 
 export const mockBaFeesData: BaFeesReportResponse[] = [

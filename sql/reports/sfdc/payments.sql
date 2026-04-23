@@ -20,6 +20,10 @@ WITH resolved_payment_references AS (
             ELSE c.name
         END AS challenge_name,
         c.status AS challenge_status,
+        CASE
+            WHEN w.category = 'ENGAGEMENT_PAYMENT' THEN 'COMPLETED'
+            ELSE c.status
+        END AS reported_challenge_status,
         m.handle,
         m."userId",
         m."firstName",
@@ -49,7 +53,7 @@ SELECT
     category,
     (category = 'TASK_PAYMENT') AS "isTask",
     challenge_name AS "challengeName",
-    challenge_status AS "challengeStatus",
+    reported_challenge_status AS "challengeStatus",
     handle AS "winnerHandle",
     "userId" as "winnerId",
     "firstName" as "winnerFirstName",
@@ -73,6 +77,6 @@ WHERE
     AND ($8::timestamptz IS NULL OR created_at <= $8::timestamptz)
     AND ($9::numeric IS NULL OR total_amount >= $9::numeric)
     AND ($10::numeric IS NULL OR total_amount <= $10::numeric)
-    AND ($11::text[] IS NULL OR challenge_status::text = ANY($11::text[]))
+    AND ($11::text[] IS NULL OR reported_challenge_status::text = ANY($11::text[]))
     AND ($12::text[] IS NULL OR payment_status::text = ANY($12::text[]))
 ORDER BY created_at DESC

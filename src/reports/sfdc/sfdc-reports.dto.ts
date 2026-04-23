@@ -343,7 +343,7 @@ export class PaymentsReportResponse {
   paymentAmount: number;
   @ApiProperty({
     description:
-      'Challenge status from challenges."Challenge".status. Null for ENGAGEMENT_PAYMENT rows and challenge-backed rows whose external reference cannot be resolved.',
+      "Normalized challenge status label for challenge-backed payments. ENGAGEMENT_PAYMENT rows are always reported as Completed; challenge-backed rows whose external reference cannot be resolved remain null.",
     nullable: true,
     type: String,
   })
