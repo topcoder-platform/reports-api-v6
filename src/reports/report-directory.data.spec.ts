@@ -6,11 +6,19 @@ import {
 
 describe("getAccessibleReportsDirectory", () => {
   it("returns the full directory for administrators", () => {
-    expect(
-      getAccessibleReportsDirectory({
-        roles: [AdminRoles.Admin],
-      }),
-    ).toEqual(REPORTS_DIRECTORY);
+    const directory = getAccessibleReportsDirectory({
+      roles: [AdminRoles.Admin],
+    });
+
+    expect(directory).toEqual(REPORTS_DIRECTORY);
+    expect(directory.payment?.reports.map((report) => report.path)).toEqual([
+      "/payment/member-payment-accrual",
+      "/payment/member-payment-accrual-taas",
+      "/payment/member-payment-accrual-topgear",
+      "/payment/member-payment-accrual-engagement",
+      "/payment/member-payment-accrual-task",
+      "/payment/member-payment-accrual-challenge",
+    ]);
   });
 
   it("returns public reports plus all challenge reports for product managers", () => {
@@ -85,13 +93,11 @@ describe("getAccessibleReportsDirectory", () => {
     expect(
       directory.topcoder?.reports.map((report) => report.path),
     ).not.toContain("/topcoder/member-payment-accrual");
+    expect(directory.payment).toBeUndefined();
     expect(directory.member?.reports.map((report) => report.path)).toEqual([
       "/member/engagement-data",
       "/member/recent-member-data",
       "/member/search",
-    ]);
-    expect(directory.admin?.reports.map((report) => report.path)).toEqual([
-      "/admin/member-payment-accrual",
     ]);
   });
 

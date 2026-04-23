@@ -555,11 +555,16 @@ export class TopcoderReportsService implements OnModuleDestroy {
     }));
   }
 
-  async getMemberPaymentAccrual(startDate?: string, endDate?: string) {
+  async getMemberPaymentAccrual(
+    startDate?: string,
+    endDate?: string,
+    paymentTypes?: string[],
+  ) {
     const query = this.sql.load("reports/topcoder/member-payment-accrual.sql");
     const rows = await this.db.query<MemberPaymentAccrualRow>(query, [
       startDate ?? null,
       endDate ?? null,
+      paymentTypes?.length ? paymentTypes : null,
     ]);
     return rows.map((row) => ({
       paymentCreatedAt: this.normalizeDate(row.payment_created_at),

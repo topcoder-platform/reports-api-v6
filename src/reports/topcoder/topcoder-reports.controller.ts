@@ -10,7 +10,6 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { TopcoderReportsService } from "./topcoder-reports.service";
 import { ChallengeSubmitterDataQueryDto } from "./dto/challenge-submitter-data.dto";
 import { RegistrantCountriesQueryDto } from "./dto/registrant-countries.dto";
-import { MemberPaymentAccrualQueryDto } from "./dto/member-payment-accrual.dto";
 import { RecentMemberDataQueryDto } from "./dto/recent-member-data.dto";
 import { WeeklyMemberParticipationQueryDto } from "./dto/weekly-member-participation.dto";
 import { CompletedProfilesQueryDto } from "./dto/completed-profiles.dto";
@@ -86,16 +85,6 @@ export class TopcoderReportsController {
   ) {
     const { startDate, endDate } = query;
     return this.reports.getWeeklyMemberParticipation(startDate, endDate);
-  }
-
-  @Get("/admin/member-payment-accrual")
-  @ApiOperation({
-    summary:
-      "Member payment accruals for the provided date range (defaults to last 3 months)",
-  })
-  getMemberPaymentAccrual(@Query() query: MemberPaymentAccrualQueryDto) {
-    const { startDate, endDate } = query;
-    return this.reports.getMemberPaymentAccrual(startDate, endDate);
   }
 
   @Get("/member/recent-member-data")
