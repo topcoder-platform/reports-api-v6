@@ -136,6 +136,9 @@ export const mockPaymentQueryDto: Record<string, PaymentsReportQueryDto> = {
   withExclusions: {
     billingAccountIds: ["80001012", "!90000000"],
   },
+  engagement: {
+    engagementIds: ["3cf4ec0b-47e5-4d96-b4c3-ef6af5b0f954"],
+  },
   challengeStatus: {
     challengeStatus: ["COMPLETED"],
   },
@@ -148,6 +151,7 @@ export const mockPaymentQueryDto: Record<string, PaymentsReportQueryDto> = {
   full: {
     billingAccountIds: ["80001012", "!90000000"],
     challengeIds: ["e74c3e37-73c9-474e-a838-a38dd4738906"],
+    engagementIds: ["3cf4ec0b-47e5-4d96-b4c3-ef6af5b0f954"],
     handles: ["user_01", "user_02"],
     challengeName: "Customer Support Engagement",
     startDate: "2023-01-01T00:00:00.000Z",

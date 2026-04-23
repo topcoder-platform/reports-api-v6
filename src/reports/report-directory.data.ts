@@ -225,7 +225,14 @@ const challengeNameParam: ReportParameter = {
 const challengeIdsParam: ReportParameter = {
   name: "challengeIds",
   type: "string[]",
-  description: "List of challenge IDs",
+  description: "List of challenge IDs for challenge-backed payments",
+  location: "query",
+};
+
+const engagementIdsParam: ReportParameter = {
+  name: "engagementIds",
+  type: "string[]",
+  description: "List of engagement IDs for engagement-backed payments",
   location: "query",
 };
 
@@ -270,6 +277,7 @@ const paymentsFilters = [
   billingAccountIdsParam,
   challengeNameParam,
   challengeIdsParam,
+  engagementIdsParam,
   paymentsStartDateParam,
   paymentsEndDateParam,
   handlesParam,
