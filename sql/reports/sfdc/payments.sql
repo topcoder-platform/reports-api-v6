@@ -13,6 +13,9 @@ WITH resolved_payment_references AS (
             WHEN w.category IS DISTINCT FROM 'ENGAGEMENT_PAYMENT' THEN w.external_id
         END AS challenge_filter_id,
         CASE
+            WHEN w.category = 'ENGAGEMENT_PAYMENT' THEN ea."engagementId"
+        END AS engagement_filter_id,
+        CASE
             WHEN w.category = 'ENGAGEMENT_PAYMENT' THEN e.title
             ELSE c.name
         END AS challenge_name,
@@ -55,17 +58,21 @@ FROM resolved_payment_references
 WHERE 
     ($1::text[] IS NULL OR billing_account = ANY($1::text[]))
     AND ($2::text[] IS NULL OR billing_account <> ANY($2::text[]))
-    AND ($3::text[] IS NULL OR challenge_filter_id = ANY($3::text[]))
-    AND ($4::text[] IS NULL OR winner_id::text IN (
+    AND (
+        ($3::text[] IS NULL AND $4::text[] IS NULL)
+        OR ($3::text[] IS NOT NULL AND challenge_filter_id = ANY($3::text[]))
+        OR ($4::text[] IS NOT NULL AND engagement_filter_id = ANY($4::text[]))
+    )
+    AND ($5::text[] IS NULL OR winner_id::text IN (
         SELECT m2."userId"::text
         FROM members.member m2
-        WHERE m2.handle = ANY($4::text[])
+        WHERE m2.handle = ANY($5::text[])
     ))
-    AND ($5::text IS NULL OR challenge_name ILIKE '%' || $5 || '%')
-    AND created_at >= COALESCE($6::timestamptz, (NOW() AT TIME ZONE 'UTC') - INTERVAL '45 days')
-    AND ($7::timestamptz IS NULL OR created_at <= $7::timestamptz)
-    AND ($8::numeric IS NULL OR total_amount >= $8::numeric)
-    AND ($9::numeric IS NULL OR total_amount <= $9::numeric)
-    AND ($10::text[] IS NULL OR challenge_status::text = ANY($10::text[]))
-    AND ($11::text[] IS NULL OR payment_status::text = ANY($11::text[]))
+    AND ($6::text IS NULL OR challenge_name ILIKE '%' || $6 || '%')
+    AND created_at >= COALESCE($7::timestamptz, (NOW() AT TIME ZONE 'UTC') - INTERVAL '45 days')
+    AND ($8::timestamptz IS NULL OR created_at <= $8::timestamptz)
+    AND ($9::numeric IS NULL OR total_amount >= $9::numeric)
+    AND ($10::numeric IS NULL OR total_amount <= $10::numeric)
+    AND ($11::text[] IS NULL OR challenge_status::text = ANY($11::text[]))
+    AND ($12::text[] IS NULL OR payment_status::text = ANY($12::text[]))
 ORDER BY created_at DESC

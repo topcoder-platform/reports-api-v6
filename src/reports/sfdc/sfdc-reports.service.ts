@@ -115,6 +115,7 @@ export class SfdcReportsService {
       billingAccountIds.length ? billingAccountIds : undefined,
       excludeBillingAccountIds.length ? excludeBillingAccountIds : undefined,
       filters.challengeIds,
+      filters.engagementIds,
       filters.handles,
       filters.challengeName,
       filters.startDate,
