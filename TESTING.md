@@ -60,6 +60,7 @@ it('passes all filters in correct order', async () => {
   await service.getPaymentsReport({
     billingAccountIds: ['12345'],
     challengeIds: ['uuid1'],
+    engagementIds: ['engagement-uuid1'],
     handles: ['user1'],
     challengeName: 'Task',
     startDate: '2023-01-01',
@@ -73,12 +74,13 @@ it('passes all filters in correct order', async () => {
     ['12345'], // include billing accounts
     undefined,  // exclude billing accounts
     ['uuid1'],  // challenge IDs
-    ['user1'],  // handles
-    'Task',     // challenge name
+    ['engagement-uuid1'], // engagement IDs
+    ['user1'], // handles
+    'Task', // challenge name
     '2023-01-01', // start date
     '2023-12-31', // end date
-    100,        // min amount
-    1000,       // max amount
+    100, // min amount
+    1000, // max amount
     ['COMPLETED'] // challenge status
   ]);
 });

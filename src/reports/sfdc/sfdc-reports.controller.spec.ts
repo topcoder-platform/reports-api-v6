@@ -168,6 +168,7 @@ describe("SfdcReportsController", () => {
       const dto = plainToInstance(PaymentsReportQueryDto, {
         billingAccountIds: "80001012,80002012",
         challengeIds: "e74c3e37-73c9-474e-a838-a38dd4738906",
+        engagementIds: "3cf4ec0b-47e5-4d96-b4c3-ef6af5b0f954",
         handles: "user_01",
         challengeStatus: "COMPLETED",
         status: "ON_HOLD",
@@ -179,6 +180,7 @@ describe("SfdcReportsController", () => {
         expect.objectContaining({
           billingAccountIds: ["80001012", "80002012"],
           challengeIds: ["e74c3e37-73c9-474e-a838-a38dd4738906"],
+          engagementIds: ["3cf4ec0b-47e5-4d96-b4c3-ef6af5b0f954"],
           handles: ["user_01"],
           challengeStatus: ["COMPLETED"],
           status: ["ON_HOLD"],

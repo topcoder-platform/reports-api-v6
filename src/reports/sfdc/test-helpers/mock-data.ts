@@ -83,7 +83,7 @@ export const mockPaymentData: PaymentsReportResponse[] = [
     challengeFee: 150.75,
     paymentAmount: 500,
     challengeId: "e74c3e37-73c9-474e-a838-a38dd4738906",
-    category: "Challenge Prizes",
+    category: "CHALLENGE_PAYMENT",
     isTask: false,
     challengeName: "Sample Challenge 1",
     challengeStatus: "COMPLETED",
@@ -99,11 +99,11 @@ export const mockPaymentData: PaymentsReportResponse[] = [
     paymentStatus: "Owed",
     challengeFee: 90.25,
     paymentAmount: 350,
-    challengeId: "8d4a1ce9-6a58-4bf2-8c3b-c57a8b3a3f92",
-    category: "Task Payments",
-    isTask: true,
-    challengeName: "Task Payment for member",
-    challengeStatus: "ACTIVE",
+    challengeId: "915739d5-d6c8-4699-9e58-bbb2118f8c4e",
+    category: "ENGAGEMENT_PAYMENT",
+    isTask: false,
+    challengeName: "Customer Support Engagement",
+    challengeStatus: null,
     winnerHandle: "user_02",
     winnerId: "654321",
     winnerFirstName: "Jane",
@@ -117,11 +117,11 @@ export const mockPaymentData: PaymentsReportResponse[] = [
     challengeFee: 120,
     paymentAmount: 425.5,
     challengeId: "6bc7a37d-37ad-4c52-a2f0-71fa2c84e6e3",
-    category: "Marathon Match",
+    category: "CHALLENGE_PAYMENT",
     isTask: false,
-    challengeName: "Algo Payment",
-    challengeStatus: null as unknown as string,
-    winnerHandle: "user_cancel",
+    challengeName: null,
+    challengeStatus: null,
+    winnerHandle: "user_orphaned_challenge",
     winnerId: "789012",
     winnerFirstName: "Alex",
     winnerLastName: "Johnson",
@@ -136,11 +136,14 @@ export const mockPaymentQueryDto: Record<string, PaymentsReportQueryDto> = {
   withExclusions: {
     billingAccountIds: ["80001012", "!90000000"],
   },
+  engagement: {
+    engagementIds: ["3cf4ec0b-47e5-4d96-b4c3-ef6af5b0f954"],
+  },
   challengeStatus: {
     challengeStatus: ["COMPLETED"],
   },
-  nullChallengeStatus: {
-    challengeStatus: [null as unknown as string],
+  orphanedChallenge: {
+    challengeIds: ["6bc7a37d-37ad-4c52-a2f0-71fa2c84e6e3"],
   },
   paymentStatus: {
     status: ["ON_HOLD"],
@@ -148,8 +151,9 @@ export const mockPaymentQueryDto: Record<string, PaymentsReportQueryDto> = {
   full: {
     billingAccountIds: ["80001012", "!90000000"],
     challengeIds: ["e74c3e37-73c9-474e-a838-a38dd4738906"],
+    engagementIds: ["3cf4ec0b-47e5-4d96-b4c3-ef6af5b0f954"],
     handles: ["user_01", "user_02"],
-    challengeName: "Task Payment for member",
+    challengeName: "Customer Support Engagement",
     startDate: "2023-01-01T00:00:00.000Z",
     endDate: "2023-03-01T00:00:00.000Z",
     minPaymentAmount: 100,
@@ -168,7 +172,10 @@ export const normalizedChallengeData = mockChallengeData.map((challenge) => ({
 
 export const normalizedPaymentData = mockPaymentData.map((payment) => ({
   ...payment,
-  challengeStatus: normalizeChallengeStatus(payment.challengeStatus) as string,
+  challengeStatus:
+    payment.category === "ENGAGEMENT_PAYMENT"
+      ? "Completed"
+      : normalizeChallengeStatus(payment.challengeStatus),
 }));
 
 export const mockBaFeesData: BaFeesReportResponse[] = [

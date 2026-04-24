@@ -92,7 +92,7 @@ describe("MemberSearchService", () => {
       .mockResolvedValueOnce([{ total: 0 }]);
 
     await service.search({
-      country: "us",
+      countries: ["us"],
       page: 2,
       limit: 5,
       sortBy: "handle",
@@ -106,8 +106,43 @@ describe("MemberSearchService", () => {
     expect(dataSql).toContain(
       'ORDER BY m.handle ASC, "matchIndex" DESC NULLS LAST',
     );
-    expect(dataParams).toEqual(["us", 5, 5]);
-    expect(countParams).toEqual(["us"]);
+    expect(dataSql).toContain('LOWER(m."homeCountryCode") = ANY($1::text[])');
+    expect(dataParams).toEqual([["us"], 5, 5]);
+    expect(countParams).toEqual([["us"]]);
+  });
+
+  it("treats empty countries as no country filter", async () => {
+    mockDbService.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: 0 }]);
+
+    await service.search({ countries: [] });
+
+    const dataSql = mockDbService.query.mock.calls[0][0] as string;
+    const countParams = mockDbService.query.mock.calls[1][1] as unknown[];
+
+    expect(dataSql).not.toContain('LOWER(m."homeCountryCode") = ANY(');
+    expect(countParams).toEqual([]);
+  });
+
+  it("does not apply boolean filters when explicitly false", async () => {
+    mockDbService.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: 0 }]);
+
+    await service.search({
+      openToWork: false,
+      recentlyActive: false,
+      verifiedProfile: false,
+    });
+
+    const dataSql = mockDbService.query.mock.calls[0][0] as string;
+
+    expect(dataSql).not.toContain('m."availableForGigs" = true');
+    expect(dataSql).not.toContain(
+      'EXISTS (SELECT 1 FROM recently_active ra WHERE ra.user_id = m."userId")',
+    );
+    expect(dataSql).not.toContain("COALESCE(m.verified, false) = true");
   });
 
   it("deduplicates skills and keeps last wins value when building skill query", async () => {

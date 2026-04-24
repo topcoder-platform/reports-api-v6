@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { alpha3ToCountryName } from "../../common/country.util";
 import { DbService } from "../../db/db.service";
 import { MemberSearchBodyDto } from "./dto/member-search.dto";
 import {
@@ -20,6 +21,26 @@ type RawMemberRow = {
   matchIndex: number;
 };
 
+function formatLocation(location: string): string {
+  const normalizedLocation = String(location || "").trim();
+  if (!normalizedLocation) {
+    return "";
+  }
+
+  const parts = normalizedLocation.split(/\s+/);
+  const lastPart = parts[parts.length - 1];
+  const mappedCountryName = alpha3ToCountryName(lastPart);
+  if (!mappedCountryName) {
+    return normalizedLocation;
+  }
+
+  if (parts.length === 1) {
+    return mappedCountryName;
+  }
+
+  return `${parts.slice(0, -1).join(" ")}, ${mappedCountryName}`;
+}
+
 @Injectable()
 export class MemberSearchService {
   constructor(private readonly db: DbService) {}
@@ -31,7 +52,7 @@ export class MemberSearchService {
       openToWork,
       recentlyActive,
       verifiedProfile,
-      country,
+      countries,
       sortBy = "matchIndex",
       sortOrder = "desc",
       page = 1,
@@ -185,26 +206,40 @@ member_address AS (
     // ------------------------------------------------- dynamic WHERE
     const where: string[] = [`m.status = 'ACTIVE'`];
 
-    if (typeof openToWork === "boolean") {
+    if (openToWork === true) {
       where.push(`m."availableForGigs" = true`);
     }
 
-    if (typeof recentlyActive === "boolean") {
+    if (recentlyActive === true) {
       where.push(
         `EXISTS (SELECT 1 FROM recently_active ra WHERE ra.user_id = m."userId")`,
       );
     }
 
-    if (typeof verifiedProfile === "boolean") {
+    if (verifiedProfile === true) {
       where.push(
         `(COALESCE(m.verified, false) = true OR EXISTS (SELECT 1 FROM verified_via_trolley vt WHERE vt.user_id = m."userId"))`,
       );
     }
 
-    if (country) {
-      const pCountry = p(country);
+    const normalizedCountries = Array.isArray(countries)
+      ? [
+          ...new Set(
+            countries
+              .map((value) => String(value).trim().toLowerCase())
+              .filter(Boolean),
+          ),
+        ]
+      : [];
+
+    if (normalizedCountries.length > 0) {
+      const pCountries = p(normalizedCountries);
       where.push(
-        `(LOWER(m."homeCountryCode") = LOWER(${pCountry}) OR LOWER(m."competitionCountryCode") = LOWER(${pCountry}) OR LOWER(m.country) = LOWER(${pCountry}))`,
+        `(
+          LOWER(m."homeCountryCode") = ANY(${pCountries}::text[])
+          OR LOWER(m."competitionCountryCode") = ANY(${pCountries}::text[])
+          OR LOWER(m.country) = ANY(${pCountries}::text[])
+        )`,
       );
     }
 
@@ -274,7 +309,7 @@ WHERE ${whereClause}`;
       isRecentlyActive: row.isRecentlyActive ?? false,
       isVerified: row.isVerified ?? false,
       openToWork: row.openToWork ?? false,
-      location: row.location || "",
+      location: formatLocation(row.location),
       matchedSkills: row.matchedSkills ?? [],
       matchIndex: row.matchIndex ?? 0,
     }));
