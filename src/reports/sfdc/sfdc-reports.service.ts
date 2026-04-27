@@ -115,6 +115,7 @@ export class SfdcReportsService {
       billingAccountIds.length ? billingAccountIds : undefined,
       excludeBillingAccountIds.length ? excludeBillingAccountIds : undefined,
       filters.challengeIds,
+      filters.engagementIds,
       filters.handles,
       filters.challengeName,
       filters.startDate,
@@ -129,7 +130,10 @@ export class SfdcReportsService {
 
     return payments.map((payment) => ({
       ...payment,
-      challengeStatus: normalizeChallengeStatus(payment.challengeStatus),
+      challengeStatus:
+        payment.category === "ENGAGEMENT_PAYMENT"
+          ? "Completed"
+          : normalizeChallengeStatus(payment.challengeStatus),
     }));
   }
 

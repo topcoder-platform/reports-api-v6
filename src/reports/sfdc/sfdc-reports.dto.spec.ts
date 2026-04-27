@@ -232,6 +232,7 @@ describe("PaymentsReportQueryDto validation", () => {
     const { errors } = await validatePaymentDto({
       billingAccountIds: ["80001012", "!90000000"],
       challengeIds: ["e74c3e37-73c9-474e-a838-a38dd4738906"],
+      engagementIds: ["3cf4ec0b-47e5-4d96-b4c3-ef6af5b0f954"],
       handles: ["user_01", "user_02"],
       challengeName: "Task Payment for member",
       startDate: "2023-01-01T00:00:00.000Z",
@@ -295,6 +296,28 @@ describe("PaymentsReportQueryDto validation", () => {
     });
     expect(errors).toHaveLength(0);
     expect(dto.challengeIds).toEqual(["uuid1"]);
+  });
+
+  it("accepts valid engagementIds", async () => {
+    const { errors } = await validatePaymentDto({
+      engagementIds: ["uuid1", "uuid2"],
+    });
+    expect(errors).toHaveLength(0);
+  });
+
+  it("drops empty engagementIds entries during transform", async () => {
+    const { dto, errors } = await validatePaymentDto({ engagementIds: [""] });
+    expect(errors).toHaveLength(0);
+    expect(dto.engagementIds).toEqual([]);
+  });
+
+  it("transforms single engagementId into array", async () => {
+    const { dto, errors } = await validatePaymentDto({
+      // @ts-expect-error intentional single value for transform check
+      engagementIds: "uuid1",
+    });
+    expect(errors).toHaveLength(0);
+    expect(dto.engagementIds).toEqual(["uuid1"]);
   });
 
   it("accepts valid handles", async () => {

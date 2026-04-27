@@ -60,7 +60,8 @@ export class SfdcReportsController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: "SFDC Payments report",
-    description: "",
+    description:
+      "Retrieve SFDC payments with billing account, challenge, engagement, handle, payment status, and challenge status filters.",
   })
   @ApiResponse({
     status: 200,

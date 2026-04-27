@@ -28,23 +28,6 @@ type MarathonMatchStatsRow = {
   marathon_submission_rate: string | number | null;
 };
 
-type MemberPaymentAccrualRow = {
-  payment_created_at: Date | string | null;
-  payment_id: string | null;
-  payment_description: string | null;
-  challenge_id: string | null;
-  payment_status: string | null;
-  payment_type: string | null;
-  payee_handle: string | null;
-  payment_method: string | null;
-  billing_account_name: string | null;
-  customer_name: string | null;
-  reporting_account_name: string | null;
-  member_id: string | null;
-  challenge_created_date: string | null;
-  user_payment_gross_amount: string | number | null;
-};
-
 type RecentMemberDataRow = {
   handle: string | null;
   email: string | null;
@@ -551,32 +534,6 @@ export class TopcoderReportsService implements OnModuleDestroy {
       ),
       "challenge_stats.count_distinct_submitter": Number(
         row["challenge_stats.count_distinct_submitter"] ?? 0,
-      ),
-    }));
-  }
-
-  async getMemberPaymentAccrual(startDate?: string, endDate?: string) {
-    const query = this.sql.load("reports/topcoder/member-payment-accrual.sql");
-    const rows = await this.db.query<MemberPaymentAccrualRow>(query, [
-      startDate ?? null,
-      endDate ?? null,
-    ]);
-    return rows.map((row) => ({
-      paymentCreatedAt: this.normalizeDate(row.payment_created_at),
-      paymentId: row.payment_id ?? null,
-      paymentDescription: row.payment_description ?? null,
-      challengeId: row.challenge_id ?? null,
-      paymentStatus: row.payment_status ?? null,
-      paymentType: row.payment_type ?? null,
-      payeeHandle: row.payee_handle ?? null,
-      payeePaymentMethod: row.payment_method ?? null,
-      billingAccountName: row.billing_account_name ?? null,
-      customerName: row.customer_name ?? null,
-      reportingAccountName: row.reporting_account_name ?? null,
-      memberId: row.member_id ?? null,
-      challengeCreatedAt: row.challenge_created_date ?? null,
-      userPaymentGrossAmount: this.toNullableNumber(
-        row.user_payment_gross_amount,
       ),
     }));
   }

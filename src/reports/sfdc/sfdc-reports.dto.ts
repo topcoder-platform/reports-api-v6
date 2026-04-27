@@ -218,7 +218,7 @@ export class PaymentsReportQueryDto {
   @ApiProperty({
     required: false,
     description:
-      "List of challenge IDs for challenge-backed payments only. ENGAGEMENT_PAYMENT rows are not matched by engagement assignment ID through this filter.",
+      "List of challenge IDs for challenge-backed payments only. Use engagementIds to filter ENGAGEMENT_PAYMENT rows by engagement.",
     example: ["e74c3e37-73c9-474e-a838-a38dd4738906"],
   })
   @IsOptional()
@@ -226,6 +226,18 @@ export class PaymentsReportQueryDto {
   @IsNotEmpty({ each: true })
   @Transform(transformArray)
   challengeIds?: string[];
+
+  @ApiProperty({
+    required: false,
+    description:
+      'List of engagement IDs for ENGAGEMENT_PAYMENT rows only. This matches engagements."EngagementAssignment"."engagementId", not finance.winnings.external_id.',
+    example: ["3cf4ec0b-47e5-4d96-b4c3-ef6af5b0f954"],
+  })
+  @IsOptional()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  @Transform(transformArray)
+  engagementIds?: string[];
 
   @ApiProperty({
     required: false,
@@ -331,7 +343,7 @@ export class PaymentsReportResponse {
   paymentAmount: number;
   @ApiProperty({
     description:
-      'Challenge status from challenges."Challenge".status. Null for ENGAGEMENT_PAYMENT rows and challenge-backed rows whose external reference cannot be resolved.',
+      "Normalized challenge status label for challenge-backed payments. ENGAGEMENT_PAYMENT rows are always reported as Completed; challenge-backed rows whose external reference cannot be resolved remain null.",
     nullable: true,
     type: String,
   })

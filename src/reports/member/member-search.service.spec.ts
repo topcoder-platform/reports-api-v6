@@ -106,9 +106,7 @@ describe("MemberSearchService", () => {
     expect(dataSql).toContain(
       'ORDER BY m.handle ASC, "matchIndex" DESC NULLS LAST',
     );
-    expect(dataSql).toContain(
-      'LOWER(m."homeCountryCode") = ANY($1::text[])',
-    );
+    expect(dataSql).toContain('LOWER(m."homeCountryCode") = ANY($1::text[])');
     expect(dataParams).toEqual([["us"], 5, 5]);
     expect(countParams).toEqual([["us"]]);
   });
