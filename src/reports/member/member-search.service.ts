@@ -291,6 +291,7 @@ member_address AS (
           OR (
             mtp2.value::jsonb ? 'availability'
             AND mtp2.value::jsonb ? 'preferredRoles'
+            AND jsonb_typeof(mtp2.value::jsonb -> 'preferredRoles') = 'array'
             AND jsonb_array_length(mtp2.value::jsonb -> 'preferredRoles') > 0
           )
         )
@@ -360,8 +361,7 @@ LIMIT ${pLimit} OFFSET ${pOffset}`;
     const countQuery = `
 WITH ${ctesBlock}
 SELECT COUNT(*)::integer AS total
-FROM filtered_members fm
-${profileComplete === true ? `INNER JOIN profile_complete_filtered pcf ON pcf.user_id = fm.user_id` : ""}`;
+FROM ${profileComplete === true ? "profile_complete_filtered pcf" : "filtered_members fm"}`;
 
     const [rows, countRows] = await Promise.all([
       this.db.query<RawMemberRow>(dataQuery, params),
