@@ -1,7 +1,10 @@
 import "reflect-metadata";
 import { BadRequestException } from "@nestjs/common";
+import { INTERCEPTORS_METADATA } from "@nestjs/common/constants";
 import { Test, TestingModule } from "@nestjs/testing";
 import { plainToInstance } from "class-transformer";
+import { CsvSerializer } from "../../common/csv/csv-serializer";
+import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.interceptor";
 import {
   BaFeesReportQueryDto,
   ChallengesReportQueryDto,
@@ -55,6 +58,8 @@ describe("SfdcReportsController", () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [SfdcReportsController],
       providers: [
+        CsvSerializer,
+        CsvResponseInterceptor,
         {
           provide: SfdcReportsService,
           useValue: mockSfdcReportsService,
@@ -67,6 +72,13 @@ describe("SfdcReportsController", () => {
 
   it("compiles the controller", () => {
     expect(controller).toBeDefined();
+  });
+
+  it("enables CSV response serialization for report downloads", () => {
+    const interceptors =
+      Reflect.getMetadata(INTERCEPTORS_METADATA, SfdcReportsController) ?? [];
+
+    expect(interceptors).toContain(CsvResponseInterceptor);
   });
 
   it("returns the challenges report on success", async () => {
@@ -626,11 +638,8 @@ describe("SfdcReportsController", () => {
 
       await controller.getBaFeesReport(mockBaFeesQueryDto.byBillingAccount);
 
-      expect(mockSfdcReportsService.getBaFeesReport).toHaveBeenCalledWith(
-        expect.objectContaining({
-          groupBy: undefined,
-        }),
-      );
+      const [query] = mockSfdcReportsService.getBaFeesReport.mock.calls[0];
+      expect(query.groupBy).toBeUndefined();
     });
   });
 });

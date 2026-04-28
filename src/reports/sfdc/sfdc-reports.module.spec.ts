@@ -1,5 +1,8 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { CsvResponseInterceptor } from "src/common/interceptors/csv-response.interceptor";
+import { CsvSerializer } from "src/common/csv/csv-serializer";
 import { SqlLoaderService } from "src/common/sql-loader.service";
+import { DbModule } from "../../db/db.module";
 import { DbService } from "../../db/db.service";
 import { SfdcReportsController } from "./sfdc-reports.controller";
 import { SfdcReportsModule } from "./sfdc-reports.module";
@@ -23,9 +26,10 @@ describe("SfdcReportsModule", () => {
     mockSqlLoaderService.load.mockReturnValue("SELECT 1");
 
     moduleRef = await Test.createTestingModule({
-      imports: [SfdcReportsModule],
-      providers: [{ provide: DbService, useValue: mockDbService }],
+      imports: [DbModule, SfdcReportsModule],
     })
+      .overrideProvider(DbService)
+      .useValue(mockDbService)
       .overrideProvider(SqlLoaderService)
       .useValue(mockSqlLoaderService)
       .compile();
@@ -41,6 +45,12 @@ describe("SfdcReportsModule", () => {
     expect(moduleRef.get<SqlLoaderService>(SqlLoaderService)).toBe(
       mockSqlLoaderService,
     );
+    expect(moduleRef.get<CsvSerializer>(CsvSerializer)).toBeInstanceOf(
+      CsvSerializer,
+    );
+    expect(
+      moduleRef.get<CsvResponseInterceptor>(CsvResponseInterceptor),
+    ).toBeInstanceOf(CsvResponseInterceptor);
   });
 
   it("injects mocked dependencies into the service", async () => {
