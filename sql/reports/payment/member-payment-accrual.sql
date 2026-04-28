@@ -83,8 +83,10 @@ SELECT
   cl."name" AS customer_name,
   ba."subcontractingEndCustomer" AS reporting_account_name,
   cp.winner_id AS member_id,
-  to_char(c."createdAt", 'YYYY-MM-DD') AS challenge_created_date,
-  cp.gross_amount AS user_payment_gross_amount
+CASE 
+    WHEN cp.payment_type = 'Engagement Payment' THEN to_char(cp.payment_created_at, 'YYYY-MM-DD')
+    ELSE to_char(c."createdAt", 'YYYY-MM-DD')
+  END AS challenge_created_date,  cp.gross_amount AS user_payment_gross_amount
 FROM categorized_payments cp
 LEFT JOIN challenges."Challenge" c
   ON c."id" = cp.challenge_id
