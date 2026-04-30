@@ -23,6 +23,8 @@ import { SfdcReportsService } from "./sfdc-reports.service";
 import {
   BaFeesReportQueryDto,
   BaFeesReportResponse,
+  BillingAccountProfileQueryDto,
+  BillingAccountProfileResponse,
   ChallengesReportQueryDto,
   ChallengesReportResponse,
   PaymentsReportQueryDto,
@@ -81,6 +83,24 @@ export class SfdcReportsController {
   async getPaymentsReport(@Query() query: PaymentsReportQueryDto) {
     const report = await this.reportsService.getPaymentsReport(query);
     return report;
+  }
+
+  @Get("/billing-accounts")
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports, AppScopes.SFDC.PaymentsReport)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Billing account profile",
+    description:
+      "Returns billing account metadata from billing-accounts.BillingAccount when the ID exists.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Billing account profile retrieved successfully",
+    type: ResponseDto<BillingAccountProfileResponse>,
+  })
+  async getBillingAccountProfile(@Query() query: BillingAccountProfileQueryDto) {
+    return this.reportsService.getBillingAccountProfile(query);
   }
 
   @Get("/taas/jobs")
