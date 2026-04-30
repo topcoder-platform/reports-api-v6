@@ -145,6 +145,56 @@ describe("MemberSearchService", () => {
     expect(dataSql).not.toContain("COALESCE(m.verified, false) = true");
   });
 
+  it("adds profileComplete CTE/join only when enabled and keeps count params free of pagination", async () => {
+    mockDbService.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: 0 }]);
+
+    await service.search({
+      countries: ["us"],
+      profileComplete: true,
+      page: 3,
+      limit: 7,
+    });
+
+    const enabledDataSql = mockDbService.query.mock.calls[0][0] as string;
+    const enabledDataParams = mockDbService.query.mock.calls[0][1] as unknown[];
+    const enabledCountSql = mockDbService.query.mock.calls[1][0] as string;
+    const enabledCountParams = mockDbService.query.mock.calls[1][1] as unknown[];
+
+    expect(enabledDataSql).toContain("profile_complete_filtered AS (");
+    expect(enabledDataSql).toContain(
+      "INNER JOIN profile_complete_filtered pcf ON pcf.user_id = m.\"userId\"",
+    );
+    expect(enabledCountSql).toContain("FROM profile_complete_filtered pcf");
+    expect(enabledCountSql).not.toContain(
+      "INNER JOIN profile_complete_filtered pcf ON pcf.user_id = fm.user_id",
+    );
+    expect(enabledDataParams).toEqual([["us"], 7, 14]);
+    expect(enabledCountParams).toEqual([["us"]]);
+
+    mockDbService.query.mockReset();
+    mockDbService.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: 0 }]);
+
+    await service.search({
+      countries: ["us"],
+      page: 3,
+      limit: 7,
+    });
+
+    const disabledDataSql = mockDbService.query.mock.calls[0][0] as string;
+    const disabledCountSql = mockDbService.query.mock.calls[1][0] as string;
+
+    expect(disabledDataSql).not.toContain("profile_complete_filtered AS (");
+    expect(disabledDataSql).not.toContain(
+      "INNER JOIN profile_complete_filtered pcf ON pcf.user_id = m.\"userId\"",
+    );
+    expect(disabledCountSql).toContain("FROM filtered_members fm");
+    expect(disabledCountSql).not.toContain("profile_complete_filtered pcf");
+  });
+
   it("deduplicates skills and keeps last wins value when building skill query", async () => {
     const skillA = "550e8400-e29b-41d4-a716-446655440000";
     const skillB = "550e8400-e29b-41d4-a716-446655440001";

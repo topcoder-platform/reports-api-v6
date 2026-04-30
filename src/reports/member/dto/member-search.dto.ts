@@ -77,6 +77,14 @@ export class MemberSearchBodyDto {
 
   @ApiPropertyOptional({
     description:
+      "When true, apply 100% profile completeness checks after lightweight filters are applied.",
+  })
+  @IsOptional()
+  @IsBoolean()
+  profileComplete?: boolean;
+
+  @ApiPropertyOptional({
+    description:
       "Filter by multiple country names or country codes (case-insensitive).",
     type: [String],
     example: ["US", "Australia"],

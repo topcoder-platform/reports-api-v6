@@ -52,6 +52,7 @@ export class MemberSearchService {
       openToWork,
       recentlyActive,
       verifiedProfile,
+      profileComplete,
       countries,
       sortBy = "matchIndex",
       sortOrder = "desc",
@@ -203,7 +204,7 @@ member_address AS (
     id DESC
 )`);
 
-    // ------------------------------------------------- dynamic WHERE
+    // ------------------------------------------------- dynamic WHERE (easy filters first)
     const where: string[] = [`m.status = 'ACTIVE'`];
 
     if (openToWork === true) {
@@ -243,6 +244,75 @@ member_address AS (
       );
     }
 
+    const whereClause = where.join(" AND ");
+    ctes.push(`filtered_members AS (
+  SELECT m."userId" AS user_id
+  FROM members.member m
+  ${skillJoin}
+  WHERE ${whereClause}
+)`);
+
+    if (profileComplete === true) {
+      ctes.push(`profile_complete_filtered AS (
+  SELECT fm.user_id
+  FROM filtered_members fm
+  INNER JOIN members.member m2 ON m2."userId" = fm.user_id
+  WHERE m2.description IS NOT NULL
+    AND btrim(m2.description) <> ''
+    AND m2."homeCountryCode" IS NOT NULL
+    AND EXISTS (
+      SELECT 1
+      FROM members."memberAddress" ma2
+      WHERE ma2."userId" = m2."userId"
+        AND ma2.city IS NOT NULL
+        AND btrim(ma2.city) <> ''
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM members."memberTraits" mt2
+      INNER JOIN members."memberTraitWork" mw2 ON mw2."memberTraitId" = mt2.id
+      WHERE mt2."userId" = m2."userId"
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM members."memberTraits" mt2
+      INNER JOIN members."memberTraitEducation" me2 ON me2."memberTraitId" = mt2.id
+      WHERE mt2."userId" = m2."userId"
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM members."memberTraits" mt2
+      INNER JOIN members."memberTraitPersonalization" mtp2 ON mtp2."memberTraitId" = mt2.id
+      WHERE mt2."userId" = m2."userId"
+        AND mtp2.key = 'openToWork'
+        AND mtp2.value IS NOT NULL
+        AND (
+          NOT (mtp2.value::jsonb ? 'availability')
+          OR (
+            mtp2.value::jsonb ? 'availability'
+            AND mtp2.value::jsonb ? 'preferredRoles'
+            AND jsonb_typeof(mtp2.value::jsonb -> 'preferredRoles') = 'array'
+            AND jsonb_array_length(mtp2.value::jsonb -> 'preferredRoles') > 0
+          )
+        )
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM skills.user_skill us2
+      INNER JOIN skills.user_skill_display_mode usdm2 ON usdm2.id = us2.user_skill_display_mode_id
+      WHERE us2.user_id = m2."userId"
+        AND LOWER(usdm2.name) = 'principal'
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM skills.user_skill us2
+      INNER JOIN skills.user_skill_display_mode usdm2 ON usdm2.id = us2.user_skill_display_mode_id
+      WHERE us2.user_id = m2."userId"
+        AND LOWER(usdm2.name) = 'additional'
+    )
+)`);
+    }
+
     // Snapshot param count BEFORE adding pagination — count query stops here
     const filterParamCount = params.length;
 
@@ -251,12 +321,15 @@ member_address AS (
 
     // ---------------------------------------------------------------- queries
     const ctesBlock = ctes.join(",\n");
-    const whereClause = where.join(" AND ");
     const direction = sortOrder === "asc" ? "ASC" : "DESC";
     const orderByClause =
       sortBy === "handle"
         ? `m.handle ${direction}, "matchIndex" DESC NULLS LAST`
         : `"matchIndex" ${direction} NULLS LAST, m.handle ASC`;
+    const profileCompleteJoin =
+      profileComplete === true
+        ? `INNER JOIN profile_complete_filtered pcf ON pcf.user_id = m."userId"`
+        : "";
 
     const dataQuery = `
 WITH ${ctesBlock}
@@ -278,18 +351,17 @@ SELECT
   ${matchedSkillsExpr}                                                       AS "matchedSkills",
   ${matchIndexExpr}                                                          AS "matchIndex"
 FROM members.member m
+INNER JOIN filtered_members fm ON fm.user_id = m."userId"
+${profileCompleteJoin}
 ${skillJoin}
 LEFT JOIN member_address    maddr ON maddr."userId" = m."userId"
-WHERE ${whereClause}
 ORDER BY ${orderByClause}
 LIMIT ${pLimit} OFFSET ${pOffset}`;
 
     const countQuery = `
 WITH ${ctesBlock}
 SELECT COUNT(*)::integer AS total
-FROM members.member m
-${skillJoin}
-WHERE ${whereClause}`;
+FROM ${profileComplete === true ? "profile_complete_filtered pcf" : "filtered_members fm"}`;
 
     const [rows, countRows] = await Promise.all([
       this.db.query<RawMemberRow>(dataQuery, params),

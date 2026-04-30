@@ -26,7 +26,6 @@ recent_payments AS (
   SELECT
     w.winning_id,
     w.winner_id,
-    w.type,
     w.description,
     w.category,
     w.external_id AS challenge_id,
@@ -52,36 +51,57 @@ recent_payments AS (
   WHERE w.type = 'PAYMENT'
     AND p.created_at >= pr.start_date
     AND p.created_at <= pr.end_date
+),
+categorized_payments AS (
+  SELECT
+    rp.*,
+    CASE
+      WHEN rp.category = 'TAAS_PAYMENT' THEN 'TaaS Payment'
+      WHEN rp.category = 'TOPGEAR_PAYMENT' THEN 'Topgear Payment'
+      WHEN rp.category = 'ENGAGEMENT_PAYMENT' THEN 'Engagement Payment'
+      WHEN rp.category IN (
+        'TASK_PAYMENT',
+        'TASK_REVIEW_PAYMENT',
+        'TASK_COPILOT_PAYMENT',
+        'DEPLOYMENT_TASK_PAYMENT',
+        'PROJECT_DEPLOYMENT_TASK_PAYMENT'
+      ) THEN 'Task Payment'
+      ELSE 'Challenge Payment'
+    END AS payment_type
+  FROM recent_payments rp
 )
 SELECT
-  rp.payment_created_at AS payment_created_at,
-  rp.payment_id,
-  rp.description AS payment_description,
-  rp.challenge_id,
-  rp.payment_status,
-  rp.type AS payment_type,
+  cp.payment_created_at AS payment_created_at,
+  cp.payment_id,
+  cp.description AS payment_description,
+  cp.challenge_id,
+  cp.payment_status,
+  cp.payment_type,
   mem.handle AS payee_handle,
   pm.name AS payment_method,
   ba."name" AS billing_account_name,
   cl."name" AS customer_name,
   ba."subcontractingEndCustomer" AS reporting_account_name,
-  rp.winner_id AS member_id,
-  to_char(c."createdAt", 'YYYY-MM-DD') AS challenge_created_date,
-  rp.gross_amount AS user_payment_gross_amount
-FROM recent_payments rp
+  cp.winner_id AS member_id,
+CASE 
+    WHEN cp.payment_type = 'Engagement Payment' THEN to_char(cp.payment_created_at, 'YYYY-MM-DD')
+    ELSE to_char(c."createdAt", 'YYYY-MM-DD')
+  END AS challenge_created_date,  cp.gross_amount AS user_payment_gross_amount
+FROM categorized_payments cp
 LEFT JOIN challenges."Challenge" c
-  ON c."id" = rp.challenge_id
+  ON c."id" = cp.challenge_id
 LEFT JOIN challenges."ChallengeBilling" cb
   ON cb."challengeId" = c."id"
 LEFT JOIN "billing-accounts"."BillingAccount" ba
   ON ba."id" = COALESCE(
-    NULLIF(rp.billing_account, '')::int,
+    NULLIF(cp.billing_account, '')::int,
     NULLIF(cb."billingAccountId", '')::int
   )
 LEFT JOIN "billing-accounts"."Client" cl
   ON cl."id" = ba."clientId"
 LEFT JOIN finance.payment_method pm
-  ON pm.payment_method_id = rp.payment_method_id
+  ON pm.payment_method_id = cp.payment_method_id
 LEFT JOIN members.member mem
-  ON mem."userId"::text = rp.winner_id
+  ON mem."userId"::text = cp.winner_id
+WHERE ($3::text[] IS NULL OR cp.payment_type = ANY($3::text[]))
 ORDER BY payment_created_at DESC;

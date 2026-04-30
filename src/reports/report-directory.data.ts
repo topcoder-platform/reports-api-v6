@@ -1,5 +1,10 @@
 import { Scopes as AppScopes } from "../app-constants";
-import { AuthUserLike, hasAccessToScopes } from "../auth/permissions.util";
+import {
+  AuthUserLike,
+  getNormalizedRoles,
+  hasAccessToScopes,
+  hasAdminRole,
+} from "../auth/permissions.util";
 import { ChallengeStatus } from "./challenges/dtos/challenge-status.enum";
 
 export type ReportGroupKey =
@@ -8,7 +13,7 @@ export type ReportGroupKey =
   | "statistics"
   | "topcoder"
   | "member"
-  | "admin"
+  | "payment"
   | "identity";
 
 type HttpMethod = "GET" | "POST";
@@ -52,6 +57,7 @@ export type ReportsDirectory = Partial<Record<ReportGroupKey, ReportGroup>>;
 
 type RegisteredReport = AvailableReport & {
   requiredScopes: readonly string[];
+  adminOnly?: boolean;
 };
 
 type RegisteredReportGroup = Omit<ReportGroup, "reports"> & {
@@ -145,6 +151,16 @@ const topcoderReport = (
     [AppScopes.AllReports, AppScopes.TopcoderReports],
     parameters,
   );
+
+const adminOnlyTopcoderReport = (
+  name: string,
+  path: string,
+  description: string,
+  parameters: ReportParameter[] = [],
+): RegisteredReport => ({
+  ...topcoderReport(name, path, description, parameters),
+  adminOnly: true,
+});
 
 const publicReport = (
   name: string,
@@ -803,14 +819,44 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
       ),
     ],
   },
-  admin: {
-    label: "Admin Reports",
-    basePath: "/admin",
+  payment: {
+    label: "Payment Reports",
+    basePath: "/payment",
     reports: [
-      topcoderReport(
+      adminOnlyTopcoderReport(
         "Member Payment Accrual",
-        "/admin/member-payment-accrual",
+        "/payment/member-payment-accrual",
         "Member payment accruals for the provided date range (defaults to last 3 months)",
+        [paymentsStartDateParam, paymentsEndDateParam],
+      ),
+      adminOnlyTopcoderReport(
+        "Member Payment Accrual-TaaS",
+        "/payment/member-payment-accrual-taas",
+        "Member payment accruals for TaaS payments for the provided date range (defaults to last 3 months)",
+        [paymentsStartDateParam, paymentsEndDateParam],
+      ),
+      adminOnlyTopcoderReport(
+        "Member Payment Accrual-Topgear",
+        "/payment/member-payment-accrual-topgear",
+        "Member payment accruals for Topgear payments for the provided date range (defaults to last 3 months)",
+        [paymentsStartDateParam, paymentsEndDateParam],
+      ),
+      adminOnlyTopcoderReport(
+        "Member Payment Accrual-Engagement",
+        "/payment/member-payment-accrual-engagement",
+        "Member payment accruals for engagement payments for the provided date range (defaults to last 3 months)",
+        [paymentsStartDateParam, paymentsEndDateParam],
+      ),
+      adminOnlyTopcoderReport(
+        "Member Payment Accrual-Task",
+        "/payment/member-payment-accrual-task",
+        "Member payment accruals for task payments for the provided date range (defaults to last 3 months)",
+        [paymentsStartDateParam, paymentsEndDateParam],
+      ),
+      adminOnlyTopcoderReport(
+        "Member Payment Accrual-Challenge",
+        "/payment/member-payment-accrual-challenge",
+        "Member payment accruals for challenge payments (contest, review board, copilot, checkpoint, and related challenge payouts) for the provided date range (defaults to last 3 months)",
         [paymentsStartDateParam, paymentsEndDateParam],
       ),
     ],
@@ -870,11 +916,18 @@ export function getAccessibleReportsDirectory(
     return {};
   }
 
+  const normalizedRoles = getNormalizedRoles(authUser);
+  const isAdmin = hasAdminRole(normalizedRoles);
+
   const accessibleGroups = Object.entries(REGISTERED_REPORTS_DIRECTORY).flatMap(
     ([key, group]) => {
-      const accessibleReports = group.reports.filter((reportDefinition) =>
-        hasAccessToScopes(authUser, reportDefinition.requiredScopes),
-      );
+      const accessibleReports = group.reports.filter((reportDefinition) => {
+        if (reportDefinition.adminOnly && !isAdmin) {
+          return false;
+        }
+
+        return hasAccessToScopes(authUser, reportDefinition.requiredScopes);
+      });
 
       if (!accessibleReports.length) {
         return [];
