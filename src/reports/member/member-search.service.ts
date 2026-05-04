@@ -141,9 +141,8 @@ qualifying_users AS (
   GROUP BY usd.user_id
   HAVING
     CASE WHEN ${pSearchType} = 'AND'
-      THEN COUNT(DISTINCT CASE WHEN usd.wins >= rs.min_wins THEN usd.skill_id END)
-             = ${pNumSkills}::integer
-      ELSE COUNT(DISTINCT CASE WHEN usd.wins >= rs.min_wins THEN usd.skill_id END) >= 1
+      THEN COUNT(DISTINCT usd.skill_id) = ${pNumSkills}::integer
+      ELSE COUNT(DISTINCT usd.skill_id) >= 1
     END
 ),
 user_match_data AS (
