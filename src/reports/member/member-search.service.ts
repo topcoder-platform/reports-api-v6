@@ -141,9 +141,13 @@ qualifying_users AS (
   GROUP BY usd.user_id
   HAVING
     CASE WHEN ${pSearchType} = 'AND'
-      THEN COUNT(DISTINCT CASE WHEN usd.wins >= rs.min_wins THEN usd.skill_id END)
+      THEN COUNT(DISTINCT CASE
+        WHEN (usd.wins >= rs.min_wins OR usd.submitted > 0)
+        THEN usd.skill_id END)
              = ${pNumSkills}::integer
-      ELSE COUNT(DISTINCT CASE WHEN usd.wins >= rs.min_wins THEN usd.skill_id END) >= 1
+      ELSE COUNT(DISTINCT CASE
+        WHEN (usd.wins >= rs.min_wins OR usd.submitted > 0)
+        THEN usd.skill_id END) >= 1
     END
 ),
 user_match_data AS (
@@ -161,7 +165,7 @@ user_match_data AS (
       jsonb_build_object(
         'id',         usd.skill_id::text,
         'name',       usd.skill_name,
-        'isVerified', usd.wins > 0,
+        'isVerified', (usd.wins > 0 OR usd.submitted > 0),
         'wins',       usd.wins,
         'submitted',  usd.submitted
       )
