@@ -226,6 +226,9 @@ describe("MemberSearchService", () => {
     expect(validationParams).toEqual([[skillA, skillB]]);
 
     expect(dataSql).toContain("requested_skills AS");
+    expect(dataSql).toContain(
+      "(usd.wins >= rs.min_wins OR usd.submitted > 0)",
+    );
     expect(dataSql).toContain("INNER JOIN user_match_data umd");
     expect(dataSql).toContain("THEN COUNT(DISTINCT usd.skill_id) =");
     expect(dataSql).toContain("ELSE COUNT(DISTINCT usd.skill_id) >= 1");
