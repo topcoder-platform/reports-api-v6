@@ -64,4 +64,46 @@ describe("permissions.util", () => {
       ),
     ).toBe(false);
   });
+
+  it("allows talent manager role for SFDC payments report scope", () => {
+    expect(
+      hasAccessToScopes(
+        {
+          roles: ["Topcoder Talent Manager"],
+        },
+        [Scopes.SFDC.PaymentsReport],
+      ),
+    ).toBe(true);
+  });
+
+  it("denies product manager role for SFDC payments report scope", () => {
+    expect(
+      hasAccessToScopes(
+        {
+          roles: ["Topcoder Product Manager"],
+        },
+        [Scopes.SFDC.PaymentsReport],
+      ),
+    ).toBe(false);
+  });
+
+  it("allows administrator role for SFDC payments report scope", () => {
+    expect(
+      hasAccessToScopes(
+        {
+          roles: ["Administrator"],
+        },
+        [Scopes.SFDC.PaymentsReport],
+      ),
+    ).toBe(true);
+  });
+
+  it("allows talent manager role for other SFDC report scopes", () => {
+    expect(
+      hasAccessToScopes(
+        { roles: ["Topcoder Talent Manager"] },
+        [Scopes.SFDC.BA, Scopes.SFDC.ChallengesReport],
+      ),
+    ).toBe(true);
+  });
 });
