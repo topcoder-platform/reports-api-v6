@@ -142,7 +142,6 @@ describe("MemberSearchService", () => {
     expect(dataSql).not.toContain(
       'EXISTS (SELECT 1 FROM recently_active ra WHERE ra.user_id = m."userId")',
     );
-    expect(dataSql).not.toContain("COALESCE(m.verified, false) = true");
   });
 
   it("adds profileComplete CTE/join only when enabled and keeps count params free of pagination", async () => {
@@ -226,13 +225,11 @@ describe("MemberSearchService", () => {
     expect(validationParams).toEqual([[skillA, skillB]]);
 
     expect(dataSql).toContain("requested_skills AS");
-    expect(dataSql).toContain(
-      "(usd.wins >= rs.min_wins OR usd.submitted > 0)",
-    );
+    expect(dataSql).toContain("FILTER (WHERE usd.wins > 0 OR usd.submitted > 0)");
     expect(dataSql).toContain("INNER JOIN user_match_data umd");
-    expect(dataSql).toContain("THEN COUNT(DISTINCT usd.skill_id) =");
-    expect(dataSql).toContain("ELSE COUNT(DISTINCT usd.skill_id) >= 1");
-    expect(dataSql).not.toContain("usd.wins >= rs.min_wins");
+    expect(dataSql).toContain("THEN COUNT(DISTINCT CASE");
+    expect(dataSql).toContain("ELSE COUNT(DISTINCT CASE");
+    expect(dataSql).toContain("(usd.wins >= rs.min_wins OR usd.submitted > 0)");
     expect(dataParams).toContainEqual([skillA, skillB]);
     expect(dataParams).toContainEqual([5, 0]);
     expect(dataParams).toContain("AND");

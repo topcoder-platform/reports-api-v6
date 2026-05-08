@@ -9,7 +9,7 @@ export class MatchedSkillDto {
 
   @ApiProperty({
     description:
-      "True when the member has win credit and/or at least one platform skill event for this skill (e.g. submission, review); false for self-declared only.",
+      "True for platform-backed skill activity (wins and/or skill events). Matched skills only include these, not self-attested-only skills.",
   })
   isVerified!: boolean;
 

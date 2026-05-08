@@ -153,23 +153,29 @@ qualifying_users AS (
 user_match_data AS (
   SELECT
     usd.user_id,
-    SUM(
-      1.0
-      + LEAST(usd.wins::float / 100.0, 0.5)
-      + CASE WHEN usd.submitted > 0
-          THEN (usd.wins::float / usd.submitted::float) * 0.5
-          ELSE 0.0
-        END
+    COALESCE(
+      SUM(
+        1.0
+        + LEAST(usd.wins::float / 100.0, 0.5)
+        + CASE WHEN usd.submitted > 0
+            THEN (usd.wins::float / usd.submitted::float) * 0.5
+            ELSE 0.0
+          END
+      ) FILTER (WHERE usd.wins > 0 OR usd.submitted > 0),
+      0.0
     ) AS total_skill_points,
-    jsonb_agg(
-      jsonb_build_object(
-        'id',         usd.skill_id::text,
-        'name',       usd.skill_name,
-        'isVerified', (usd.wins > 0 OR usd.submitted > 0),
-        'wins',       usd.wins,
-        'submitted',  usd.submitted
-      )
-      ORDER BY usd.skill_name
+    COALESCE(
+      jsonb_agg(
+        jsonb_build_object(
+          'id',         usd.skill_id::text,
+          'name',       usd.skill_name,
+          'isVerified', (usd.wins > 0 OR usd.submitted > 0),
+          'wins',       usd.wins,
+          'submitted',  usd.submitted
+        )
+        ORDER BY usd.skill_name
+      ) FILTER (WHERE usd.wins > 0 OR usd.submitted > 0),
+      '[]'::jsonb
     ) AS matched_skills
   FROM user_skill_data usd
   WHERE usd.user_id IN (SELECT user_id FROM qualifying_users)
