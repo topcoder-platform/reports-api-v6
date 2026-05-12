@@ -350,6 +350,55 @@ export class PaymentsReportResponse {
   challengeStatus: string | null;
 }
 
+export class BillingAccountProfileQueryDto {
+  @ApiProperty({
+    required: true,
+    description:
+      "Billing account identifier (matches finance.payment.billing_account and billing-accounts.BillingAccount.id)",
+    example: "80004349",
+  })
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsString()
+  @IsNotEmpty()
+  billingAccountId: string;
+}
+
+export class BillingAccountDetailResponse {
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty({ nullable: true, type: String })
+  description: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  subcontractingEndCustomer: string | null;
+
+  @ApiProperty()
+  status: string;
+
+  @ApiProperty({ nullable: true, type: String })
+  startDate: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  endDate: string | null;
+
+  @ApiProperty()
+  budget: string;
+
+  @ApiProperty()
+  markup: string;
+}
+
+export class BillingAccountProfileResponse {
+  @ApiProperty({
+    nullable: true,
+    type: BillingAccountDetailResponse,
+    description:
+      "Row from billing-accounts.BillingAccount when the ID exists; null if unknown.",
+  })
+  billingAccount: BillingAccountDetailResponse | null;
+}
+
 export class TaasJobsReportQueryDto {
   @ApiProperty({
     required: false,

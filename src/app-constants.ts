@@ -55,6 +55,9 @@ const challengeReportAccessRoles = [
   UserRoles.TalentManager,
 ] as const;
 
+/** Human role mapping for SFDC report scopes (admins still bypass via `hasAdminRole`). */
+const sfdcReportsTalentManagerRoles = [UserRoles.TalentManager] as const;
+
 export const ScopeRoleAccess: Record<string, readonly string[]> = {
   [Scopes.Challenge.History]: challengeReportAccessRoles,
   [Scopes.Challenge.Registrants]: challengeReportAccessRoles,
@@ -63,6 +66,13 @@ export const ScopeRoleAccess: Record<string, readonly string[]> = {
   [Scopes.Challenge.Submitters]: challengeReportAccessRoles,
   [Scopes.Challenge.ValidSubmitters]: challengeReportAccessRoles,
   [Scopes.Challenge.Winners]: challengeReportAccessRoles,
+  [Scopes.SFDC.PaymentsReport]: sfdcReportsTalentManagerRoles,
+  [Scopes.SFDC.ChallengesReport]: sfdcReportsTalentManagerRoles,
+  [Scopes.SFDC.BA]: sfdcReportsTalentManagerRoles,
+  [Scopes.SFDC.TaasJobs]: sfdcReportsTalentManagerRoles,
+  [Scopes.SFDC.TaasResourceBookings]: sfdcReportsTalentManagerRoles,
+  [Scopes.SFDC.TaasMemberVerification]: sfdcReportsTalentManagerRoles,
+  [Scopes.SFDC.WesternUnionPayments]: sfdcReportsTalentManagerRoles,
   [Scopes.Member.EngagementData]: [UserRoles.TalentManager],
   [Scopes.Member.RecentMemberData]: [UserRoles.TalentManager],
   [Scopes.Member.MemberSearch]: [UserRoles.TalentManager],

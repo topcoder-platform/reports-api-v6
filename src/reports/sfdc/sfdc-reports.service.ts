@@ -4,6 +4,8 @@ import { Logger } from "src/common/logger";
 import {
   BaFeesReportQueryDto,
   BaFeesReportResponse,
+  BillingAccountProfileQueryDto,
+  BillingAccountProfileResponse,
   ChallengesFilterMode,
   ChallengesReportQueryDto,
   ChallengesReportResponse,
@@ -135,6 +137,21 @@ export class SfdcReportsService {
           ? "Completed"
           : normalizeChallengeStatus(payment.challengeStatus),
     }));
+  }
+
+  async getBillingAccountProfile(
+    filters: BillingAccountProfileQueryDto,
+  ): Promise<BillingAccountProfileResponse> {
+    const billingAccountId = filters.billingAccountId.trim();
+    const query = this.sql.load("reports/sfdc/billing-account-detail.sql");
+    const rows = await this.db.query<BillingAccountProfileResponse["billingAccount"]>(
+      query,
+      [billingAccountId],
+    );
+
+    return {
+      billingAccount: rows[0] ?? null,
+    };
   }
 
   async getTaasJobsReport(filters: TaasJobsReportQueryDto) {
