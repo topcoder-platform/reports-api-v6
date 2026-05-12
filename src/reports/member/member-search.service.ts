@@ -97,8 +97,7 @@ export class MemberSearchService {
 
       const pSkillIds = p(skillIds);
       const pMinWins = p(minWins);
-      const pSearchType = p(skillSearchType);
-      const pNumSkills = p(deduped.length);
+      const pNumSkills = skillSearchType === "AND" ? p(deduped.length) : 1;
 
       ctes.push(`requested_skills AS (
   SELECT rs.skill_id, rs.min_wins
@@ -147,16 +146,19 @@ qualifying_users AS (
   FROM user_skill_data  usd
   JOIN requested_skills rs ON rs.skill_id = usd.skill_id
   GROUP BY usd.user_id
-  HAVING
-    CASE WHEN ${pSearchType} = 'AND'
-      THEN COUNT(DISTINCT CASE
-        WHEN (usd.wins >= rs.min_wins OR usd.submitted > 0)
-        THEN usd.skill_id END)
-             = ${pNumSkills}::integer
-      ELSE COUNT(DISTINCT CASE
-        WHEN (usd.wins >= rs.min_wins OR usd.submitted > 0)
-        THEN usd.skill_id END) >= 1
-    END
+  HAVING ${
+    skillSearchType === "AND"
+      ? `
+      COUNT(DISTINCT CASE
+      WHEN (usd.wins >= rs.min_wins OR usd.submitted > 0)
+      THEN usd.skill_id END) = ${pNumSkills}::integer
+    `
+      : `
+      COUNT(DISTINCT CASE
+      WHEN (usd.wins >= rs.min_wins OR usd.submitted > 0)
+      THEN usd.skill_id END) >= 1
+    `
+  }
 ),
 user_match_data AS (
   SELECT
@@ -259,11 +261,10 @@ member_address AS (
     }
 
     ctes.push(`filtered_members AS (
-  SELECT m."userId" AS user_id
-  FROM members.member m
-  INNER JOIN user_match_data umd ON umd.user_id = m."userId"
-  INNER JOIN recently_active ra  ON ra.user_id  = m."userId"
-  WHERE m.status = 'ACTIVE' AND m."availableForGigs" = true
+  SELECT am.user_id
+  FROM active_members am
+  INNER JOIN user_match_data umd ON umd.user_id = am.user_id
+  INNER JOIN recently_active ra  ON ra.user_id  = am.user_id
 )`);
 
     if (profileComplete === true) {
