@@ -260,11 +260,11 @@ member_address AS (
       );
     }
 
+    const whereClause = where.join(" AND ");
     ctes.push(`filtered_members AS (
-  SELECT am.user_id
-  FROM active_members am
-  INNER JOIN user_match_data umd ON umd.user_id = am.user_id
-  INNER JOIN recently_active ra  ON ra.user_id  = am.user_id
+  SELECT m."userId" AS user_id
+  FROM members.member m
+  WHERE ${whereClause}
 )`);
 
     if (profileComplete === true) {
@@ -353,7 +353,7 @@ SELECT
   m.handle,
   TRIM(COALESCE(m."firstName", '') || ' ' || COALESCE(m."lastName", ''))   AS name,
   m."photoURL"                                                               AS "photoUrl",
-  true                                                                       AS "isRecentlyActive",
+  EXISTS (SELECT 1 FROM recently_active   ra WHERE ra.user_id = m."userId") AS "isRecentlyActive",
   (COALESCE(m.verified, false) = true OR vt.user_id IS NOT NULL)            AS "isVerified",
   COALESCE(m."availableForGigs", false)                                     AS "openToWork",
   TRIM(
