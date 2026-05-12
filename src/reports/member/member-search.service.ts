@@ -79,8 +79,14 @@ export class MemberSearchService {
     // Collect CTE bodies (joined later with commas)
     const ctes: string[] = [];
 
+    // active_members is always first so later CTEs can reference it
+    ctes.push(`active_members AS MATERIALIZED (
+  SELECT m."userId" AS user_id
+  FROM members.member m
+  WHERE m.status = 'ACTIVE' AND m."availableForGigs" = true
+)`);
+
     // Expressions swapped in to the SELECT based on whether skills are requested
-    let skillJoin = "";
     let matchedSkillsExpr = `'[]'::jsonb`;
     let matchIndexExpr = "0";
 
@@ -104,13 +110,14 @@ skill_event_stats AS (
     se.user_id,
     se.skill_id,
     COUNT(*) FILTER (
-      WHERE LOWER(set_t.name) IN ('challenge_win', 'challenge_2nd_place', 'challenge_3rd_place', 'gig_completion') OR sest.name='engagement'
+      WHERE set_t.name IN ('challenge_win', 'challenge_2nd_place', 'challenge_3rd_place', 'gig_completion') OR sest.name='engagement'
     ) AS wins,
     COUNT(*)                                                     AS submitted
   FROM skills.skill_event se
   JOIN skills.skill_event_type set_t ON set_t.id = se.skill_event_type_id
   JOIN skills.source_type sest ON sest.id = se.source_type_id
   WHERE se.skill_id = ANY(${pSkillIds}::uuid[])
+    AND se.user_id IN (SELECT user_id FROM active_members)
   GROUP BY se.user_id, se.skill_id
 ),
 deduped_user_skills AS (
@@ -119,6 +126,7 @@ deduped_user_skills AS (
     us.skill_id
   FROM skills.user_skill us
   WHERE us.skill_id = ANY(${pSkillIds}::uuid[])
+    AND us.user_id IN (SELECT user_id FROM active_members)
 ),
 user_skill_data AS (
   SELECT
@@ -182,7 +190,6 @@ user_match_data AS (
   GROUP BY usd.user_id
 )`);
 
-      skillJoin = `INNER JOIN user_match_data umd ON umd.user_id = m."userId"`;
       matchedSkillsExpr = `umd.matched_skills`;
       matchIndexExpr = `CEIL(
         LEAST(
@@ -196,22 +203,19 @@ user_match_data AS (
     ctes.push(`recently_active AS (
   SELECT DISTINCT r."memberId"::bigint AS user_id
   FROM resources."Resource" r
+  INNER JOIN active_members am ON am.user_id = r."memberId"::bigint
   WHERE r."createdAt" >= NOW() - INTERVAL '3 months'
-    AND r."memberId" ~ '^[0-9]+$'
 ),
 verified_via_trolley AS (
   SELECT DISTINCT tr.user_id::bigint AS user_id
   FROM finance.trolley_recipient tr
-  WHERE tr.user_id ~ '^[0-9]+$'
+  INNER JOIN active_members am ON am.user_id = tr.user_id::bigint
 ),
 member_address AS (
-  SELECT DISTINCT ON ("userId")
-    "userId", city
+  SELECT DISTINCT ON ("userId") "userId", city
   FROM members."memberAddress"
-  ORDER BY
-    "userId",
-    CASE WHEN type = 'HOME' THEN 0 ELSE 1 END,
-    id DESC
+  WHERE "userId" IN (SELECT user_id FROM user_match_data)
+  ORDER BY "userId", CASE WHEN type = 'HOME' THEN 0 ELSE 1 END, id DESC
 )`);
 
     // ------------------------------------------------- dynamic WHERE (easy filters first)
@@ -237,7 +241,7 @@ member_address AS (
       ? [
           ...new Set(
             countries
-              .map((value) => String(value).trim().toLowerCase())
+              .map((value) => String(value).trim().toUpperCase())
               .filter(Boolean),
           ),
         ]
@@ -247,19 +251,19 @@ member_address AS (
       const pCountries = p(normalizedCountries);
       where.push(
         `(
-          LOWER(m."homeCountryCode") = ANY(${pCountries}::text[])
-          OR LOWER(m."competitionCountryCode") = ANY(${pCountries}::text[])
-          OR LOWER(m.country) = ANY(${pCountries}::text[])
+          m."homeCountryCode" = ANY(${pCountries}::text[])
+          OR m."competitionCountryCode" = ANY(${pCountries}::text[])
+          OR UPPER(m.country) = ANY(${pCountries}::text[])
         )`,
       );
     }
 
-    const whereClause = where.join(" AND ");
     ctes.push(`filtered_members AS (
   SELECT m."userId" AS user_id
   FROM members.member m
-  ${skillJoin}
-  WHERE ${whereClause}
+  INNER JOIN user_match_data umd ON umd.user_id = m."userId"
+  INNER JOIN recently_active ra  ON ra.user_id  = m."userId"
+  WHERE m.status = 'ACTIVE' AND m."availableForGigs" = true
 )`);
 
     if (profileComplete === true) {
@@ -311,14 +315,14 @@ member_address AS (
       FROM skills.user_skill us2
       INNER JOIN skills.user_skill_display_mode usdm2 ON usdm2.id = us2.user_skill_display_mode_id
       WHERE us2.user_id = m2."userId"
-        AND LOWER(usdm2.name) = 'principal'
+        AND usdm2.name = 'principal'
     )
     AND EXISTS (
       SELECT 1
       FROM skills.user_skill us2
       INNER JOIN skills.user_skill_display_mode usdm2 ON usdm2.id = us2.user_skill_display_mode_id
       WHERE us2.user_id = m2."userId"
-        AND LOWER(usdm2.name) = 'additional'
+        AND usdm2.name = 'additional'
     )
 )`);
     }
@@ -348,11 +352,8 @@ SELECT
   m.handle,
   TRIM(COALESCE(m."firstName", '') || ' ' || COALESCE(m."lastName", ''))   AS name,
   m."photoURL"                                                               AS "photoUrl",
-  EXISTS (SELECT 1 FROM recently_active   ra WHERE ra.user_id = m."userId") AS "isRecentlyActive",
-  (
-    COALESCE(m.verified, false) = true
-    OR EXISTS (SELECT 1 FROM verified_via_trolley vt WHERE vt.user_id = m."userId")
-  )                                                                          AS "isVerified",
+  true                                                                       AS "isRecentlyActive",
+  (COALESCE(m.verified, false) = true OR vt.user_id IS NOT NULL)            AS "isVerified",
   COALESCE(m."availableForGigs", false)                                     AS "openToWork",
   TRIM(
     COALESCE(maddr.city || ' ', '') ||
@@ -363,7 +364,8 @@ SELECT
 FROM members.member m
 INNER JOIN filtered_members fm ON fm.user_id = m."userId"
 ${profileCompleteJoin}
-${skillJoin}
+LEFT JOIN user_match_data umd ON umd.user_id = m."userId"
+LEFT JOIN verified_via_trolley vt ON vt.user_id = m."userId"
 LEFT JOIN member_address    maddr ON maddr."userId" = m."userId"
 ORDER BY ${orderByClause}
 LIMIT ${pLimit} OFFSET ${pOffset}`;
