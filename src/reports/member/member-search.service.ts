@@ -109,7 +109,7 @@ export class MemberSearchService implements OnModuleInit {
     ctes.push(`active_members AS MATERIALIZED (
   SELECT m."userId" AS user_id
   FROM members.member m
-  WHERE m.status = 'ACTIVE' AND m."availableForGigs" = true
+  WHERE m.status = 'ACTIVE'
 )`);
 
     // Expressions swapped in to the SELECT based on whether skills are requested
