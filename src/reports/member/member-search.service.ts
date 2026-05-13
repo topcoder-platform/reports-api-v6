@@ -373,7 +373,7 @@ LIMIT ${pLimit} OFFSET ${pOffset}`;
 
     const rows = await this.db.query<RawMemberRow>(dataQuery, params);
 
-    const total = rows.length + 1;
+    const total = (page - 1) * limit + (rows.length === limit ? rows.length + 1 : 0);
 
     const data: MemberResultDto[] = rows.map((row) => ({
       id: row.id,
