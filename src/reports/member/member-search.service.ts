@@ -371,20 +371,9 @@ LEFT JOIN member_address    maddr ON maddr."userId" = m."userId"
 ORDER BY ${orderByClause}
 LIMIT ${pLimit} OFFSET ${pOffset}`;
 
-    const countQuery = `
-WITH ${ctesBlock}
-SELECT COUNT(*)::integer AS total
-FROM ${profileComplete === true ? "profile_complete_filtered pcf" : "filtered_members fm"}`;
+    const rows = await this.db.query<RawMemberRow>(dataQuery, params);
 
-    const [rows, countRows] = await Promise.all([
-      this.db.query<RawMemberRow>(dataQuery, params),
-      this.db.query<{ total: number }>(
-        countQuery,
-        params.slice(0, filterParamCount),
-      ),
-    ]);
-
-    const total = countRows[0]?.total ?? 0;
+    const total = rows.length + 1;
 
     const data: MemberResultDto[] = rows.map((row) => ({
       id: row.id,
