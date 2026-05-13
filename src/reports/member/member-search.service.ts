@@ -357,6 +357,7 @@ member_address AS (
 )`);
     }
 
+    const filterParamCount = params.length;
     const pLimit = p(limit);
     const pOffset = p((page - 1) * limit);
 
@@ -406,7 +407,7 @@ LIMIT ${pLimit} OFFSET ${pOffset}`;
       this.db.query<RawMemberRow>(dataQuery, params),
       this.db.query<{ total: number }>(
         countQuery,
-        params.slice(0, params.length),
+        params.slice(0, filterParamCount),
       ),
     ]);
 
