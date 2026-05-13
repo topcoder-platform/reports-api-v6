@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { alpha3ToCountryName } from "../../common/country.util";
 import { DbService } from "../../db/db.service";
 import { MemberSearchBodyDto } from "./dto/member-search.dto";
@@ -42,8 +42,34 @@ function formatLocation(location: string): string {
 }
 
 @Injectable()
-export class MemberSearchService {
+export class MemberSearchService implements OnModuleInit {
+  private winEventTypeIds: string[] = [];
+  private engagementSourceTypeId: string = "";
+
   constructor(private readonly db: DbService) {}
+
+  async onModuleInit(): Promise<void> {
+    const [winRows, engRows] = await Promise.all([
+      this.db.query<{ id: string }>(
+        `SELECT id::text FROM skills.skill_event_type
+         WHERE name = ANY($1::text[])`,
+        [
+          [
+            "challenge_win",
+            "challenge_2nd_place",
+            "challenge_3rd_place",
+            "gig_completion",
+          ],
+        ],
+      ),
+      this.db.query<{ id: string }>(
+        `SELECT id::text FROM skills.source_type WHERE name = 'engagement'`,
+        [],
+      ),
+    ]);
+    this.winEventTypeIds = winRows.map((r) => r.id);
+    this.engagementSourceTypeId = engRows[0]?.id ?? "";
+  }
 
   async search(dto: MemberSearchBodyDto): Promise<MemberSearchResponseDto> {
     const {
@@ -99,6 +125,8 @@ export class MemberSearchService {
       const pMinWins = p(minWins);
       const pSearchType = p(skillSearchType);
       const pNumSkills = p(deduped.length);
+      const pWinTypeIds = p(this.winEventTypeIds);
+      const pEngSourceId = p(this.engagementSourceTypeId);
 
       ctes.push(`requested_skills AS (
   SELECT rs.skill_id, rs.min_wins
@@ -110,12 +138,11 @@ skill_event_stats AS (
     se.user_id,
     se.skill_id,
     COUNT(*) FILTER (
-      WHERE set_t.name IN ('challenge_win', 'challenge_2nd_place', 'challenge_3rd_place', 'gig_completion') OR sest.name='engagement'
+      WHERE se.skill_event_type_id = ANY(${pWinTypeIds}::uuid[])
+         OR se.source_type_id = ${pEngSourceId}::uuid
     ) AS wins,
     COUNT(*)                                                     AS submitted
   FROM skills.skill_event se
-  JOIN skills.skill_event_type set_t ON set_t.id = se.skill_event_type_id
-  JOIN skills.source_type sest ON sest.id = se.source_type_id
   WHERE se.skill_id = ANY(${pSkillIds}::uuid[])
     AND se.user_id IN (SELECT user_id FROM active_members)
   GROUP BY se.user_id, se.skill_id
@@ -375,15 +402,8 @@ LIMIT ${pLimit} OFFSET ${pOffset}`;
 
     const rows = await this.db.query<RawMemberRow>(dataQuery, params);
     const total =
-      (page - 1) * limit + (rows.length === limit ? rows.length + 1 : rows.length);
-
-    console.log(
-      dataQuery.replace(/\$(\d+)/g, (_, i) =>
-        typeof params[i - 1] === "string"
-          ? `"${params[i - 1]}"`
-          : (params[i - 1] as string),
-      ),
-    );
+      (page - 1) * limit +
+      (rows.length === limit ? rows.length + 1 : rows.length);
 
     const data: MemberResultDto[] = rows.map((row) => ({
       id: row.id,
