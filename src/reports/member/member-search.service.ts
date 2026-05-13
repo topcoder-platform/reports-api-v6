@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { alpha3ToCountryName } from "../../common/country.util";
 import { DbService } from "../../db/db.service";
 import { MemberSearchBodyDto } from "./dto/member-search.dto";
@@ -42,8 +42,34 @@ function formatLocation(location: string): string {
 }
 
 @Injectable()
-export class MemberSearchService {
+export class MemberSearchService implements OnModuleInit {
+  private winEventTypeIds: string[] = [];
+  private engagementSourceTypeId: string = "";
+
   constructor(private readonly db: DbService) {}
+
+  async onModuleInit(): Promise<void> {
+    const [winRows, engRows] = await Promise.all([
+      this.db.query<{ id: string }>(
+        `SELECT id::text FROM skills.skill_event_type
+         WHERE name = ANY($1::text[])`,
+        [
+          [
+            "challenge_win",
+            "challenge_2nd_place",
+            "challenge_3rd_place",
+            "gig_completion",
+          ],
+        ],
+      ),
+      this.db.query<{ id: string }>(
+        `SELECT id::text FROM skills.source_type WHERE name = 'engagement'`,
+        [],
+      ),
+    ]);
+    this.winEventTypeIds = winRows.map((r) => r.id);
+    this.engagementSourceTypeId = engRows[0]?.id ?? "";
+  }
 
   async search(dto: MemberSearchBodyDto): Promise<MemberSearchResponseDto> {
     const {
@@ -79,8 +105,14 @@ export class MemberSearchService {
     // Collect CTE bodies (joined later with commas)
     const ctes: string[] = [];
 
+    // active_members is always first so later CTEs can reference it
+    ctes.push(`active_members AS MATERIALIZED (
+  SELECT m."userId" AS user_id
+  FROM members.member m
+  WHERE m.status = 'ACTIVE'
+)`);
+
     // Expressions swapped in to the SELECT based on whether skills are requested
-    let skillJoin = "";
     let matchedSkillsExpr = `'[]'::jsonb`;
     let matchIndexExpr = "0";
 
@@ -93,6 +125,8 @@ export class MemberSearchService {
       const pMinWins = p(minWins);
       const pSearchType = p(skillSearchType);
       const pNumSkills = p(deduped.length);
+      const pWinTypeIds = p(this.winEventTypeIds);
+      const pEngSourceId = p(this.engagementSourceTypeId);
 
       ctes.push(`requested_skills AS (
   SELECT rs.skill_id, rs.min_wins
@@ -104,13 +138,13 @@ skill_event_stats AS (
     se.user_id,
     se.skill_id,
     COUNT(*) FILTER (
-      WHERE LOWER(set_t.name) IN ('challenge_win', 'challenge_2nd_place', 'challenge_3rd_place', 'gig_completion') OR sest.name='engagement'
+      WHERE se.skill_event_type_id = ANY(${pWinTypeIds}::uuid[])
+         OR se.source_type_id = ${pEngSourceId}::uuid
     ) AS wins,
     COUNT(*)                                                     AS submitted
   FROM skills.skill_event se
-  JOIN skills.skill_event_type set_t ON set_t.id = se.skill_event_type_id
-  JOIN skills.source_type sest ON sest.id = se.source_type_id
   WHERE se.skill_id = ANY(${pSkillIds}::uuid[])
+    AND se.user_id IN (SELECT user_id FROM active_members)
   GROUP BY se.user_id, se.skill_id
 ),
 deduped_user_skills AS (
@@ -119,6 +153,7 @@ deduped_user_skills AS (
     us.skill_id
   FROM skills.user_skill us
   WHERE us.skill_id = ANY(${pSkillIds}::uuid[])
+    AND us.user_id IN (SELECT user_id FROM active_members)
 ),
 user_skill_data AS (
   SELECT
@@ -182,7 +217,6 @@ user_match_data AS (
   GROUP BY usd.user_id
 )`);
 
-      skillJoin = `INNER JOIN user_match_data umd ON umd.user_id = m."userId"`;
       matchedSkillsExpr = `umd.matched_skills`;
       matchIndexExpr = `CEIL(
         LEAST(
@@ -196,13 +230,13 @@ user_match_data AS (
     ctes.push(`recently_active AS (
   SELECT DISTINCT r."memberId"::bigint AS user_id
   FROM resources."Resource" r
+  INNER JOIN active_members am ON am.user_id = r."memberId"::bigint
   WHERE r."createdAt" >= NOW() - INTERVAL '3 months'
-    AND r."memberId" ~ '^[0-9]+$'
 ),
 verified_via_trolley AS (
   SELECT DISTINCT tr.user_id::bigint AS user_id
   FROM finance.trolley_recipient tr
-  WHERE tr.user_id ~ '^[0-9]+$'
+  INNER JOIN active_members am ON am.user_id = tr.user_id::bigint
 ),
 member_address AS (
   SELECT DISTINCT ON ("userId")
@@ -237,7 +271,7 @@ member_address AS (
       ? [
           ...new Set(
             countries
-              .map((value) => String(value).trim().toLowerCase())
+              .map((value) => String(value).trim().toUpperCase())
               .filter(Boolean),
           ),
         ]
@@ -247,9 +281,9 @@ member_address AS (
       const pCountries = p(normalizedCountries);
       where.push(
         `(
-          LOWER(m."homeCountryCode") = ANY(${pCountries}::text[])
-          OR LOWER(m."competitionCountryCode") = ANY(${pCountries}::text[])
-          OR LOWER(m.country) = ANY(${pCountries}::text[])
+          m."homeCountryCode" = ANY(${pCountries}::text[])
+          OR m."competitionCountryCode" = ANY(${pCountries}::text[])
+          OR UPPER(m.country) = ANY(${pCountries}::text[])
         )`,
       );
     }
@@ -258,7 +292,7 @@ member_address AS (
     ctes.push(`filtered_members AS (
   SELECT m."userId" AS user_id
   FROM members.member m
-  ${skillJoin}
+  INNER JOIN user_match_data umd ON umd.user_id = m."userId"
   WHERE ${whereClause}
 )`);
 
@@ -311,20 +345,17 @@ member_address AS (
       FROM skills.user_skill us2
       INNER JOIN skills.user_skill_display_mode usdm2 ON usdm2.id = us2.user_skill_display_mode_id
       WHERE us2.user_id = m2."userId"
-        AND LOWER(usdm2.name) = 'principal'
+        AND usdm2.name = 'principal'
     )
     AND EXISTS (
       SELECT 1
       FROM skills.user_skill us2
       INNER JOIN skills.user_skill_display_mode usdm2 ON usdm2.id = us2.user_skill_display_mode_id
       WHERE us2.user_id = m2."userId"
-        AND LOWER(usdm2.name) = 'additional'
+        AND usdm2.name = 'additional'
     )
 )`);
     }
-
-    // Snapshot param count BEFORE adding pagination — count query stops here
-    const filterParamCount = params.length;
 
     const pLimit = p(limit);
     const pOffset = p((page - 1) * limit);
@@ -363,25 +394,16 @@ SELECT
 FROM members.member m
 INNER JOIN filtered_members fm ON fm.user_id = m."userId"
 ${profileCompleteJoin}
-${skillJoin}
+LEFT JOIN user_match_data umd ON umd.user_id = m."userId"
+LEFT JOIN verified_via_trolley vt ON vt.user_id = m."userId"
 LEFT JOIN member_address    maddr ON maddr."userId" = m."userId"
 ORDER BY ${orderByClause}
 LIMIT ${pLimit} OFFSET ${pOffset}`;
 
-    const countQuery = `
-WITH ${ctesBlock}
-SELECT COUNT(*)::integer AS total
-FROM ${profileComplete === true ? "profile_complete_filtered pcf" : "filtered_members fm"}`;
-
-    const [rows, countRows] = await Promise.all([
-      this.db.query<RawMemberRow>(dataQuery, params),
-      this.db.query<{ total: number }>(
-        countQuery,
-        params.slice(0, filterParamCount),
-      ),
-    ]);
-
-    const total = countRows[0]?.total ?? 0;
+    const rows = await this.db.query<RawMemberRow>(dataQuery, params);
+    const total =
+      (page - 1) * limit +
+      (rows.length === limit ? rows.length + 1 : rows.length);
 
     const data: MemberResultDto[] = rows.map((row) => ({
       id: row.id,
