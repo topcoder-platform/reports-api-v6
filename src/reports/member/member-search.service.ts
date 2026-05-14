@@ -357,6 +357,7 @@ member_address AS (
 )`);
     }
 
+    const filterParamCount = params.length;
     const pLimit = p(limit);
     const pOffset = p((page - 1) * limit);
 
@@ -380,10 +381,7 @@ SELECT
   TRIM(COALESCE(m."firstName", '') || ' ' || COALESCE(m."lastName", ''))   AS name,
   m."photoURL"                                                               AS "photoUrl",
   EXISTS (SELECT 1 FROM recently_active   ra WHERE ra.user_id = m."userId") AS "isRecentlyActive",
-  (
-    COALESCE(m.verified, false) = true
-    OR EXISTS (SELECT 1 FROM verified_via_trolley vt WHERE vt.user_id = m."userId")
-  )                                                                          AS "isVerified",
+  (COALESCE(m.verified, false) = true OR vt.user_id IS NOT NULL)             AS "isVerified",
   COALESCE(m."availableForGigs", false)                                     AS "openToWork",
   TRIM(
     COALESCE(maddr.city || ' ', '') ||
@@ -400,10 +398,20 @@ LEFT JOIN member_address    maddr ON maddr."userId" = m."userId"
 ORDER BY ${orderByClause}
 LIMIT ${pLimit} OFFSET ${pOffset}`;
 
-    const rows = await this.db.query<RawMemberRow>(dataQuery, params);
-    const total =
-      (page - 1) * limit +
-      (rows.length === limit ? rows.length + 1 : rows.length);
+    const countQuery = `
+      WITH ${ctesBlock}
+      SELECT COUNT(*)::integer AS total
+      FROM ${profileComplete === true ? "profile_complete_filtered pcf" : "filtered_members fm"}`;
+
+    const [rows, countRows] = await Promise.all([
+      this.db.query<RawMemberRow>(dataQuery, params),
+      this.db.query<{ total: number }>(
+        countQuery,
+        params.slice(0, filterParamCount),
+      ),
+    ]);
+
+    const total = countRows[0]?.total ?? 0;
 
     const data: MemberResultDto[] = rows.map((row) => ({
       id: row.id,
