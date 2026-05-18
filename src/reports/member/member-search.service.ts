@@ -113,6 +113,7 @@ user_skill_data AS (
     usws.wins,
     usws.submitted
   FROM skills.user_skill_win_summary usws
+  JOIN requested_skills rs ON rs.skill_id = usws.skill_id
   JOIN skills.skill     sk ON sk.id = usws.skill_id AND sk.deleted_at IS NULL
   WHERE usws.user_id IN (SELECT user_id FROM active_members)
 ),
