@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { alpha3ToCountryName } from "../../common/country.util";
 import { DbService } from "../../db/db.service";
 import { MemberSearchBodyDto } from "./dto/member-search.dto";
@@ -42,34 +42,8 @@ function formatLocation(location: string): string {
 }
 
 @Injectable()
-export class MemberSearchService implements OnModuleInit {
-  private winEventTypeIds: string[] = [];
-  private engagementSourceTypeId: string = "";
-
+export class MemberSearchService {
   constructor(private readonly db: DbService) {}
-
-  async onModuleInit(): Promise<void> {
-    const [winRows, engRows] = await Promise.all([
-      this.db.query<{ id: string }>(
-        `SELECT id::text FROM skills.skill_event_type
-         WHERE name = ANY($1::text[])`,
-        [
-          [
-            "challenge_win",
-            "challenge_2nd_place",
-            "challenge_3rd_place",
-            "gig_completion",
-          ],
-        ],
-      ),
-      this.db.query<{ id: string }>(
-        `SELECT id::text FROM skills.source_type WHERE name = 'engagement'`,
-        [],
-      ),
-    ]);
-    this.winEventTypeIds = winRows.map((r) => r.id);
-    this.engagementSourceTypeId = engRows[0]?.id ?? "";
-  }
 
   async search(dto: MemberSearchBodyDto): Promise<MemberSearchResponseDto> {
     const {
@@ -125,49 +99,23 @@ export class MemberSearchService implements OnModuleInit {
       const pMinWins = p(minWins);
       const pSearchType = p(skillSearchType);
       const pNumSkills = p(deduped.length);
-      const pWinTypeIds = p(this.winEventTypeIds);
-      const pEngSourceId = p(this.engagementSourceTypeId);
 
       ctes.push(`requested_skills AS (
   SELECT rs.skill_id, rs.min_wins
   FROM unnest(${pSkillIds}::uuid[], ${pMinWins}::integer[])
        AS rs(skill_id, min_wins)
 ),
-skill_event_stats AS (
-  SELECT
-    se.user_id,
-    se.skill_id,
-    COUNT(*) FILTER (
-      WHERE se.skill_event_type_id = ANY(${pWinTypeIds}::uuid[])
-         OR se.source_type_id = ${pEngSourceId}::uuid
-    ) AS wins,
-    COUNT(*)                                                     AS submitted
-  FROM skills.skill_event se
-  WHERE se.skill_id = ANY(${pSkillIds}::uuid[])
-    AND se.user_id IN (SELECT user_id FROM active_members)
-  GROUP BY se.user_id, se.skill_id
-),
-deduped_user_skills AS (
-  SELECT DISTINCT
-    us.user_id,
-    us.skill_id
-  FROM skills.user_skill us
-  WHERE us.skill_id = ANY(${pSkillIds}::uuid[])
-    AND us.user_id IN (SELECT user_id FROM active_members)
-),
 user_skill_data AS (
   SELECT
-    us.user_id,
-    us.skill_id,
-    sk.name                          AS skill_name,
-    COALESCE(ses.wins, 0)            AS wins,
-    COALESCE(ses.submitted, 0)       AS submitted
-  FROM deduped_user_skills us
-  JOIN requested_skills  rs  ON rs.skill_id  = us.skill_id
-  JOIN skills.skill      sk  ON sk.id = us.skill_id AND sk.deleted_at IS NULL
-  LEFT JOIN skill_event_stats ses
-         ON ses.user_id  = us.user_id
-        AND ses.skill_id = us.skill_id
+    usws.user_id,
+    usws.skill_id,
+    sk.name    AS skill_name,
+    usws.wins,
+    usws.submitted
+  FROM skills.user_skill_win_summary usws
+  JOIN requested_skills rs ON rs.skill_id = usws.skill_id
+  JOIN skills.skill     sk ON sk.id = usws.skill_id AND sk.deleted_at IS NULL
+  WHERE usws.user_id IN (SELECT user_id FROM active_members)
 ),
 qualifying_users AS (
   SELECT usd.user_id
@@ -289,10 +237,13 @@ member_address AS (
     }
 
     const whereClause = where.join(" AND ");
+    const skillJoin = deduped.length > 0
+      ? `INNER JOIN user_match_data umd ON umd.user_id = m."userId"`
+      : ``;
     ctes.push(`filtered_members AS (
   SELECT m."userId" AS user_id
   FROM members.member m
-  INNER JOIN user_match_data umd ON umd.user_id = m."userId"
+  ${skillJoin}
   WHERE ${whereClause}
 )`);
 
