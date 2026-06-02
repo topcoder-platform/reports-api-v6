@@ -159,11 +159,12 @@ describe("MemberSearchService", () => {
     const enabledDataSql = mockDbService.query.mock.calls[0][0] as string;
     const enabledDataParams = mockDbService.query.mock.calls[0][1] as unknown[];
     const enabledCountSql = mockDbService.query.mock.calls[1][0] as string;
-    const enabledCountParams = mockDbService.query.mock.calls[1][1] as unknown[];
+    const enabledCountParams = mockDbService.query.mock
+      .calls[1][1] as unknown[];
 
     expect(enabledDataSql).toContain("profile_complete_filtered AS (");
     expect(enabledDataSql).toContain(
-      "INNER JOIN profile_complete_filtered pcf ON pcf.user_id = m.\"userId\"",
+      'INNER JOIN profile_complete_filtered pcf ON pcf.user_id = m."userId"',
     );
     expect(enabledCountSql).toContain("FROM profile_complete_filtered pcf");
     expect(enabledCountSql).not.toContain(
@@ -188,7 +189,7 @@ describe("MemberSearchService", () => {
 
     expect(disabledDataSql).not.toContain("profile_complete_filtered AS (");
     expect(disabledDataSql).not.toContain(
-      "INNER JOIN profile_complete_filtered pcf ON pcf.user_id = m.\"userId\"",
+      'INNER JOIN profile_complete_filtered pcf ON pcf.user_id = m."userId"',
     );
     expect(disabledCountSql).toContain("FROM filtered_members fm");
     expect(disabledCountSql).not.toContain("profile_complete_filtered pcf");
@@ -225,7 +226,9 @@ describe("MemberSearchService", () => {
     expect(validationParams).toEqual([[skillA, skillB]]);
 
     expect(dataSql).toContain("requested_skills AS");
-    expect(dataSql).toContain("FILTER (WHERE usd.wins > 0 OR usd.submitted > 0)");
+    expect(dataSql).toContain(
+      "FILTER (WHERE usd.wins > 0 OR usd.submitted > 0)",
+    );
     expect(dataSql).toContain("INNER JOIN user_match_data umd");
     expect(dataSql).toContain("THEN COUNT(DISTINCT CASE");
     expect(dataSql).toContain("ELSE COUNT(DISTINCT CASE");

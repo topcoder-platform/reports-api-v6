@@ -99,7 +99,9 @@ export class SfdcReportsController {
     description: "Billing account profile retrieved successfully",
     type: ResponseDto<BillingAccountProfileResponse>,
   })
-  async getBillingAccountProfile(@Query() query: BillingAccountProfileQueryDto) {
+  async getBillingAccountProfile(
+    @Query() query: BillingAccountProfileQueryDto,
+  ) {
     return this.reportsService.getBillingAccountProfile(query);
   }
 

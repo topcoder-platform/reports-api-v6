@@ -237,9 +237,10 @@ member_address AS (
     }
 
     const whereClause = where.join(" AND ");
-    const skillJoin = deduped.length > 0
-      ? `INNER JOIN user_match_data umd ON umd.user_id = m."userId"`
-      : ``;
+    const skillJoin =
+      deduped.length > 0
+        ? `INNER JOIN user_match_data umd ON umd.user_id = m."userId"`
+        : ``;
     ctes.push(`filtered_members AS (
   SELECT m."userId" AS user_id
   FROM members.member m
