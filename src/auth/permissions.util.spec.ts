@@ -100,10 +100,10 @@ describe("permissions.util", () => {
 
   it("allows talent manager role for other SFDC report scopes", () => {
     expect(
-      hasAccessToScopes(
-        { roles: ["Topcoder Talent Manager"] },
-        [Scopes.SFDC.BA, Scopes.SFDC.ChallengesReport],
-      ),
+      hasAccessToScopes({ roles: ["Topcoder Talent Manager"] }, [
+        Scopes.SFDC.BA,
+        Scopes.SFDC.ChallengesReport,
+      ]),
     ).toBe(true);
   });
 });
