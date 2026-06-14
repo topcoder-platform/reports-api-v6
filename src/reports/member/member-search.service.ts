@@ -54,6 +54,7 @@ export class MemberSearchService {
       verifiedProfile,
       profileComplete,
       countries,
+      preferredRoles,
       sortBy = "matchIndex",
       sortOrder = "desc",
       page = 1,
@@ -225,6 +226,14 @@ member_address AS (
         ]
       : [];
 
+    const normalizedPreferredRoles = Array.isArray(preferredRoles)
+      ? [
+          ...new Set(
+            preferredRoles.map((value) => String(value).trim()).filter(Boolean),
+          ),
+        ]
+      : [];
+
     if (normalizedCountries.length > 0) {
       const pCountries = p(normalizedCountries);
       where.push(
@@ -232,6 +241,30 @@ member_address AS (
           m."homeCountryCode" = ANY(${pCountries}::text[])
           OR m."competitionCountryCode" = ANY(${pCountries}::text[])
           OR UPPER(m.country) = ANY(${pCountries}::text[])
+        )`,
+      );
+    }
+
+    if (normalizedPreferredRoles.length > 0) {
+      const pPreferredRoles = p(
+        normalizedPreferredRoles.map((value) => value.toUpperCase()),
+      );
+      where.push(
+        `EXISTS (
+          SELECT 1
+          FROM members."memberTraits" mtpr
+          INNER JOIN members."memberTraitPersonalization" mtpp
+            ON mtpp."memberTraitId" = mtpr.id
+          WHERE mtpr."userId" = m."userId"
+            AND mtpp.key = 'openToWork'
+            AND mtpp.value IS NOT NULL
+            AND mtpp.value::jsonb ? 'preferredRoles'
+            AND jsonb_typeof(mtpp.value::jsonb -> 'preferredRoles') = 'array'
+            AND EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements_text(mtpp.value::jsonb -> 'preferredRoles') pr
+              WHERE UPPER(pr) = ANY(${pPreferredRoles}::text[])
+            )
         )`,
       );
     }
@@ -316,10 +349,20 @@ member_address AS (
     // ---------------------------------------------------------------- queries
     const ctesBlock = ctes.join(",\n");
     const direction = sortOrder === "asc" ? "ASC" : "DESC";
-    const orderByClause =
-      sortBy === "handle"
-        ? `m.handle ${direction}, "matchIndex" DESC NULLS LAST`
-        : `"matchIndex" ${direction} NULLS LAST, m.handle ASC`;
+    const fallbackPreferredRoleOrder =
+      deduped.length === 0 && normalizedPreferredRoles.length > 0;
+    let orderByClause = "";
+
+    if (sortBy === "handle") {
+      orderByClause = `m.handle ${direction}, "matchIndex" DESC NULLS LAST`;
+    } else if (fallbackPreferredRoleOrder) {
+      orderByClause =
+        `EXISTS (SELECT 1 FROM recently_active ra WHERE ra.user_id = m."userId") DESC, ` +
+        `COALESCE(m."availableForGigs", false) DESC, m.handle ASC`;
+    } else {
+      orderByClause = `"matchIndex" ${direction} NULLS LAST, m.handle ASC`;
+    }
+
     const profileCompleteJoin =
       profileComplete === true
         ? `INNER JOIN profile_complete_filtered pcf ON pcf.user_id = m."userId"`
@@ -344,7 +387,7 @@ SELECT
 FROM members.member m
 INNER JOIN filtered_members fm ON fm.user_id = m."userId"
 ${profileCompleteJoin}
-LEFT JOIN user_match_data umd ON umd.user_id = m."userId"
+${deduped.length > 0 ? 'LEFT JOIN user_match_data umd ON umd.user_id = m."userId"' : ""}
 LEFT JOIN verified_via_trolley vt ON vt.user_id = m."userId"
 LEFT JOIN member_address    maddr ON maddr."userId" = m."userId"
 ORDER BY ${orderByClause}

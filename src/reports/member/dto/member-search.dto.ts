@@ -85,6 +85,17 @@ export class MemberSearchBodyDto {
 
   @ApiPropertyOptional({
     description:
+      "Filter by multiple preferred role values from the member's open-to-work personalization trait.",
+    type: [String],
+    example: ["AI_ML_ENGINEER", "FULL_STACK_DEVELOPER"],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  preferredRoles?: string[];
+
+  @ApiPropertyOptional({
+    description:
       "Filter by multiple country names or country codes (case-insensitive).",
     type: [String],
     example: ["US", "Australia"],
