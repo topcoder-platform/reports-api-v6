@@ -7,6 +7,12 @@ import {
   MemberResultDto,
   MemberSearchResponseDto,
 } from "./dto/member-search-response.dto";
+import {
+  OpenToWorkTalentMemberDto,
+  OpenToWorkTalentQueryDto,
+  OpenToWorkTalentResponseDto,
+  OpenToWorkTalentRoleCountDto,
+} from "./dto/open-to-work-talent.dto";
 
 type RawMemberRow = {
   id: string;
@@ -20,6 +26,138 @@ type RawMemberRow = {
   matchedSkills: MatchedSkillDto[] | null;
   matchIndex: number;
 };
+
+type OpenToWorkTalentMemberRow = {
+  userId: string | number;
+  handle: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+  country: string | null;
+  availability: string | null;
+  preferredRoles: string[] | null;
+  memberSince: Date | string | null;
+  maxRating: string | number | null;
+  challengeWins: string | number | null;
+  taskWins: string | number | null;
+  totalWins: string | number | null;
+};
+
+type OpenToWorkTalentRoleCountRow = {
+  role: string;
+  count: string | number;
+};
+
+type OpenToWorkTalentExportRow = {
+  handle: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+  country: string | null;
+  availability: string | null;
+  preferredRoles: string;
+  memberSince: string | null;
+  maxRating: number | null;
+  challengeWins: number;
+  taskWins: number;
+  totalWins: number;
+};
+
+type NormalizedOpenToWorkTalentQuery = {
+  availability: string | null;
+  role: string | null;
+  page: number;
+  perPage: number;
+};
+
+const openToWorkTalentBaseCtes = `
+WITH latest_open_to_work AS MATERIALIZED (
+  SELECT DISTINCT ON (mt."userId")
+    mt."userId" AS user_id,
+    mtp.value::jsonb AS value
+  FROM members."memberTraits" mt
+  INNER JOIN members."memberTraitPersonalization" mtp
+    ON mtp."memberTraitId" = mt.id
+  WHERE mtp.key = 'openToWork'
+    AND mtp.value IS NOT NULL
+    AND mtp.value::jsonb ? 'preferredRoles'
+    AND jsonb_typeof(mtp.value::jsonb -> 'preferredRoles') = 'array'
+    AND jsonb_array_length(mtp.value::jsonb -> 'preferredRoles') > 0
+  ORDER BY mt."userId", mt."updatedAt" DESC NULLS LAST, mt.id DESC
+),
+open_to_work_members AS MATERIALIZED (
+  SELECT
+    m."userId" AS "userId",
+    m.handle,
+    NULLIF(TRIM(m."firstName"), '') AS "firstName",
+    NULLIF(TRIM(m."lastName"), '') AS "lastName",
+    NULLIF(TRIM(m.email), '') AS email,
+    ph.phone,
+    COALESCE(
+      NULLIF(TRIM(m.country), ''),
+      NULLIF(TRIM(m."homeCountryCode"), ''),
+      NULLIF(TRIM(m."competitionCountryCode"), '')
+    ) AS country,
+    NULLIF(TRIM(latest_open_to_work.value ->> 'availability'), '') AS availability,
+    ARRAY(
+      SELECT jsonb_array_elements_text(latest_open_to_work.value -> 'preferredRoles')
+    ) AS "preferredRoles",
+    u.create_date AS "memberSince"
+  FROM members.member m
+  INNER JOIN latest_open_to_work
+    ON latest_open_to_work.user_id = m."userId"
+  LEFT JOIN identity."user" u
+    ON u.user_id = m."userId"::numeric(10, 0)
+  LEFT JOIN LATERAL (
+    SELECT STRING_AGG(DISTINCT NULLIF(TRIM(mp."number"::text), ''), ', ') AS phone
+    FROM members."memberPhone" mp
+    WHERE mp."userId" = m."userId"
+      AND NULLIF(TRIM(mp."number"::text), '') IS NOT NULL
+  ) ph ON TRUE
+  WHERE COALESCE(m."availableForGigs", false) = true
+    AND COALESCE(m.email, '') NOT ILIKE '%@wipro.com'
+),
+max_rating AS (
+  SELECT DISTINCT ON (mmr."userId")
+    mmr."userId" AS user_id,
+    mmr.rating
+  FROM members."memberMaxRating" mmr
+  INNER JOIN open_to_work_members otw
+    ON otw."userId" = mmr."userId"
+  ORDER BY mmr."userId", mmr.rating DESC NULLS LAST
+),
+challenge_wins AS (
+  SELECT
+    cw."userId"::text AS user_id,
+    COUNT(DISTINCT cw."challengeId")::integer AS challenge_wins
+  FROM challenges."ChallengeWinner" cw
+  INNER JOIN open_to_work_members otw
+    ON otw."userId"::text = cw."userId"::text
+  INNER JOIN challenges."Challenge" c
+    ON c.id = cw."challengeId"
+  INNER JOIN challenges."ChallengeType" ct
+    ON ct.id = c."typeId"
+  WHERE cw.placement = 1
+    AND COALESCE(ct."isTask", false) = false
+  GROUP BY cw."userId"
+),
+task_wins AS (
+  SELECT
+    cw."userId"::text AS user_id,
+    COUNT(DISTINCT cw."challengeId")::integer AS task_wins
+  FROM challenges."ChallengeWinner" cw
+  INNER JOIN open_to_work_members otw
+    ON otw."userId"::text = cw."userId"::text
+  INNER JOIN challenges."Challenge" c
+    ON c.id = cw."challengeId"
+  INNER JOIN challenges."ChallengeType" ct
+    ON ct.id = c."typeId"
+  WHERE cw.placement = 1
+    AND COALESCE(ct."isTask", false) = true
+  GROUP BY cw."userId"
+)`;
 
 function formatLocation(location: string): string {
   const normalizedLocation = String(location || "").trim();
@@ -41,9 +179,239 @@ function formatLocation(location: string): string {
   return `${parts.slice(0, -1).join(" ")}, ${mappedCountryName}`;
 }
 
+/**
+ * Converts nullable database numeric values into a finite number.
+ * @param value Raw database value that may be a string, number, or null.
+ * @returns Numeric value, or zero when the input is missing/non-numeric.
+ */
+function toNumber(value: string | number | null | undefined): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/**
+ * Converts nullable database numeric values into a nullable finite number.
+ * @param value Raw database value that may be a string, number, or null.
+ * @returns Numeric value, or null when the input is missing/non-numeric.
+ */
+function toNullableNumber(
+  value: string | number | null | undefined,
+): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Normalizes Postgres text arrays into a safe string array.
+ * @param value Raw database array value.
+ * @returns Non-empty role values.
+ */
+function toStringArray(value: string[] | null | undefined): string[] {
+  return Array.isArray(value)
+    ? value.map((entry) => String(entry).trim()).filter(Boolean)
+    : [];
+}
+
+/**
+ * Converts database dates into ISO strings for API responses and exports.
+ * @param value Raw date value from the database.
+ * @returns ISO string, or null when the value cannot be parsed.
+ */
+function toIsoString(value: Date | string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+/**
+ * Normalizes and bounds Talent report query parameters.
+ * @param dto Raw query DTO.
+ * @returns Query values ready for SQL parameters and pagination.
+ */
+function normalizeOpenToWorkTalentQuery(
+  dto: OpenToWorkTalentQueryDto,
+): NormalizedOpenToWorkTalentQuery {
+  return {
+    availability: dto.availability?.trim() || null,
+    role: dto.role?.trim() || null,
+    page: Math.max(Number(dto.page || 1), 1),
+    perPage: Math.min(Math.max(Number(dto.perPage || 10), 1), 100),
+  };
+}
+
 @Injectable()
 export class MemberSearchService {
   constructor(private readonly db: DbService) {}
+
+  /**
+   * Returns the open-to-work Talent report dashboard data.
+   *
+   * The report includes distinct member totals, preferred-role aggregates, and
+   * a paginated member list sorted by platform-backed wins and rating.
+   *
+   * @param dto Query filters and pagination values from the reports UI.
+   * @returns Dashboard response for the Talent tab.
+   * @throws Does not throw intentionally; database errors propagate to Nest.
+   */
+  async getOpenToWorkTalent(
+    dto: OpenToWorkTalentQueryDto,
+  ): Promise<OpenToWorkTalentResponseDto> {
+    const query = normalizeOpenToWorkTalentQuery(dto);
+    const offset = (query.page - 1) * query.perPage;
+
+    const [totalMemberRows, roleRows, countRows, memberRows] =
+      await Promise.all([
+        this.db.query<{ total: number }>(
+          `${openToWorkTalentBaseCtes}
+SELECT COUNT(*)::integer AS total
+FROM open_to_work_members otw
+WHERE ($1::text IS NULL OR otw.availability = $1::text)`,
+          [query.availability],
+        ),
+        this.db.query<OpenToWorkTalentRoleCountRow>(
+          `${openToWorkTalentBaseCtes}
+SELECT
+  role,
+  COUNT(DISTINCT otw."userId")::integer AS count
+FROM open_to_work_members otw
+CROSS JOIN LATERAL unnest(otw."preferredRoles") AS role
+WHERE ($1::text IS NULL OR otw.availability = $1::text)
+GROUP BY role
+ORDER BY count DESC, role ASC`,
+          [query.availability],
+        ),
+        this.db.query<{ total: number }>(
+          `${openToWorkTalentBaseCtes}
+SELECT COUNT(*)::integer AS total
+FROM open_to_work_members otw
+WHERE ($1::text IS NULL OR otw.availability = $1::text)
+  AND ($2::text IS NULL OR $2::text = ANY(otw."preferredRoles"))`,
+          [query.availability, query.role],
+        ),
+        this.db.query<OpenToWorkTalentMemberRow>(
+          `${openToWorkTalentBaseCtes}
+SELECT
+  otw."userId",
+  otw.handle,
+  otw."firstName",
+  otw."lastName",
+  otw.email,
+  otw.phone,
+  otw.country,
+  otw.availability,
+  otw."preferredRoles",
+  otw."memberSince",
+  mr.rating AS "maxRating",
+  COALESCE(cw.challenge_wins, 0)::integer AS "challengeWins",
+  COALESCE(tw.task_wins, 0)::integer AS "taskWins",
+  (COALESCE(cw.challenge_wins, 0) + COALESCE(tw.task_wins, 0))::integer AS "totalWins"
+FROM open_to_work_members otw
+LEFT JOIN max_rating mr
+  ON mr.user_id = otw."userId"
+LEFT JOIN challenge_wins cw
+  ON cw.user_id = otw."userId"::text
+LEFT JOIN task_wins tw
+  ON tw.user_id = otw."userId"::text
+WHERE ($1::text IS NULL OR otw.availability = $1::text)
+  AND ($2::text IS NULL OR $2::text = ANY(otw."preferredRoles"))
+ORDER BY
+  (COALESCE(cw.challenge_wins, 0) + COALESCE(tw.task_wins, 0)) DESC,
+  COALESCE(mr.rating, 0) DESC,
+  otw."memberSince" ASC NULLS LAST,
+  LOWER(otw.handle) ASC
+LIMIT $3::integer OFFSET $4::integer`,
+          [query.availability, query.role, query.perPage, offset],
+        ),
+      ]);
+
+    return {
+      totalMembers: totalMemberRows[0]?.total ?? 0,
+      total: countRows[0]?.total ?? 0,
+      page: query.page,
+      perPage: query.perPage,
+      roleCounts: roleRows.map(
+        (row): OpenToWorkTalentRoleCountDto => ({
+          role: row.role,
+          count: toNumber(row.count),
+        }),
+      ),
+      data: memberRows.map((row) => this.toOpenToWorkTalentMember(row)),
+    };
+  }
+
+  /**
+   * Returns open-to-work Talent report rows formatted for CSV serialization.
+   *
+   * The export intentionally includes email and phone fields required by the
+   * leadership handoff while using the same role/availability filters as the UI.
+   *
+   * @param dto Query filters from the reports UI.
+   * @returns Flat export rows that the CSV interceptor can serialize.
+   * @throws Does not throw intentionally; database errors propagate to Nest.
+   */
+  async exportOpenToWorkTalent(
+    dto: OpenToWorkTalentQueryDto,
+  ): Promise<OpenToWorkTalentExportRow[]> {
+    const query = normalizeOpenToWorkTalentQuery(dto);
+    const rows = await this.db.query<OpenToWorkTalentMemberRow>(
+      `${openToWorkTalentBaseCtes}
+SELECT
+  otw."userId",
+  otw.handle,
+  otw."firstName",
+  otw."lastName",
+  otw.email,
+  otw.phone,
+  otw.country,
+  otw.availability,
+  otw."preferredRoles",
+  otw."memberSince",
+  mr.rating AS "maxRating",
+  COALESCE(cw.challenge_wins, 0)::integer AS "challengeWins",
+  COALESCE(tw.task_wins, 0)::integer AS "taskWins",
+  (COALESCE(cw.challenge_wins, 0) + COALESCE(tw.task_wins, 0))::integer AS "totalWins"
+FROM open_to_work_members otw
+LEFT JOIN max_rating mr
+  ON mr.user_id = otw."userId"
+LEFT JOIN challenge_wins cw
+  ON cw.user_id = otw."userId"::text
+LEFT JOIN task_wins tw
+  ON tw.user_id = otw."userId"::text
+WHERE ($1::text IS NULL OR otw.availability = $1::text)
+  AND ($2::text IS NULL OR $2::text = ANY(otw."preferredRoles"))
+ORDER BY
+  (COALESCE(cw.challenge_wins, 0) + COALESCE(tw.task_wins, 0)) DESC,
+  COALESCE(mr.rating, 0) DESC,
+  otw."memberSince" ASC NULLS LAST,
+  LOWER(otw.handle) ASC`,
+      [query.availability, query.role],
+    );
+
+    return rows.map(
+      (row): OpenToWorkTalentExportRow => ({
+        handle: row.handle,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        email: row.email,
+        phone: row.phone,
+        country: row.country,
+        availability: row.availability,
+        preferredRoles: toStringArray(row.preferredRoles).join(", "),
+        memberSince: toIsoString(row.memberSince),
+        maxRating: toNullableNumber(row.maxRating),
+        challengeWins: toNumber(row.challengeWins),
+        taskWins: toNumber(row.taskWins),
+        totalWins: toNumber(row.totalWins),
+      }),
+    );
+  }
 
   async search(dto: MemberSearchBodyDto): Promise<MemberSearchResponseDto> {
     const {
@@ -392,5 +760,29 @@ LIMIT ${pLimit} OFFSET ${pOffset}`;
       const missing = skillIds.find((id) => !foundIds.has(id));
       throw new NotFoundException(`Skill not found or is disabled: ${missing}`);
     }
+  }
+
+  /**
+   * Maps database rows into the public Talent report member shape.
+   * @param row Raw member row selected by the open-to-work Talent query.
+   * @returns API-safe member row for the reports UI.
+   */
+  private toOpenToWorkTalentMember(
+    row: OpenToWorkTalentMemberRow,
+  ): OpenToWorkTalentMemberDto {
+    return {
+      userId: String(row.userId),
+      handle: row.handle,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      country: row.country,
+      availability: row.availability,
+      preferredRoles: toStringArray(row.preferredRoles),
+      memberSince: toIsoString(row.memberSince),
+      maxRating: toNullableNumber(row.maxRating),
+      challengeWins: toNumber(row.challengeWins),
+      taskWins: toNumber(row.taskWins),
+      totalWins: toNumber(row.totalWins),
+    };
   }
 }
