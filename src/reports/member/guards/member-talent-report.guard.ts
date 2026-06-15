@@ -5,7 +5,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
-import { Scopes } from "src/app-constants";
+import { Scopes, UserRoles } from "src/app-constants";
 import {
   AuthUserLike,
   getNormalizedRoles,
@@ -13,9 +13,13 @@ import {
   hasAdminRole,
 } from "../../../auth/permissions.util";
 
+const allowedHumanRoles = new Set<string>([
+  UserRoles.TalentManager.toLowerCase(),
+]);
+
 /**
- * Allows only administrator users, or machine clients with all-reports scope,
- * to access the open-to-work Talent report and contact export.
+ * Allows administrator and Talent Manager users, or machine clients with
+ * all-reports scope, to access the open-to-work Talent report and contact export.
  */
 @Injectable()
 export class MemberTalentReportGuard implements CanActivate {
@@ -38,7 +42,12 @@ export class MemberTalentReportGuard implements CanActivate {
       );
     }
 
-    if (hasAdminRole(getNormalizedRoles(authUser))) {
+    const roles = getNormalizedRoles(authUser);
+
+    if (
+      hasAdminRole(roles) ||
+      roles.some((role) => allowedHumanRoles.has(role))
+    ) {
       return true;
     }
 
