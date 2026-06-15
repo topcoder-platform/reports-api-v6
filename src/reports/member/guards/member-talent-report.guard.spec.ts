@@ -68,14 +68,24 @@ describe("MemberTalentReportGuard", () => {
     ).toBe(true);
   });
 
-  it("denies talent manager users", () => {
-    expect(() =>
+  it("allows talent manager users", () => {
+    expect(
       guard.canActivate(
         createExecutionContext({
           roles: [UserRoles.TalentManager],
         }),
       ),
-    ).toThrow(ForbiddenException);
+    ).toBe(true);
+  });
+
+  it("allows role claim with topcoder talent manager prefix", () => {
+    expect(
+      guard.canActivate(
+        createExecutionContext({
+          role: "Topcoder Talent Manager",
+        }),
+      ),
+    ).toBe(true);
   });
 
   it("denies machine clients without all reports scope", () => {

@@ -35,7 +35,7 @@ export class MemberSearchController {
   constructor(private readonly memberSearchService: MemberSearchService) {}
 
   /**
-   * Returns dashboard data for the admin-only open-to-work Talent report.
+   * Returns dashboard data for the open-to-work Talent report.
    * @param query Role, availability, and pagination filters.
    * @returns Dashboard summary and paginated member rows.
    */
@@ -45,11 +45,11 @@ export class MemberSearchController {
     summary: "List open-to-work members by preferred role",
     description:
       "Returns open-to-work member totals, preferred-role counts, and a paginated member list. " +
-      "Accessible by Administrator users only.",
+      "Accessible by Administrator and Talent Manager users only.",
   })
   @ApiResponse({ status: 200, type: OpenToWorkTalentResponseDto })
   @ApiResponse({ status: 401, description: "Unauthenticated" })
-  @ApiResponse({ status: 403, description: "Forbidden – admin role required" })
+  @ApiResponse({ status: 403, description: "Forbidden – insufficient role" })
   getOpenToWorkTalent(
     @Query() query: OpenToWorkTalentQueryDto,
   ): Promise<OpenToWorkTalentResponseDto> {
@@ -69,11 +69,11 @@ export class MemberSearchController {
     summary: "Export open-to-work members by preferred role",
     description:
       "Exports open-to-work members with email and phone fields. " +
-      "Accessible by Administrator users only.",
+      "Accessible by Administrator and Talent Manager users only.",
   })
   @ApiResponse({ status: 200, description: "Export successful." })
   @ApiResponse({ status: 401, description: "Unauthenticated" })
-  @ApiResponse({ status: 403, description: "Forbidden – admin role required" })
+  @ApiResponse({ status: 403, description: "Forbidden – insufficient role" })
   exportOpenToWorkTalent(@Query() query: OpenToWorkTalentQueryDto) {
     return this.memberSearchService.exportOpenToWorkTalent(query);
   }
