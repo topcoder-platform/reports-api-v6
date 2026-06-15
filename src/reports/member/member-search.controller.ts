@@ -1,21 +1,31 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   UseGuards,
+  UseInterceptors,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiProduces,
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
 import { MemberSearchBodyDto } from "./dto/member-search.dto";
 import { MemberSearchResponseDto } from "./dto/member-search-response.dto";
+import {
+  OpenToWorkTalentQueryDto,
+  OpenToWorkTalentResponseDto,
+} from "./dto/open-to-work-talent.dto";
 import { MemberSearchService } from "./member-search.service";
 import { MemberSearchGuard } from "./guards/member-search.guard";
+import { MemberTalentReportGuard } from "./guards/member-talent-report.guard";
+import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.interceptor";
 
 @ApiTags("Member Search")
 @ApiBearerAuth()
@@ -23,6 +33,50 @@ import { MemberSearchGuard } from "./guards/member-search.guard";
 @Controller("member")
 export class MemberSearchController {
   constructor(private readonly memberSearchService: MemberSearchService) {}
+
+  /**
+   * Returns dashboard data for the admin-only open-to-work Talent report.
+   * @param query Role, availability, and pagination filters.
+   * @returns Dashboard summary and paginated member rows.
+   */
+  @Get("open-to-work")
+  @UseGuards(MemberTalentReportGuard)
+  @ApiOperation({
+    summary: "List open-to-work members by preferred role",
+    description:
+      "Returns open-to-work member totals, preferred-role counts, and a paginated member list. " +
+      "Accessible by Administrator users only.",
+  })
+  @ApiResponse({ status: 200, type: OpenToWorkTalentResponseDto })
+  @ApiResponse({ status: 401, description: "Unauthenticated" })
+  @ApiResponse({ status: 403, description: "Forbidden – admin role required" })
+  getOpenToWorkTalent(
+    @Query() query: OpenToWorkTalentQueryDto,
+  ): Promise<OpenToWorkTalentResponseDto> {
+    return this.memberSearchService.getOpenToWorkTalent(query);
+  }
+
+  /**
+   * Exports open-to-work Talent report rows including contact fields.
+   * @param query Role and availability filters.
+   * @returns Flat member rows serialized as CSV when requested with `Accept: text/csv`.
+   */
+  @Get("open-to-work/export")
+  @UseGuards(MemberTalentReportGuard)
+  @UseInterceptors(CsvResponseInterceptor)
+  @ApiProduces("application/json", "text/csv")
+  @ApiOperation({
+    summary: "Export open-to-work members by preferred role",
+    description:
+      "Exports open-to-work members with email and phone fields. " +
+      "Accessible by Administrator users only.",
+  })
+  @ApiResponse({ status: 200, description: "Export successful." })
+  @ApiResponse({ status: 401, description: "Unauthenticated" })
+  @ApiResponse({ status: 403, description: "Forbidden – admin role required" })
+  exportOpenToWorkTalent(@Query() query: OpenToWorkTalentQueryDto) {
+    return this.memberSearchService.exportOpenToWorkTalent(query);
+  }
 
   @Post("search")
   @HttpCode(HttpStatus.OK)
