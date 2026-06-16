@@ -27,6 +27,139 @@ describe("MemberSearchService", () => {
     expect(service).toBeDefined();
   });
 
+  it("returns open-to-work Talent dashboard data and applies role filters", async () => {
+    mockDbService.query
+      .mockResolvedValueOnce([{ total: 5 }])
+      .mockResolvedValueOnce([
+        { role: "FULL_STACK_DEVELOPER", count: "3" },
+        { role: "UX_DESIGNER", count: 2 },
+      ])
+      .mockResolvedValueOnce([{ total: 3 }])
+      .mockResolvedValueOnce([
+        {
+          userId: 101,
+          handle: "coder",
+          firstName: "Code",
+          lastName: "User",
+          email: "coder@example.com",
+          phone: "+15555550101",
+          country: "US",
+          availability: "FULL_TIME",
+          preferredRoles: ["FULL_STACK_DEVELOPER"],
+          memberSince: "2024-01-02T00:00:00.000Z",
+          maxRating: "1800",
+          challengeWins: "4",
+          taskWins: 1,
+          totalWins: "5",
+        },
+      ]);
+
+    const result = await service.getOpenToWorkTalent({
+      role: "FULL_STACK_DEVELOPER",
+      page: 2,
+      perPage: 10,
+    });
+
+    expect(mockDbService.query).toHaveBeenCalledTimes(4);
+
+    const totalSql = mockDbService.query.mock.calls[0][0] as string;
+    const roleCountParams = mockDbService.query.mock.calls[1][1] as unknown[];
+    const countParams = mockDbService.query.mock.calls[2][1] as unknown[];
+    const dataSql = mockDbService.query.mock.calls[3][0] as string;
+    const dataParams = mockDbService.query.mock.calls[3][1] as unknown[];
+
+    expect(totalSql).toContain("mtp.key = 'openToWork'");
+    expect(totalSql).toContain("jsonb_array_length");
+    expect(totalSql).toContain("COALESCE(m.email, '') NOT ILIKE '%@wipro.com'");
+    expect(roleCountParams).toEqual([null]);
+    expect(countParams).toEqual([null, "FULL_STACK_DEVELOPER"]);
+    expect(dataSql).toContain(
+      '$2::text IS NULL OR $2::text = ANY(otw."preferredRoles")',
+    );
+    expect(dataSql).toContain(
+      "(COALESCE(cw.challenge_wins, 0) + COALESCE(tw.task_wins, 0)) DESC",
+    );
+    expect(dataParams).toEqual([null, "FULL_STACK_DEVELOPER", 10, 10]);
+
+    expect(result).toEqual({
+      totalMembers: 5,
+      total: 3,
+      page: 2,
+      perPage: 10,
+      roleCounts: [
+        { role: "FULL_STACK_DEVELOPER", count: 3 },
+        { role: "UX_DESIGNER", count: 2 },
+      ],
+      data: [
+        {
+          userId: "101",
+          handle: "coder",
+          firstName: "Code",
+          lastName: "User",
+          country: "US",
+          availability: "FULL_TIME",
+          preferredRoles: ["FULL_STACK_DEVELOPER"],
+          memberSince: "2024-01-02T00:00:00.000Z",
+          maxRating: 1800,
+          challengeWins: 4,
+          taskWins: 1,
+          totalWins: 5,
+        },
+      ],
+    });
+  });
+
+  it("exports open-to-work Talent rows with contact fields", async () => {
+    mockDbService.query.mockResolvedValueOnce([
+      {
+        userId: "202",
+        handle: "designer",
+        firstName: "Design",
+        lastName: "User",
+        email: "designer@example.com",
+        phone: "+15555550102",
+        country: "Australia",
+        availability: "PART_TIME",
+        preferredRoles: ["UX_DESIGNER", "FULL_STACK_DEVELOPER"],
+        memberSince: new Date("2024-02-03T00:00:00.000Z"),
+        maxRating: null,
+        challengeWins: 0,
+        taskWins: "2",
+        totalWins: "2",
+      },
+    ]);
+
+    const result = await service.exportOpenToWorkTalent({
+      availability: "PART_TIME",
+      role: "UX_DESIGNER",
+    });
+
+    const dataSql = mockDbService.query.mock.calls[0][0] as string;
+    const dataParams = mockDbService.query.mock.calls[0][1] as unknown[];
+
+    expect(dataSql).toContain("otw.email");
+    expect(dataSql).toContain("otw.phone");
+    expect(dataSql).not.toContain("LIMIT");
+    expect(dataParams).toEqual(["PART_TIME", "UX_DESIGNER"]);
+    expect(result).toEqual([
+      {
+        handle: "designer",
+        firstName: "Design",
+        lastName: "User",
+        email: "designer@example.com",
+        phone: "+15555550102",
+        country: "Australia",
+        availability: "PART_TIME",
+        preferredRoles: "UX_DESIGNER, FULL_STACK_DEVELOPER",
+        memberSince: "2024-02-03T00:00:00.000Z",
+        maxRating: null,
+        challengeWins: 0,
+        taskWins: 2,
+        totalWins: 2,
+      },
+    ]);
+  });
+
   it("runs data and count queries with default pagination and maps response", async () => {
     mockDbService.query
       .mockResolvedValueOnce([
@@ -54,7 +187,8 @@ describe("MemberSearchService", () => {
     const countSql = mockDbService.query.mock.calls[1][0] as string;
     const countParams = mockDbService.query.mock.calls[1][1] as unknown[];
 
-    expect(dataSql).toContain("WITH recently_active AS");
+    expect(dataSql).toContain("active_members AS MATERIALIZED");
+    expect(dataSql).toContain("recently_active AS");
     expect(dataSql).not.toContain("requested_skills AS");
     expect(dataSql).toContain(
       'ORDER BY "matchIndex" DESC NULLS LAST, m.handle ASC',
@@ -106,9 +240,10 @@ describe("MemberSearchService", () => {
     expect(dataSql).toContain(
       'ORDER BY m.handle ASC, "matchIndex" DESC NULLS LAST',
     );
-    expect(dataSql).toContain('LOWER(m."homeCountryCode") = ANY($1::text[])');
-    expect(dataParams).toEqual([["us"], 5, 5]);
-    expect(countParams).toEqual([["us"]]);
+    expect(dataSql).toContain('m."homeCountryCode" = ANY($1::text[])');
+    expect(dataSql).toContain("UPPER(m.country) = ANY($1::text[])");
+    expect(dataParams).toEqual([["US"], 5, 5]);
+    expect(countParams).toEqual([["US"]]);
   });
 
   it("treats empty countries as no country filter", async () => {
@@ -121,7 +256,7 @@ describe("MemberSearchService", () => {
     const dataSql = mockDbService.query.mock.calls[0][0] as string;
     const countParams = mockDbService.query.mock.calls[1][1] as unknown[];
 
-    expect(dataSql).not.toContain('LOWER(m."homeCountryCode") = ANY(');
+    expect(dataSql).not.toContain('m."homeCountryCode" = ANY(');
     expect(countParams).toEqual([]);
   });
 
@@ -170,8 +305,8 @@ describe("MemberSearchService", () => {
     expect(enabledCountSql).not.toContain(
       "INNER JOIN profile_complete_filtered pcf ON pcf.user_id = fm.user_id",
     );
-    expect(enabledDataParams).toEqual([["us"], 7, 14]);
-    expect(enabledCountParams).toEqual([["us"]]);
+    expect(enabledDataParams).toEqual([["US"], 7, 14]);
+    expect(enabledCountParams).toEqual([["US"]]);
 
     mockDbService.query.mockReset();
     mockDbService.query
