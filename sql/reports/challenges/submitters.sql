@@ -1,7 +1,8 @@
 WITH challenge_context AS (
   SELECT
     c.id,
-    (ct.name = 'Marathon Match') AS is_marathon_match
+    (ct.name = 'Marathon Match') AS is_marathon_match,
+    (c.status = 'COMPLETED') AS is_completed
   FROM challenges."Challenge" AS c
   JOIN challenges."ChallengeType" AS ct
     ON ct.id = c."typeId"
@@ -18,10 +19,18 @@ submission_metrics AS (
       s."initialScore"::double precision
     ) AS standard_score,
     provisional_review.provisional_score,
-    COALESCE(
-      final_review."aggregateScore",
-      s."finalScore"::double precision
-    ) AS final_score_raw
+    CASE
+      WHEN cc.is_completed THEN CASE
+        WHEN final_review."aggregateScore" IS NOT NULL THEN CASE
+          WHEN final_review."aggregateScore" >= 0 THEN final_review."aggregateScore"
+          ELSE NULL
+        END
+        WHEN s."finalScore"::double precision >= 0 THEN s."finalScore"::double precision
+        ELSE NULL
+      END
+      ELSE NULL
+    END AS final_score_raw,
+    cc.is_completed
   FROM challenge_context AS cc
   JOIN reviews."submission" AS s
     ON s."challengeId" = cc.id
@@ -40,6 +49,7 @@ submission_metrics AS (
     FROM reviews."reviewSummation" AS rs
     WHERE rs."submissionId" = s.id
       AND rs."isProvisional" IS TRUE
+      AND rs."aggregateScore" >= 0
     ORDER BY COALESCE(rs."reviewedDate", rs."createdAt") DESC NULLS LAST, rs.id DESC
     LIMIT 1
   ) AS provisional_review ON TRUE
@@ -73,7 +83,7 @@ mm_latest_submission_scores AS (
     sm."memberId",
     sm.provisional_score AS provisional_score_raw,
     sm.final_score_raw,
-    COALESCE(sm.final_score_raw, sm.provisional_score) AS effective_score_raw,
+    sm.is_completed,
     sm.submission_timestamp
   FROM submission_metrics AS sm
   ORDER BY
@@ -93,13 +103,13 @@ mm_ranked_scores AS (
       ELSE ROUND(mlss.final_score_raw::numeric, 2)
     END AS "finalScore",
     CASE
-      WHEN mlss.effective_score_raw IS NULL THEN NULL
-      ELSE ROW_NUMBER() OVER (
+      WHEN mlss.is_completed AND mlss.final_score_raw IS NOT NULL THEN ROW_NUMBER() OVER (
         ORDER BY
-          mlss.effective_score_raw DESC NULLS LAST,
+          mlss.final_score_raw DESC NULLS LAST,
           mlss.submission_timestamp ASC NULLS LAST,
           mlss."memberId" ASC
       )
+      ELSE NULL
     END AS "finalRank"
   FROM mm_latest_submission_scores AS mlss
 )
@@ -177,6 +187,10 @@ ORDER BY
     WHEN sm.is_marathon_match THEN mrs."finalRank"
     ELSE NULL
   END ASC NULLS LAST,
+  CASE
+    WHEN sm.is_marathon_match AND mrs."finalRank" IS NULL THEN mrs."provisionalScore"
+    ELSE NULL
+  END DESC NULLS LAST,
   CASE
     WHEN sm.is_marathon_match THEN NULL
     ELSE sms."submissionScore"

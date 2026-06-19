@@ -184,7 +184,7 @@ export class ChallengesReportsService {
   /**
    * Normalizes raw challenge user report rows into the exported column shape.
    * @param records SQL rows for one challenge report, including the internal Marathon Match flag.
-   * @returns Export-ready records with either submissionScore or the Marathon Match-specific score and ranking columns.
+   * @returns Export-ready records with either submissionScore or the available Marathon Match score and ranking columns.
    * @throws Does not throw. It is used as a pure formatter inside the challenge report service methods.
    */
   private formatChallengeUserReport(
@@ -196,6 +196,12 @@ export class ChallengesReportsService {
 
     const isMarathonMatch = records.some(
       (record) => record.isMarathonMatch === true,
+    );
+    const hasFinalScore = records.some(
+      (record) => record.finalScore !== null && record.finalScore !== undefined,
+    );
+    const hasFinalRank = records.some(
+      (record) => record.finalRank !== null && record.finalRank !== undefined,
     );
 
     return records.map((record) => {
@@ -210,8 +216,12 @@ export class ChallengesReportsService {
 
       if (isMarathonMatch) {
         normalized.provisionalScore = record.provisionalScore ?? null;
-        normalized.finalScore = record.finalScore ?? null;
-        normalized.finalRank = record.finalRank ?? null;
+        if (hasFinalScore) {
+          normalized.finalScore = record.finalScore ?? null;
+        }
+        if (hasFinalRank) {
+          normalized.finalRank = record.finalRank ?? null;
+        }
         return normalized;
       }
 

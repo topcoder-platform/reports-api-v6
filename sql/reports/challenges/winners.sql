@@ -1,7 +1,8 @@
 WITH challenge_context AS (
   SELECT
     c.id,
-    (ct.name = 'Marathon Match') AS is_marathon_match
+    (ct.name = 'Marathon Match') AS is_marathon_match,
+    (c.status = 'COMPLETED') AS is_completed
   FROM challenges."Challenge" AS c
   JOIN challenges."ChallengeType" AS ct
     ON ct.id = c."typeId"
@@ -16,10 +17,17 @@ submission_metrics AS (
       s."initialScore"::double precision
     ) AS standard_score,
     provisional_review.provisional_score,
-    COALESCE(
-      final_review."aggregateScore",
-      s."finalScore"::double precision
-    ) AS final_score_raw
+    CASE
+      WHEN cc.is_completed THEN CASE
+        WHEN final_review."aggregateScore" IS NOT NULL THEN CASE
+          WHEN final_review."aggregateScore" >= 0 THEN final_review."aggregateScore"
+          ELSE NULL
+        END
+        WHEN s."finalScore"::double precision >= 0 THEN s."finalScore"::double precision
+        ELSE NULL
+      END
+      ELSE NULL
+    END AS final_score_raw
   FROM challenge_context AS cc
   JOIN reviews."submission" AS s
     ON s."challengeId" = cc.id
@@ -38,11 +46,13 @@ submission_metrics AS (
     FROM reviews."reviewSummation" AS rs
     WHERE rs."submissionId" = s.id
       AND rs."isProvisional" IS TRUE
+      AND rs."aggregateScore" >= 0
   ) AS provisional_review ON TRUE
 ),
 winner_members AS MATERIALIZED (
   SELECT
     cc.is_marathon_match,
+    cc.is_completed,
     cw."userId"::text AS "memberId",
     MAX(cw.handle) AS "winnerHandle",
     MIN(cw.placement) AS placement
@@ -52,6 +62,7 @@ winner_members AS MATERIALIZED (
    AND cw.type = 'PLACEMENT'
   GROUP BY
     cc.is_marathon_match,
+    cc.is_completed,
     cw."userId"
 ),
 standard_member_scores AS (
@@ -126,7 +137,7 @@ SELECT
     ELSE NULL
   END AS "finalScore",
   CASE
-    WHEN wm.is_marathon_match THEN wm.placement
+    WHEN wm.is_marathon_match AND wm.is_completed THEN wm.placement
     ELSE NULL
   END AS "finalRank"
 FROM winner_members AS wm
