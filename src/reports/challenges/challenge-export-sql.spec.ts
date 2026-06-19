@@ -16,9 +16,8 @@ describe("Challenge export SQL", () => {
 
       expect(sql).toContain(`(c.status = 'COMPLETED') AS is_completed`);
       expect(sql).toContain("WHEN cc.is_completed THEN CASE");
-      expect(sql).toContain(
-        `WHEN final_review."aggregateScore" IS NOT NULL THEN CASE`,
-      );
+      expect(sql).toContain("TRUE AS has_final_review");
+      expect(sql).toContain("WHEN final_review.has_final_review THEN CASE");
       expect(sql).toContain(
         `WHEN final_review."aggregateScore" >= 0 THEN final_review."aggregateScore"`,
       );

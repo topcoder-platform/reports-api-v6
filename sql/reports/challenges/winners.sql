@@ -19,7 +19,7 @@ submission_metrics AS (
     provisional_review.provisional_score,
     CASE
       WHEN cc.is_completed THEN CASE
-        WHEN final_review."aggregateScore" IS NOT NULL THEN CASE
+        WHEN final_review.has_final_review THEN CASE
           WHEN final_review."aggregateScore" >= 0 THEN final_review."aggregateScore"
           ELSE NULL
         END
@@ -33,7 +33,9 @@ submission_metrics AS (
     ON s."challengeId" = cc.id
    AND s."memberId" IS NOT NULL
   LEFT JOIN LATERAL (
-    SELECT rs."aggregateScore"
+    SELECT
+      TRUE AS has_final_review,
+      rs."aggregateScore"
     FROM reviews."reviewSummation" AS rs
     WHERE rs."submissionId" = s.id
       AND COALESCE(rs."isFinal", TRUE) = TRUE
