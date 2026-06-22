@@ -18,8 +18,8 @@ export class ChallengeUsersPathParamDto {
  * User record returned by challenge user reports including resolved country.
  * Standard challenge submission-based reports expose submissionScore.
  * Marathon Match submission-based reports expose provisionalScore from the
- * latest submission. Completed Marathon Match reports also expose finalScore
- * and finalRank when final scoring data is available.
+ * latest non-failed scored submission. Completed Marathon Match reports also
+ * expose finalScore and finalRank when final scoring data is available.
  */
 export interface ChallengeUserRecordDto {
   userId: number;

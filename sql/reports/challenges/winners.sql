@@ -16,16 +16,32 @@ submission_metrics AS (
       s."finalScore"::double precision,
       s."initialScore"::double precision
     ) AS standard_score,
-    provisional_review.provisional_score,
     CASE
-      WHEN cc.is_completed THEN CASE
-        WHEN final_review.has_final_review THEN CASE
-          WHEN final_review."aggregateScore" >= 0 THEN final_review."aggregateScore"
-          ELSE NULL
-        END
-        WHEN s."finalScore"::double precision >= 0 THEN s."finalScore"::double precision
+      WHEN s.status IN (
+        'FAILED_SCREENING',
+        'FAILED_REVIEW',
+        'FAILED_CHECKPOINT_SCREENING',
+        'FAILED_CHECKPOINT_REVIEW',
+        'DELETED'
+      ) THEN NULL
+      WHEN provisional_review.provisional_score IS NOT NULL THEN provisional_review.provisional_score
+      WHEN s."initialScore"::double precision >= 0 THEN s."initialScore"::double precision
+      ELSE NULL
+    END AS provisional_score,
+    CASE
+      WHEN NOT cc.is_completed THEN NULL
+      WHEN s.status IN (
+        'FAILED_SCREENING',
+        'FAILED_REVIEW',
+        'FAILED_CHECKPOINT_SCREENING',
+        'FAILED_CHECKPOINT_REVIEW',
+        'DELETED'
+      ) THEN NULL
+      WHEN final_review.has_final_review THEN CASE
+        WHEN final_review."aggregateScore" >= 0 THEN final_review."aggregateScore"
         ELSE NULL
       END
+      WHEN s."finalScore"::double precision >= 0 THEN s."finalScore"::double precision
       ELSE NULL
     END AS final_score_raw
   FROM challenge_context AS cc
