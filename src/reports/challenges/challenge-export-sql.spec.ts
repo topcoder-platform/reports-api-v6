@@ -34,22 +34,26 @@ describe("Challenge export SQL", () => {
       const sql = sqlLoader.load(sqlPath);
 
       expect(sql).toContain(
-        "WHEN provisional_review.provisional_score IS NOT NULL THEN provisional_review.provisional_score",
+        "WHEN provisional_review.has_provisional_review THEN CASE",
+      );
+      expect(sql).toContain(
+        "WHEN provisional_review.provisional_score >= 0 THEN provisional_review.provisional_score",
       );
       expect(sql).toContain(
         `WHEN s."initialScore"::double precision >= 0 THEN s."initialScore"::double precision`,
       );
+      expect(sql).toContain("TRUE AS has_provisional_review");
       expect(sql).toContain(`'FAILED_REVIEW'`);
       expect(sql).toContain(`'DELETED'`);
     },
   );
 
   it.each(challengeUserSqlPaths)(
-    "filters failed negative Marathon Match provisional scores in %s",
+    "guards failed Marathon Match provisional reviews before falling back in %s",
     (sqlPath) => {
       const sql = sqlLoader.load(sqlPath);
 
-      expect(sql).toContain(`AND rs."aggregateScore" >= 0`);
+      expect(sql).not.toContain(`AND rs."aggregateScore" >= 0`);
     },
   );
 

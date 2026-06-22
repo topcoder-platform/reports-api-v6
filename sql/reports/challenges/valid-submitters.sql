@@ -26,7 +26,10 @@ submission_metrics AS (
         'FAILED_CHECKPOINT_REVIEW',
         'DELETED'
       ) THEN NULL
-      WHEN provisional_review.provisional_score IS NOT NULL THEN provisional_review.provisional_score
+      WHEN provisional_review.has_provisional_review THEN CASE
+        WHEN provisional_review.provisional_score >= 0 THEN provisional_review.provisional_score
+        ELSE NULL
+      END
       WHEN s."initialScore"::double precision >= 0 THEN s."initialScore"::double precision
       ELSE NULL
     END AS provisional_score,
@@ -67,11 +70,12 @@ submission_metrics AS (
     LIMIT 1
   ) AS final_review ON TRUE
   LEFT JOIN LATERAL (
-    SELECT rs."aggregateScore" AS provisional_score
+    SELECT
+      TRUE AS has_provisional_review,
+      rs."aggregateScore" AS provisional_score
     FROM reviews."reviewSummation" AS rs
     WHERE rs."submissionId" = s.id
       AND rs."isProvisional" IS TRUE
-      AND rs."aggregateScore" >= 0
     ORDER BY COALESCE(rs."reviewedDate", rs."createdAt") DESC NULLS LAST, rs.id DESC
     LIMIT 1
   ) AS provisional_review ON TRUE
