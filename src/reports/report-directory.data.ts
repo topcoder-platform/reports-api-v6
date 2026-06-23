@@ -428,7 +428,7 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
       challengeReport(
         "Challenge Winners",
         "/challenges/:challengeId/winners",
-        "Return the challenge winners report with placement winners only. Marathon Match exports include non-failed provisionalScore and completed challenge finalScore/finalRank values.",
+        "Return the challenge winners report with placement winners only. Marathon Match exports use the latest non-failed provisionalScore and include completed challenge finalScore/finalRank values.",
         AppScopes.Challenge.Winners,
         [challengeIdParam],
       ),

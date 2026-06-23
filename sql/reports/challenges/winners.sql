@@ -10,7 +10,9 @@ WITH challenge_context AS (
 ),
 submission_metrics AS (
   SELECT
+    s.id AS submission_id,
     s."memberId",
+    COALESCE(s."submittedDate", s."createdAt") AS submission_timestamp,
     COALESCE(
       final_review."aggregateScore",
       s."finalScore"::double precision,
@@ -96,26 +98,32 @@ standard_member_scores AS (
   FROM submission_metrics AS sm
   GROUP BY sm."memberId"
 ),
-mm_member_scores AS (
-  SELECT
+mm_latest_submission_scores AS (
+  SELECT DISTINCT ON (sm."memberId")
     sm."memberId",
-    MAX(sm.provisional_score) AS provisional_score_raw,
-    MAX(sm.final_score_raw) AS final_score_raw
+    sm.provisional_score AS provisional_score_raw,
+    sm.final_score_raw
   FROM submission_metrics AS sm
-  GROUP BY sm."memberId"
+  WHERE
+    sm.provisional_score IS NOT NULL
+    OR sm.final_score_raw IS NOT NULL
+  ORDER BY
+    sm."memberId",
+    sm.submission_timestamp DESC NULLS LAST,
+    sm.submission_id DESC
 ),
 mm_winner_scores AS (
   SELECT
-    mms."memberId",
+    mlss."memberId",
     CASE
-      WHEN mms.provisional_score_raw IS NULL THEN NULL
-      ELSE ROUND(mms.provisional_score_raw::numeric, 2)
+      WHEN mlss.provisional_score_raw IS NULL THEN NULL
+      ELSE ROUND(mlss.provisional_score_raw::numeric, 2)
     END AS "provisionalScore",
     CASE
-      WHEN mms.final_score_raw IS NULL THEN NULL
-      ELSE ROUND(mms.final_score_raw::numeric, 2)
+      WHEN mlss.final_score_raw IS NULL THEN NULL
+      ELSE ROUND(mlss.final_score_raw::numeric, 2)
     END AS "finalScore"
-  FROM mm_member_scores AS mms
+  FROM mm_latest_submission_scores AS mlss
 )
 SELECT
   COALESCE(
