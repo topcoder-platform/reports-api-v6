@@ -74,6 +74,22 @@ describe("Challenge export SQL", () => {
     );
   });
 
+  it.each(challengeUserSqlPaths)(
+    "uses the latest usable Marathon Match scored submission in %s",
+    (sqlPath) => {
+      const sql = sqlLoader.load(sqlPath);
+
+      expect(sql).toMatch(/SELECT DISTINCT ON \(\w+\."memberId"\)/);
+      expect(sql).toMatch(
+        /ORDER BY\s+\w+\."memberId",\s+\w+\.submission_timestamp DESC NULLS LAST,\s+\w+\.submission_id DESC/,
+      );
+      expect(sql).not.toMatch(
+        /MAX\(\w+\.provisional_score\) AS provisional_score_raw/,
+      );
+      expect(sql).not.toMatch(/MAX\(\w+\.final_score_raw\) AS final_score_raw/);
+    },
+  );
+
   it("only returns Marathon Match winner finalRank for completed challenges", () => {
     const sql = sqlLoader.load("reports/challenges/winners.sql");
 
