@@ -2,6 +2,7 @@
   "name": "reports-api-v6",
   "version": "0.0.1",
   "private": true,
+  "packageManager": "pnpm@11.15.0",
   "scripts": {
     "build": "nest build",
     "start": "node dist/main.js",

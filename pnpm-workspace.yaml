@@ -1,0 +1,9 @@
+packages:
+  - .
+
+allowBuilds:
+  '@nestjs/core@11.1.9': false
+  '@prisma/engines@7.0.1': true
+  '@scarf/scarf@1.4.0': false
+  dtrace-provider@0.8.8: false
+  prisma@7.0.1: true

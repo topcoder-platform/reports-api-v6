@@ -1,0 +1,9 @@
+.git
+.github
+.circleci
+.env
+.env.*
+node_modules
+dist
+coverage
+*.log
