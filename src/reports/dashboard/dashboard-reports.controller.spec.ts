@@ -85,7 +85,7 @@ describe("DashboardReportsController", () => {
         month: "2026-02-01",
         taas: 3,
         task: 4,
-        contest: 5,
+        challenge: 5,
         engagement: 2,
       },
     ];
@@ -93,7 +93,7 @@ describe("DashboardReportsController", () => {
 
     await expect(controller.exportAllDashboards(query)).resolves.toBe(
       [
-        "dashboard,month,activated,notActivated,taas,task,contest,engagement",
+        "dashboard,month,activated,notActivated,taas,task,challenge,engagement",
         "new-signups,2026-02-01,10,2,,,,",
         "members-paid,2026-02-01,,,3,4,5,2",
       ].join("\n"),

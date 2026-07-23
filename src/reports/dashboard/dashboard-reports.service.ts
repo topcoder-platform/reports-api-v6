@@ -30,12 +30,12 @@ type MembersPaidRow = {
   month: string;
   taas: QueryValue;
   task: QueryValue;
-  contest: QueryValue;
+  challenge: QueryValue;
   engagement: QueryValue;
   total_unique_members: QueryValue;
   taas_unique_members: QueryValue;
   task_unique_members: QueryValue;
-  contest_unique_members: QueryValue;
+  challenge_unique_members: QueryValue;
   engagement_unique_members: QueryValue;
   peak_month: string | null;
   peak_month_unique_members: QueryValue;
@@ -326,14 +326,14 @@ export class DashboardReportsService {
         month: row.month,
         taas: toNumber(row.taas),
         task: toNumber(row.task),
-        contest: toNumber(row.contest),
+        challenge: toNumber(row.challenge),
         engagement: toNumber(row.engagement),
       })),
       summary: {
         totalUniqueMembers: toNumber(summary?.total_unique_members),
         taasUniqueMembers: toNumber(summary?.taas_unique_members),
         taskUniqueMembers: toNumber(summary?.task_unique_members),
-        contestUniqueMembers: toNumber(summary?.contest_unique_members),
+        challengeUniqueMembers: toNumber(summary?.challenge_unique_members),
         engagementUniqueMembers: toNumber(summary?.engagement_unique_members),
         peakMonth: summary?.peak_month ?? null,
         peakMonthUniqueMembers: toNumber(summary?.peak_month_unique_members),
@@ -398,7 +398,7 @@ export class DashboardReportsService {
           month: month.month,
           taas: month.taas,
           task: month.task,
-          contest: month.contest,
+          challenge: month.challenge,
           engagement: month.engagement,
         }));
       case DashboardSlug.ChallengeParticipation:

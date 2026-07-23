@@ -36,7 +36,7 @@ paid_events AS MATERIALIZED (
         'DEPLOYMENT_TASK_PAYMENT',
         'PROJECT_DEPLOYMENT_TASK_PAYMENT'
       ) THEN 'task'
-      ELSE 'contest'
+      ELSE 'challenge'
     END AS payment_type
   FROM finance.payment p
   JOIN finance.winnings w
@@ -57,8 +57,8 @@ selected_months AS (
       WHERE pe.payment_type = 'task'
     ) AS task,
     COUNT(DISTINCT pe.member_id) FILTER (
-      WHERE pe.payment_type = 'contest'
-    ) AS contest,
+      WHERE pe.payment_type = 'challenge'
+    ) AS challenge,
     COUNT(DISTINCT pe.member_id) FILTER (
       WHERE pe.payment_type = 'engagement'
     ) AS engagement
@@ -93,8 +93,8 @@ all_time_summary AS (
       WHERE pe.payment_type = 'task'
     ) AS task_unique_members,
     COUNT(DISTINCT pe.member_id) FILTER (
-      WHERE pe.payment_type = 'contest'
-    ) AS contest_unique_members,
+      WHERE pe.payment_type = 'challenge'
+    ) AS challenge_unique_members,
     COUNT(DISTINCT pe.member_id) FILTER (
       WHERE pe.payment_type = 'engagement'
     ) AS engagement_unique_members
@@ -104,12 +104,12 @@ SELECT
   TO_CHAR(m.month_start, 'YYYY-MM-01') AS month,
   COALESCE(sm.taas, 0) AS taas,
   COALESCE(sm.task, 0) AS task,
-  COALESCE(sm.contest, 0) AS contest,
+  COALESCE(sm.challenge, 0) AS challenge,
   COALESCE(sm.engagement, 0) AS engagement,
   ats.total_unique_members,
   ats.taas_unique_members,
   ats.task_unique_members,
-  ats.contest_unique_members,
+  ats.challenge_unique_members,
   ats.engagement_unique_members,
   TO_CHAR(pm.month_start, 'YYYY-MM-01') AS peak_month,
   COALESCE(pm.unique_members, 0) AS peak_month_unique_members

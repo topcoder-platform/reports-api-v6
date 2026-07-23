@@ -119,7 +119,7 @@ export class MembersPaidMonthDto {
   task: number;
 
   @ApiProperty({ example: 1294 })
-  contest: number;
+  challenge: number;
 
   @ApiProperty({ example: 376 })
   engagement: number;
@@ -139,7 +139,7 @@ export class MembersPaidSummaryDto {
   taskUniqueMembers: number;
 
   @ApiProperty({ example: 14226 })
-  contestUniqueMembers: number;
+  challengeUniqueMembers: number;
 
   @ApiProperty({ example: 3154 })
   engagementUniqueMembers: number;
@@ -281,7 +281,7 @@ export class DashboardExportRowDto {
   task?: number;
 
   @ApiPropertyOptional()
-  contest?: number;
+  challenge?: number;
 
   @ApiPropertyOptional()
   engagement?: number;
