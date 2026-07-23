@@ -6,6 +6,43 @@ Reports return JSON data by default. Endpoints that support CSV can also return
 CSV when the request sets `Accept: text/csv` (including the Challenges,
 Topcoder, Member, and Admin report groups).
 
+## Reports Portal Dashboards
+
+The Reports Portal dashboard API is available under
+`/v6/reports/dashboard`:
+
+- `GET /v6/reports/dashboard` returns all dashboards, keyed as
+  `newSignups`, `membersPaid`, and `challengeParticipation`.
+- `GET /v6/reports/dashboard/:dashboard` returns one dashboard. Supported
+  slugs are `new-signups`, `members-paid`, and `challenge-participation`.
+- `GET /v6/reports/dashboard/export` downloads all monthly dashboard rows as
+  a flat CSV.
+- `GET /v6/reports/dashboard/:dashboard/export` downloads one dashboard as a
+  flat CSV.
+
+All endpoints accept optional ISO-8601 `startDate` (inclusive) and `endDate`
+(exclusive) query parameters. With neither bound, the monthly series covers
+the latest six UTC calendar months, including the current month. With one
+bound, the other is derived six calendar months away. The response always
+includes the resolved timestamps, zero-filled calendar months, and an
+all-time summary.
+
+Dashboard figures use these shared definitions:
+
+- Signups come from `identity.user.create_date`. `status = 'A'` is activated;
+  every other current status is not activated.
+- Paid-member activity requires a `PAID` finance payment for a `PAYMENT`
+  winning. Its event timestamp is `date_paid`, falling back to `created_at`.
+  Members are deduplicated within each payment bucket and month.
+- Registrations are Submitter resource creation events. Submissions are
+  non-deleted review submission events, using `submittedDate` and falling
+  back to `createdAt`. Each category is deduplicated independently by member
+  and month.
+- Rates are percentages from 0 through 100.
+
+Human access is limited to Administrator and Talent Manager roles. Machine
+tokens require the `reports:all` scope.
+
 ## Security
 
 Currently, an M2M token is required to pull any report, and each report has its own scope associated with it that must be applied to the M2M token client ID

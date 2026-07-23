@@ -13,6 +13,7 @@ import { IdentityReportsModule } from "./reports/identity/identity-reports.modul
 import { ReportsModule } from "./reports/reports.module";
 import { MemberSearchModule } from "./reports/member/member-search.module";
 import { PaymentReportsModule } from "./reports/payment/payment-reports.module";
+import { DashboardReportsModule } from "./reports/dashboard/dashboard-reports.module";
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { PaymentReportsModule } from "./reports/payment/payment-reports.module";
     ReportsModule,
     MemberSearchModule,
     PaymentReportsModule,
+    DashboardReportsModule,
     HealthModule,
   ],
 })
