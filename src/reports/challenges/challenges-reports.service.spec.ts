@@ -87,6 +87,71 @@ describe("ChallengesReportsService", () => {
     ]);
   });
 
+  it("omits Marathon Match final columns when final scoring is unavailable", async () => {
+    db.query.mockResolvedValue([
+      {
+        userId: 88779578,
+        handle: "adipowfamo",
+        email: "topcodergh+adipowfamo@gmail.com",
+        firstName: "Adipo",
+        lastName: "Wfamo",
+        country: "Australia",
+        isMarathonMatch: true,
+        provisionalScore: 87.29,
+        finalScore: null,
+        finalRank: null,
+      },
+      {
+        userId: 10000039,
+        handle: "testaws1",
+        email: "topcodergh+testaws1@gmail.com",
+        firstName: "Testaws",
+        lastName: "One",
+        country: "Japan",
+        isMarathonMatch: true,
+        provisionalScore: 90.83,
+        finalScore: null,
+        finalRank: null,
+      },
+    ]);
+
+    const result = await service.getSubmitters({
+      challengeId: "1bb94965-32e3-40a6-9933-2c6bd9dcdca8",
+    });
+
+    expect(result).toEqual([
+      {
+        userId: 88779578,
+        handle: "adipowfamo",
+        email: "topcodergh+adipowfamo@gmail.com",
+        firstName: "Adipo",
+        lastName: "Wfamo",
+        country: "Australia",
+        provisionalScore: 87.29,
+      },
+      {
+        userId: 10000039,
+        handle: "testaws1",
+        email: "topcodergh+testaws1@gmail.com",
+        firstName: "Testaws",
+        lastName: "One",
+        country: "Japan",
+        provisionalScore: 90.83,
+      },
+    ]);
+    expect(Object.keys(result[0])).toEqual([
+      "userId",
+      "handle",
+      "email",
+      "firstName",
+      "lastName",
+      "country",
+      "provisionalScore",
+    ]);
+    expect(result[0]).not.toHaveProperty("finalScore");
+    expect(result[0]).not.toHaveProperty("finalRank");
+  });
+
   it("returns Marathon Match winners with final scores when available", async () => {
     db.query.mockResolvedValue([
       {

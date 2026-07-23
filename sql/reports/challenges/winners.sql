@@ -1,7 +1,8 @@
 WITH challenge_context AS (
   SELECT
     c.id,
-    (ct.name = 'Marathon Match') AS is_marathon_match
+    (ct.name = 'Marathon Match') AS is_marathon_match,
+    (c.status = 'COMPLETED') AS is_completed
   FROM challenges."Challenge" AS c
   JOIN challenges."ChallengeType" AS ct
     ON ct.id = c."typeId"
@@ -9,23 +10,53 @@ WITH challenge_context AS (
 ),
 submission_metrics AS (
   SELECT
+    s.id AS submission_id,
     s."memberId",
+    COALESCE(s."submittedDate", s."createdAt") AS submission_timestamp,
     COALESCE(
       final_review."aggregateScore",
       s."finalScore"::double precision,
       s."initialScore"::double precision
     ) AS standard_score,
-    provisional_review.provisional_score,
-    COALESCE(
-      final_review."aggregateScore",
-      s."finalScore"::double precision
-    ) AS final_score_raw
+    CASE
+      WHEN s.status IN (
+        'FAILED_SCREENING',
+        'FAILED_REVIEW',
+        'FAILED_CHECKPOINT_SCREENING',
+        'FAILED_CHECKPOINT_REVIEW',
+        'DELETED'
+      ) THEN NULL
+      WHEN provisional_review.has_provisional_review THEN CASE
+        WHEN provisional_review.provisional_score >= 0 THEN provisional_review.provisional_score
+        ELSE NULL
+      END
+      WHEN s."initialScore"::double precision >= 0 THEN s."initialScore"::double precision
+      ELSE NULL
+    END AS provisional_score,
+    CASE
+      WHEN NOT cc.is_completed THEN NULL
+      WHEN s.status IN (
+        'FAILED_SCREENING',
+        'FAILED_REVIEW',
+        'FAILED_CHECKPOINT_SCREENING',
+        'FAILED_CHECKPOINT_REVIEW',
+        'DELETED'
+      ) THEN NULL
+      WHEN final_review.has_final_review THEN CASE
+        WHEN final_review."aggregateScore" >= 0 THEN final_review."aggregateScore"
+        ELSE NULL
+      END
+      WHEN s."finalScore"::double precision >= 0 THEN s."finalScore"::double precision
+      ELSE NULL
+    END AS final_score_raw
   FROM challenge_context AS cc
   JOIN reviews."submission" AS s
     ON s."challengeId" = cc.id
    AND s."memberId" IS NOT NULL
   LEFT JOIN LATERAL (
-    SELECT rs."aggregateScore"
+    SELECT
+      TRUE AS has_final_review,
+      rs."aggregateScore"
     FROM reviews."reviewSummation" AS rs
     WHERE rs."submissionId" = s.id
       AND COALESCE(rs."isFinal", TRUE) = TRUE
@@ -34,15 +65,20 @@ submission_metrics AS (
     LIMIT 1
   ) AS final_review ON TRUE
   LEFT JOIN LATERAL (
-    SELECT MAX(rs."aggregateScore") AS provisional_score
+    SELECT
+      TRUE AS has_provisional_review,
+      rs."aggregateScore" AS provisional_score
     FROM reviews."reviewSummation" AS rs
     WHERE rs."submissionId" = s.id
       AND rs."isProvisional" IS TRUE
+    ORDER BY COALESCE(rs."reviewedDate", rs."createdAt") DESC NULLS LAST, rs.id DESC
+    LIMIT 1
   ) AS provisional_review ON TRUE
 ),
 winner_members AS MATERIALIZED (
   SELECT
     cc.is_marathon_match,
+    cc.is_completed,
     cw."userId"::text AS "memberId",
     MAX(cw.handle) AS "winnerHandle",
     MIN(cw.placement) AS placement
@@ -52,6 +88,7 @@ winner_members AS MATERIALIZED (
    AND cw.type = 'PLACEMENT'
   GROUP BY
     cc.is_marathon_match,
+    cc.is_completed,
     cw."userId"
 ),
 standard_member_scores AS (
@@ -61,26 +98,32 @@ standard_member_scores AS (
   FROM submission_metrics AS sm
   GROUP BY sm."memberId"
 ),
-mm_member_scores AS (
-  SELECT
+mm_latest_submission_scores AS (
+  SELECT DISTINCT ON (sm."memberId")
     sm."memberId",
-    MAX(sm.provisional_score) AS provisional_score_raw,
-    MAX(sm.final_score_raw) AS final_score_raw
+    sm.provisional_score AS provisional_score_raw,
+    sm.final_score_raw
   FROM submission_metrics AS sm
-  GROUP BY sm."memberId"
+  WHERE
+    sm.provisional_score IS NOT NULL
+    OR sm.final_score_raw IS NOT NULL
+  ORDER BY
+    sm."memberId",
+    sm.submission_timestamp DESC NULLS LAST,
+    sm.submission_id DESC
 ),
 mm_winner_scores AS (
   SELECT
-    mms."memberId",
+    mlss."memberId",
     CASE
-      WHEN mms.provisional_score_raw IS NULL THEN NULL
-      ELSE ROUND(mms.provisional_score_raw::numeric, 2)
+      WHEN mlss.provisional_score_raw IS NULL THEN NULL
+      ELSE ROUND(mlss.provisional_score_raw::numeric, 2)
     END AS "provisionalScore",
     CASE
-      WHEN mms.final_score_raw IS NULL THEN NULL
-      ELSE ROUND(mms.final_score_raw::numeric, 2)
+      WHEN mlss.final_score_raw IS NULL THEN NULL
+      ELSE ROUND(mlss.final_score_raw::numeric, 2)
     END AS "finalScore"
-  FROM mm_member_scores AS mms
+  FROM mm_latest_submission_scores AS mlss
 )
 SELECT
   COALESCE(
@@ -126,7 +169,7 @@ SELECT
     ELSE NULL
   END AS "finalScore",
   CASE
-    WHEN wm.is_marathon_match THEN wm.placement
+    WHEN wm.is_marathon_match AND wm.is_completed THEN wm.placement
     ELSE NULL
   END AS "finalRank"
 FROM winner_members AS wm
