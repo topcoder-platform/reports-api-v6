@@ -8,6 +8,8 @@ export enum DashboardSlug {
   NewSignups = "new-signups",
   MembersPaid = "members-paid",
   ChallengeParticipation = "challenge-participation",
+  MemberPaymentByMonth = "member-payment-by-month",
+  MemberPaymentByCustomer = "member-payment-by-customer",
 }
 
 /**
@@ -242,7 +244,116 @@ export class ChallengeParticipationDashboardDto {
 }
 
 /**
- * Aggregate landing-page response containing all three full dashboards.
+ * One month of member-payment values split by canonical payment type.
+ */
+export class MemberPaymentMonthDto {
+  @ApiProperty({ example: "2026-02-01" })
+  month: string;
+
+  @ApiProperty({ example: 185250.5 })
+  taas: number;
+
+  @ApiProperty({ example: 92340 })
+  task: number;
+
+  @ApiProperty({ example: 246100.75 })
+  challenge: number;
+
+  @ApiProperty({ example: 63400 })
+  engagement: number;
+}
+
+/**
+ * Monthly member-payment values split by canonical payment type.
+ */
+export class MemberPaymentByMonthDashboardDto {
+  @ApiProperty({
+    enum: [DashboardSlug.MemberPaymentByMonth],
+    example: DashboardSlug.MemberPaymentByMonth,
+  })
+  dashboard: DashboardSlug.MemberPaymentByMonth;
+
+  @ApiProperty({ example: "2026-02-01T00:00:00.000Z" })
+  startDate: string;
+
+  @ApiProperty({
+    description: "Exclusive reporting range end.",
+    example: "2026-08-01T00:00:00.000Z",
+  })
+  endDate: string;
+
+  @ApiProperty({ type: [MemberPaymentMonthDto] })
+  months: MemberPaymentMonthDto[];
+}
+
+/**
+ * One customer series used by the monthly member-payment chart.
+ */
+export class MemberPaymentCustomerSeriesDto {
+  @ApiProperty({
+    description: "Stable API-generated key used in each month's values map.",
+    example: "customer-client-123",
+  })
+  key: string;
+
+  @ApiProperty({ example: "Example Customer" })
+  label: string;
+
+  @ApiProperty({
+    nullable: true,
+    description:
+      "Billing-account client identifier, or null for Other Customers.",
+    example: "client-123",
+  })
+  customerId: string | null;
+}
+
+/**
+ * One month of member-payment values keyed by customer-series key.
+ */
+export class MemberPaymentByCustomerMonthDto {
+  @ApiProperty({ example: "2026-02-01" })
+  month: string;
+
+  @ApiProperty({
+    type: "object",
+    additionalProperties: { type: "number" },
+    example: {
+      "customer-client-123": 185250.5,
+      "other-customers": 92340,
+    },
+  })
+  values: Record<string, number>;
+}
+
+/**
+ * Monthly member-payment values split by the range's top customers.
+ */
+export class MemberPaymentByCustomerDashboardDto {
+  @ApiProperty({
+    enum: [DashboardSlug.MemberPaymentByCustomer],
+    example: DashboardSlug.MemberPaymentByCustomer,
+  })
+  dashboard: DashboardSlug.MemberPaymentByCustomer;
+
+  @ApiProperty({ example: "2026-02-01T00:00:00.000Z" })
+  startDate: string;
+
+  @ApiProperty({
+    description: "Exclusive reporting range end.",
+    example: "2026-08-01T00:00:00.000Z",
+  })
+  endDate: string;
+
+  @ApiProperty({ type: [MemberPaymentCustomerSeriesDto] })
+  series: MemberPaymentCustomerSeriesDto[];
+
+  @ApiProperty({ type: [MemberPaymentByCustomerMonthDto] })
+  months: MemberPaymentByCustomerMonthDto[];
+}
+
+/**
+ * Aggregate landing-page response containing all five full dashboards.
  */
 export class AllDashboardsDto {
   @ApiProperty({ type: NewSignupsDashboardDto })
@@ -253,6 +364,12 @@ export class AllDashboardsDto {
 
   @ApiProperty({ type: ChallengeParticipationDashboardDto })
   challengeParticipation: ChallengeParticipationDashboardDto;
+
+  @ApiProperty({ type: MemberPaymentByMonthDashboardDto })
+  memberPaymentByMonth: MemberPaymentByMonthDashboardDto;
+
+  @ApiProperty({ type: MemberPaymentByCustomerDashboardDto })
+  memberPaymentByCustomer: MemberPaymentByCustomerDashboardDto;
 }
 
 /**
@@ -291,6 +408,12 @@ export class DashboardExportRowDto {
 
   @ApiPropertyOptional()
   submitters?: number;
+
+  @ApiPropertyOptional()
+  customer?: string;
+
+  @ApiPropertyOptional()
+  amount?: number;
 }
 
 /**
@@ -299,4 +422,6 @@ export class DashboardExportRowDto {
 export type DashboardResponse =
   | NewSignupsDashboardDto
   | MembersPaidDashboardDto
-  | ChallengeParticipationDashboardDto;
+  | ChallengeParticipationDashboardDto
+  | MemberPaymentByMonthDashboardDto
+  | MemberPaymentByCustomerDashboardDto;

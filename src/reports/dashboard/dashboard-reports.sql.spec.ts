@@ -7,6 +7,8 @@ describe("Dashboard report SQL", () => {
     "new-signups.sql",
     "members-paid.sql",
     "challenge-participation.sql",
+    "member-payment-by-month.sql",
+    "member-payment-by-customer.sql",
   ])(
     "uses a half-open range and emits zero-filled calendar months: %s",
     (file) => {
@@ -46,6 +48,60 @@ describe("Dashboard report SQL", () => {
       "w.category::text IS DISTINCT FROM 'TOPGEAR_PAYMENT'",
     );
     expect(sql).toMatch(/COUNT\(DISTINCT pe\.member_id\) FILTER/g);
+  });
+
+  it("sums latest paid-member values by canonical payment bucket", () => {
+    const sql = sqlLoader.load("reports/dashboard/member-payment-by-month.sql");
+
+    expect(sql).toContain("MAX(p.version) AS max_version");
+    expect(sql).toContain("lpv.max_version = p.version");
+    expect(sql).toContain("p.payment_status = 'PAID'");
+    expect(sql).toContain("w.type = 'PAYMENT'");
+    expect(sql).toContain("COALESCE(p.date_paid, p.created_at)");
+    expect(sql).toContain(
+      "COALESCE(p.gross_amount, p.total_amount, 0) AS amount",
+    );
+    expect(sql).toContain("w.category::text = 'TAAS_PAYMENT'");
+    expect(sql).toContain("w.category::text = 'ENGAGEMENT_PAYMENT'");
+    expect(sql).toContain("'TASK_REVIEW_PAYMENT'");
+    expect(sql).toContain(
+      "w.category::text IS DISTINCT FROM 'TOPGEAR_PAYMENT'",
+    );
+    expect(sql).toMatch(/SUM\(pe\.amount\) FILTER/g);
+  });
+
+  it("ranks five clients once and zero-fills an Other Customers series", () => {
+    const sql = sqlLoader.load(
+      "reports/dashboard/member-payment-by-customer.sql",
+    );
+
+    expect(sql).toContain("MAX(p.version) AS max_version");
+    expect(sql).toContain("p.payment_status = 'PAID'");
+    expect(sql).toContain(
+      "COALESCE(p.gross_amount, p.total_amount, 0) AS amount",
+    );
+    expect(sql).toContain('LEFT JOIN challenges."ChallengeBilling" cb');
+    expect(sql).toContain(
+      'LEFT JOIN "billing-accounts"."BillingAccount" payment_ba',
+    );
+    expect(sql).toContain(
+      'LEFT JOIN "billing-accounts"."BillingAccount" challenge_ba',
+    );
+    expect(sql).toContain('LEFT JOIN "billing-accounts"."Client" cl');
+    expect(sql).toContain("payment_ba.id::text");
+    expect(sql).toContain("challenge_ba.id::text");
+    expect(sql).toContain("TRIM(LEADING '0'");
+    expect(sql).toContain(
+      'COALESCE(payment_ba."clientId", challenge_ba."clientId")',
+    );
+    expect(sql).not.toContain("::integer");
+    expect(sql).toContain("ROW_NUMBER() OVER");
+    expect(sql).toContain("ct.total_amount DESC");
+    expect(sql).toContain("WHERE rc.series_order <= 5");
+    expect(sql).toContain("'other-customers' AS series_key");
+    expect(sql).toContain("'Other Customers' AS customer_label");
+    expect(sql).toContain("CROSS JOIN series s");
+    expect(sql).toContain("COALESCE(ma.amount, 0) AS amount");
   });
 
   it("counts registration and submission activity independently", () => {

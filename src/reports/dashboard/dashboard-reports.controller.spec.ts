@@ -2,6 +2,7 @@ import { CsvSerializer } from "../../common/csv/csv-serializer";
 import {
   DashboardExportRowDto,
   DashboardSlug,
+  MemberPaymentByCustomerDashboardDto,
   NewSignupsDashboardDto,
 } from "./dashboard-reports.dto";
 import { DashboardReportsController } from "./dashboard-reports.controller";
@@ -24,6 +25,32 @@ const newSignupsDashboard: NewSignupsDashboardDto = {
     peakMonth: "2026-02-01",
     peakMonthSignups: 12,
   },
+};
+
+const memberPaymentByCustomerDashboard: MemberPaymentByCustomerDashboardDto = {
+  dashboard: DashboardSlug.MemberPaymentByCustomer,
+  ...query,
+  series: [
+    {
+      key: "customer-client-a",
+      label: "Customer A",
+      customerId: "client-a",
+    },
+    {
+      key: "other-customers",
+      label: "Other Customers",
+      customerId: null,
+    },
+  ],
+  months: [
+    {
+      month: "2026-02-01",
+      values: {
+        "customer-client-a": 5000,
+        "other-customers": 1000,
+      },
+    },
+  ],
 };
 
 describe("DashboardReportsController", () => {
@@ -53,6 +80,8 @@ describe("DashboardReportsController", () => {
       newSignups: newSignupsDashboard,
       membersPaid: {},
       challengeParticipation: {},
+      memberPaymentByMonth: {},
+      memberPaymentByCustomer: memberPaymentByCustomerDashboard,
     };
     service.getAllDashboards.mockResolvedValue(response);
 
@@ -61,13 +90,13 @@ describe("DashboardReportsController", () => {
   });
 
   it("delegates a selected detail dashboard", async () => {
-    service.getDashboard.mockResolvedValue(newSignupsDashboard);
+    service.getDashboard.mockResolvedValue(memberPaymentByCustomerDashboard);
 
     await expect(
-      controller.getDashboard(DashboardSlug.NewSignups, query),
-    ).resolves.toBe(newSignupsDashboard);
+      controller.getDashboard(DashboardSlug.MemberPaymentByCustomer, query),
+    ).resolves.toBe(memberPaymentByCustomerDashboard);
     expect(service.getDashboard).toHaveBeenCalledWith(
-      DashboardSlug.NewSignups,
+      DashboardSlug.MemberPaymentByCustomer,
       query,
     );
   });
@@ -88,14 +117,30 @@ describe("DashboardReportsController", () => {
         challenge: 5,
         engagement: 2,
       },
+      {
+        dashboard: DashboardSlug.MemberPaymentByMonth,
+        month: "2026-02-01",
+        taas: 1000,
+        task: 2000,
+        challenge: 3000,
+        engagement: 4000,
+      },
+      {
+        dashboard: DashboardSlug.MemberPaymentByCustomer,
+        month: "2026-02-01",
+        customer: "Customer A",
+        amount: 5000,
+      },
     ];
     service.exportAllDashboards.mockResolvedValue(rows);
 
     await expect(controller.exportAllDashboards(query)).resolves.toBe(
       [
-        "dashboard,month,activated,notActivated,taas,task,challenge,engagement",
-        "new-signups,2026-02-01,10,2,,,,",
-        "members-paid,2026-02-01,,,3,4,5,2",
+        "dashboard,month,activated,notActivated,taas,task,challenge,engagement,customer,amount",
+        "new-signups,2026-02-01,10,2,,,,,,",
+        "members-paid,2026-02-01,,,3,4,5,2,,",
+        "member-payment-by-month,2026-02-01,,,1000,2000,3000,4000,,",
+        "member-payment-by-customer,2026-02-01,,,,,,,Customer A,5000",
       ].join("\n"),
     );
     expect(service.exportAllDashboards).toHaveBeenCalledWith(query);
@@ -104,21 +149,28 @@ describe("DashboardReportsController", () => {
   it("serializes one selected dashboard as CSV", async () => {
     service.exportDashboard.mockResolvedValue([
       {
-        dashboard: DashboardSlug.ChallengeParticipation,
+        dashboard: DashboardSlug.MemberPaymentByCustomer,
         month: "2026-02-01",
-        registrants: 12,
-        submitters: 9,
+        customer: "Customer A",
+        amount: 5000,
+      },
+      {
+        dashboard: DashboardSlug.MemberPaymentByCustomer,
+        month: "2026-02-01",
+        customer: "Other Customers",
+        amount: 1000,
       },
     ]);
 
     await expect(
-      controller.exportDashboard(DashboardSlug.ChallengeParticipation, query),
+      controller.exportDashboard(DashboardSlug.MemberPaymentByCustomer, query),
     ).resolves.toBe(
-      "dashboard,month,registrants,submitters\n" +
-        "challenge-participation,2026-02-01,12,9",
+      "dashboard,month,customer,amount\n" +
+        "member-payment-by-customer,2026-02-01,Customer A,5000\n" +
+        "member-payment-by-customer,2026-02-01,Other Customers,1000",
     );
     expect(service.exportDashboard).toHaveBeenCalledWith(
-      DashboardSlug.ChallengeParticipation,
+      DashboardSlug.MemberPaymentByCustomer,
       query,
     );
   });

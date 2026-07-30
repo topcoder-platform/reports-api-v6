@@ -12,9 +12,11 @@ The Reports Portal dashboard API is available under
 `/v6/reports/dashboard`:
 
 - `GET /v6/reports/dashboard` returns all dashboards, keyed as
-  `newSignups`, `membersPaid`, and `challengeParticipation`.
+  `newSignups`, `membersPaid`, `challengeParticipation`,
+  `memberPaymentByMonth`, and `memberPaymentByCustomer`.
 - `GET /v6/reports/dashboard/:dashboard` returns one dashboard. Supported
-  slugs are `new-signups`, `members-paid`, and `challenge-participation`.
+  slugs are `new-signups`, `members-paid`, `challenge-participation`,
+  `member-payment-by-month`, and `member-payment-by-customer`.
 - `GET /v6/reports/dashboard/export` downloads all monthly dashboard rows as
   a flat CSV.
 - `GET /v6/reports/dashboard/:dashboard/export` downloads one dashboard as a
@@ -24,8 +26,9 @@ All endpoints accept optional ISO-8601 `startDate` (inclusive) and `endDate`
 (exclusive) query parameters. With neither bound, the monthly series covers
 the latest six UTC calendar months, including the current month. With one
 bound, the other is derived six calendar months away. The response always
-includes the resolved timestamps, zero-filled calendar months, and an
-all-time summary.
+includes the resolved timestamps and zero-filled calendar months. The signup,
+members-paid, and challenge-participation dashboards also include an all-time
+summary.
 
 Dashboard figures use these shared definitions:
 
@@ -34,6 +37,10 @@ Dashboard figures use these shared definitions:
 - Paid-member activity requires a `PAID` finance payment for a `PAYMENT`
   winning. Its event timestamp is `date_paid`, falling back to `created_at`.
   Members are deduplicated within each payment bucket and month.
+- Member-payment values use the latest payment version and sum `gross_amount`,
+  falling back to `total_amount`. The payment-by-customer dashboard ranks the
+  top five billing-account clients across the selected range and groups all
+  unnamed or remaining clients under `Other Customers`.
 - Registrations are Submitter resource creation events. Submissions are
   non-deleted review submission events, using `submittedDate` and falling
   back to `createdAt`. Each category is deduplicated independently by member

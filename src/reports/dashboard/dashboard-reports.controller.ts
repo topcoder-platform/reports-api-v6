@@ -27,6 +27,8 @@ import {
   DashboardQueryDto,
   DashboardResponse,
   DashboardSlug,
+  MemberPaymentByCustomerDashboardDto,
+  MemberPaymentByMonthDashboardDto,
   MembersPaidDashboardDto,
   NewSignupsDashboardDto,
 } from "./dashboard-reports.dto";
@@ -42,6 +44,8 @@ import { DashboardReportsGuard } from "./guards/dashboard-reports.guard";
   NewSignupsDashboardDto,
   MembersPaidDashboardDto,
   ChallengeParticipationDashboardDto,
+  MemberPaymentByMonthDashboardDto,
+  MemberPaymentByCustomerDashboardDto,
 )
 @ApiUnauthorizedResponse({ description: "Unauthenticated." })
 @ApiForbiddenResponse({
@@ -66,14 +70,14 @@ export class DashboardReportsController {
    * Retrieves all dashboards for the landing page.
    *
    * @param query Optional half-open reporting range.
-   * @returns All three complete dashboard responses.
+   * @returns All five complete dashboard responses.
    * @throws BadRequestException when the range is invalid.
    */
   @Get()
   @ApiOperation({
     summary: "Get all Reports Portal dashboards",
     description:
-      "Returns monthly data for new signups, unique paid members, and challenge participation. The default range is the latest six UTC calendar months; summary metrics are all-time.",
+      "Returns monthly data for new signups, unique paid members, challenge participation, member-payment values by type, and member-payment values by customer. The default range is the latest six UTC calendar months; summary metrics on the original dashboards are all-time.",
   })
   @ApiOkResponse({ type: AllDashboardsDto })
   @ApiBadRequestResponse({ description: "Invalid reporting date range." })
@@ -94,7 +98,7 @@ export class DashboardReportsController {
   @ApiOperation({ summary: "Export all dashboard month data as CSV" })
   @ApiProduces("text/csv")
   @ApiOkResponse({
-    description: "Flat CSV rows for all three dashboards.",
+    description: "Flat CSV rows for all five dashboards.",
     type: String,
   })
   @ApiBadRequestResponse({ description: "Invalid reporting date range." })
@@ -154,6 +158,8 @@ export class DashboardReportsController {
         { $ref: getSchemaPath(NewSignupsDashboardDto) },
         { $ref: getSchemaPath(MembersPaidDashboardDto) },
         { $ref: getSchemaPath(ChallengeParticipationDashboardDto) },
+        { $ref: getSchemaPath(MemberPaymentByMonthDashboardDto) },
+        { $ref: getSchemaPath(MemberPaymentByCustomerDashboardDto) },
       ],
     },
   })
