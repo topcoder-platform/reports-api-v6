@@ -4,8 +4,10 @@
 --   $1 timestamptz - inclusive reporting range start
 --   $2 timestamptz - exclusive reporting range end
 --
--- Registration and submission are independent activity events. A member is
--- counted once in each category per month, regardless of challenge count.
+-- The month is the challenge cohort's latest actual phase completion month,
+-- matching the Challenge Registrants report. This avoids treating legacy
+-- resource import timestamps as registration dates. A member is counted once
+-- in each category per month, regardless of challenge count.
 WITH bounds AS (
   SELECT
     $1::timestamptz AT TIME ZONE 'UTC' AS start_at,
@@ -19,11 +21,31 @@ months AS (
   ) AS month_start
   FROM bounds b
 ),
-registration_events AS MATERIALIZED (
+eligible_challenges AS MATERIALIZED (
   SELECT
+    c.id AS challenge_id,
+    lp."actualEndDate" AS activity_at
+  FROM challenges."Challenge" c
+  JOIN challenges."ChallengeType" ct
+    ON ct.id = c."typeId"
+  JOIN LATERAL (
+    SELECT cp."actualEndDate"
+    FROM challenges."ChallengePhase" cp
+    WHERE cp."challengeId" = c.id
+    ORDER BY cp."scheduledEndDate" DESC
+    LIMIT 1
+  ) lp
+    ON lp."actualEndDate" IS NOT NULL
+  WHERE ct.name IN ('Challenge', 'Marathon Match', 'First2Finish')
+),
+registration_events AS MATERIALIZED (
+  SELECT DISTINCT
+    ec.challenge_id,
     NULLIF(TRIM(r."memberId"), '') AS member_id,
-    r."createdAt" AS activity_at
-  FROM resources."Resource" r
+    ec.activity_at
+  FROM eligible_challenges ec
+  JOIN resources."Resource" r
+    ON r."challengeId" = ec.challenge_id
   JOIN resources."ResourceRole" rr
     ON rr.id = r."roleId"
   WHERE COALESCE(NULLIF(TRIM(rr."nameLower"), ''), LOWER(rr.name)) = 'submitter'
@@ -31,11 +53,16 @@ registration_events AS MATERIALIZED (
 ),
 submission_events AS MATERIALIZED (
   SELECT
-    NULLIF(TRIM(s."memberId"), '') AS member_id,
-    COALESCE(s."submittedDate", s."createdAt") AS activity_at
-  FROM reviews.submission s
-  WHERE s.status <> 'DELETED'
-    AND NULLIF(TRIM(s."memberId"), '') IS NOT NULL
+    re.member_id,
+    re.activity_at
+  FROM registration_events re
+  WHERE EXISTS (
+    SELECT 1
+    FROM reviews.submission s
+    WHERE s."challengeId" = re.challenge_id
+      AND s."memberId" = re.member_id
+      AND s.status <> 'DELETED'
+  )
 ),
 selected_registrations AS (
   SELECT

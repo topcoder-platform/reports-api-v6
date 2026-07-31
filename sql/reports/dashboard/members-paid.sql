@@ -4,11 +4,10 @@
 --   $1 timestamptz - inclusive reporting range start
 --   $2 timestamptz - exclusive reporting range end
 --
--- A paid event is a PAYMENT winning whose current payment status is PAID.
--- date_paid is authoritative when present; created_at supports migrated paid rows
--- that do not have a paid timestamp. TOPGEAR_PAYMENT is intentionally excluded
--- because it is a separate canonical accrual bucket and is not one of the four
--- dashboard categories.
+-- The report is a financial projection, so the latest non-cancelled payment
+-- record is counted in its creation month even when payout is still on hold or
+-- owed. TOPGEAR_PAYMENT is intentionally excluded because it is a separate
+-- canonical accrual bucket and is not one of the four dashboard categories.
 WITH bounds AS (
   SELECT
     $1::timestamptz AT TIME ZONE 'UTC' AS start_at,
@@ -22,10 +21,17 @@ months AS (
   ) AS month_start
   FROM bounds b
 ),
-paid_events AS MATERIALIZED (
+latest_payment_versions AS MATERIALIZED (
+  SELECT
+    p.winnings_id,
+    MAX(p.version) AS max_version
+  FROM finance.payment p
+  GROUP BY p.winnings_id
+),
+payment_events AS MATERIALIZED (
   SELECT
     NULLIF(TRIM(w.winner_id), '') AS member_id,
-    COALESCE(p.date_paid, p.created_at) AS paid_at,
+    p.created_at AS activity_at,
     CASE
       WHEN w.category::text = 'TAAS_PAYMENT' THEN 'taas'
       WHEN w.category::text = 'ENGAGEMENT_PAYMENT' THEN 'engagement'
@@ -39,17 +45,20 @@ paid_events AS MATERIALIZED (
       ELSE 'challenge'
     END AS payment_type
   FROM finance.payment p
+  JOIN latest_payment_versions lpv
+    ON lpv.winnings_id = p.winnings_id
+   AND lpv.max_version = p.version
   JOIN finance.winnings w
     ON w.winning_id = p.winnings_id
-  WHERE p.payment_status = 'PAID'
+  WHERE p.payment_status IS DISTINCT FROM 'CANCELLED'
     AND w.type = 'PAYMENT'
-    AND COALESCE(p.date_paid, p.created_at) IS NOT NULL
+    AND p.created_at IS NOT NULL
     AND NULLIF(TRIM(w.winner_id), '') IS NOT NULL
     AND w.category::text IS DISTINCT FROM 'TOPGEAR_PAYMENT'
 ),
 selected_months AS (
   SELECT
-    DATE_TRUNC('month', pe.paid_at) AS month_start,
+    DATE_TRUNC('month', pe.activity_at) AS month_start,
     COUNT(DISTINCT pe.member_id) FILTER (
       WHERE pe.payment_type = 'taas'
     ) AS taas,
@@ -62,18 +71,18 @@ selected_months AS (
     COUNT(DISTINCT pe.member_id) FILTER (
       WHERE pe.payment_type = 'engagement'
     ) AS engagement
-  FROM paid_events pe
+  FROM payment_events pe
   CROSS JOIN bounds b
-  WHERE pe.paid_at >= b.start_at
-    AND pe.paid_at < b.end_at
-  GROUP BY DATE_TRUNC('month', pe.paid_at)
+  WHERE pe.activity_at >= b.start_at
+    AND pe.activity_at < b.end_at
+  GROUP BY DATE_TRUNC('month', pe.activity_at)
 ),
 all_time_months AS (
   SELECT
-    DATE_TRUNC('month', pe.paid_at) AS month_start,
+    DATE_TRUNC('month', pe.activity_at) AS month_start,
     COUNT(DISTINCT pe.member_id) AS unique_members
-  FROM paid_events pe
-  GROUP BY DATE_TRUNC('month', pe.paid_at)
+  FROM payment_events pe
+  GROUP BY DATE_TRUNC('month', pe.activity_at)
 ),
 peak_month AS (
   SELECT
@@ -98,7 +107,7 @@ all_time_summary AS (
     COUNT(DISTINCT pe.member_id) FILTER (
       WHERE pe.payment_type = 'engagement'
     ) AS engagement_unique_members
-  FROM paid_events pe
+  FROM payment_events pe
 )
 SELECT
   TO_CHAR(m.month_start, 'YYYY-MM-01') AS month,
