@@ -8,6 +8,8 @@ import {
   DashboardQueryDto,
   DashboardResponse,
   DashboardSlug,
+  MemberPaymentByCustomerDashboardDto,
+  MemberPaymentByMonthDashboardDto,
   MembersPaidDashboardDto,
   NewSignupsDashboardDto,
 } from "./dashboard-reports.dto";
@@ -50,6 +52,22 @@ type ChallengeParticipationRow = {
   submission_rate: QueryValue;
   peak_month: string | null;
   peak_month_registrants: QueryValue;
+};
+
+type MemberPaymentByMonthRow = {
+  month: string;
+  taas: QueryValue;
+  task: QueryValue;
+  challenge: QueryValue;
+  engagement: QueryValue;
+};
+
+type MemberPaymentByCustomerRow = {
+  month: string;
+  series_key: string;
+  customer_id: string | null;
+  customer_label: string;
+  amount: QueryValue;
 };
 
 /**
@@ -185,7 +203,7 @@ export class DashboardReportsService {
   ) {}
 
   /**
-   * Loads all three dashboards for one shared reporting range.
+   * Loads all five dashboards for one shared reporting range.
    *
    * @param query Optional date range.
    * @returns Full dashboard objects keyed for the landing page.
@@ -193,18 +211,26 @@ export class DashboardReportsService {
    */
   async getAllDashboards(query: DashboardQueryDto): Promise<AllDashboardsDto> {
     const range = resolveDashboardDateRange(query);
-    const [newSignups, membersPaid, challengeParticipation] = await Promise.all(
-      [
-        this.loadNewSignups(range),
-        this.loadMembersPaid(range),
-        this.loadChallengeParticipation(range),
-      ],
-    );
+    const [
+      newSignups,
+      membersPaid,
+      challengeParticipation,
+      memberPaymentByMonth,
+      memberPaymentByCustomer,
+    ] = await Promise.all([
+      this.loadNewSignups(range),
+      this.loadMembersPaid(range),
+      this.loadChallengeParticipation(range),
+      this.loadMemberPaymentByMonth(range),
+      this.loadMemberPaymentByCustomer(range),
+    ]);
 
     return {
       newSignups,
       membersPaid,
       challengeParticipation,
+      memberPaymentByMonth,
+      memberPaymentByCustomer,
     };
   }
 
@@ -229,6 +255,10 @@ export class DashboardReportsService {
         return this.loadMembersPaid(range);
       case DashboardSlug.ChallengeParticipation:
         return this.loadChallengeParticipation(range);
+      case DashboardSlug.MemberPaymentByMonth:
+        return this.loadMemberPaymentByMonth(range);
+      case DashboardSlug.MemberPaymentByCustomer:
+        return this.loadMemberPaymentByCustomer(range);
       default:
         throw new BadRequestException("Unsupported dashboard.");
     }
@@ -249,6 +279,8 @@ export class DashboardReportsService {
       ...this.toExportRows(dashboards.newSignups),
       ...this.toExportRows(dashboards.membersPaid),
       ...this.toExportRows(dashboards.challengeParticipation),
+      ...this.toExportRows(dashboards.memberPaymentByMonth),
+      ...this.toExportRows(dashboards.memberPaymentByCustomer),
     ];
   }
 
@@ -378,6 +410,87 @@ export class DashboardReportsService {
   }
 
   /**
+   * Executes and maps the monthly member-payment value SQL.
+   *
+   * @param range Explicit half-open query range.
+   * @returns Monthly member-payment values split by canonical payment type.
+   */
+  private async loadMemberPaymentByMonth(
+    range: DashboardDateRange,
+  ): Promise<MemberPaymentByMonthDashboardDto> {
+    const query = this.sql.load(
+      "reports/dashboard/member-payment-by-month.sql",
+    );
+    const rows = await this.db.query<MemberPaymentByMonthRow>(query, [
+      range.startDate,
+      range.endDate,
+    ]);
+
+    return {
+      dashboard: DashboardSlug.MemberPaymentByMonth,
+      ...range,
+      months: rows.map((row) => ({
+        month: row.month,
+        taas: toNumber(row.taas),
+        task: toNumber(row.task),
+        challenge: toNumber(row.challenge),
+        engagement: toNumber(row.engagement),
+      })),
+    };
+  }
+
+  /**
+   * Executes and maps the monthly member-payment-by-customer SQL.
+   *
+   * @param range Explicit half-open query range.
+   * @returns Stable customer series and zero-filled monthly value maps.
+   */
+  private async loadMemberPaymentByCustomer(
+    range: DashboardDateRange,
+  ): Promise<MemberPaymentByCustomerDashboardDto> {
+    const query = this.sql.load(
+      "reports/dashboard/member-payment-by-customer.sql",
+    );
+    const rows = await this.db.query<MemberPaymentByCustomerRow>(query, [
+      range.startDate,
+      range.endDate,
+    ]);
+    const seriesByKey = new Map<
+      string,
+      MemberPaymentByCustomerDashboardDto["series"][number]
+    >();
+    const monthValues = new Map<string, Map<string, number>>();
+
+    for (const row of rows) {
+      if (!seriesByKey.has(row.series_key)) {
+        seriesByKey.set(row.series_key, {
+          key: row.series_key,
+          label: row.customer_label,
+          customerId: row.customer_id,
+        });
+      }
+
+      const values = monthValues.get(row.month) ?? new Map<string, number>();
+      values.set(row.series_key, toNumber(row.amount));
+      monthValues.set(row.month, values);
+    }
+
+    const series = [...seriesByKey.values()];
+
+    return {
+      dashboard: DashboardSlug.MemberPaymentByCustomer,
+      ...range,
+      series,
+      months: [...monthValues].map(([month, values]) => ({
+        month,
+        values: Object.fromEntries(
+          series.map(({ key }) => [key, values.get(key) ?? 0]),
+        ),
+      })),
+    };
+  }
+
+  /**
    * Flattens a dashboard response into monthly CSV rows.
    *
    * @param dashboard Full dashboard response.
@@ -408,6 +521,24 @@ export class DashboardReportsService {
           registrants: month.registrants,
           submitters: month.submitters,
         }));
+      case DashboardSlug.MemberPaymentByMonth:
+        return dashboard.months.map((month) => ({
+          dashboard: dashboard.dashboard,
+          month: month.month,
+          taas: month.taas,
+          task: month.task,
+          challenge: month.challenge,
+          engagement: month.engagement,
+        }));
+      case DashboardSlug.MemberPaymentByCustomer:
+        return dashboard.months.flatMap((month) =>
+          dashboard.series.map((series) => ({
+            dashboard: dashboard.dashboard,
+            month: month.month,
+            customer: series.label,
+            amount: month.values[series.key] ?? 0,
+          })),
+        );
     }
   }
 }

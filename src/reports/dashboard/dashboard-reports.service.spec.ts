@@ -4,6 +4,8 @@ import { DbService } from "../../db/db.service";
 import {
   ChallengeParticipationDashboardDto,
   DashboardSlug,
+  MemberPaymentByCustomerDashboardDto,
+  MemberPaymentByMonthDashboardDto,
   MembersPaidDashboardDto,
   NewSignupsDashboardDto,
 } from "./dashboard-reports.dto";
@@ -69,6 +71,47 @@ const challengeParticipationRows = [
     submission_rate: "75.0",
     peak_month: "2025-10-01",
     peak_month_registrants: "18",
+  },
+];
+
+const memberPaymentByMonthRows = [
+  {
+    month: "2026-02-01",
+    taas: "1250.50",
+    task: "2400",
+    challenge: "3750.25",
+    engagement: "900",
+  },
+  {
+    month: "2026-03-01",
+    taas: "1500",
+    task: "2100.75",
+    challenge: "4200",
+    engagement: "1100",
+  },
+];
+
+const memberPaymentByCustomerRows = [
+  {
+    month: "2026-02-01",
+    series_key: "customer-client-a",
+    customer_id: "client-a",
+    customer_label: "Customer A",
+    amount: "5000.25",
+  },
+  {
+    month: "2026-02-01",
+    series_key: "other-customers",
+    customer_id: null,
+    customer_label: "Other Customers",
+    amount: "1200",
+  },
+  {
+    month: "2026-03-01",
+    series_key: "customer-client-a",
+    customer_id: "client-a",
+    customer_label: "Customer A",
+    amount: "6200",
   },
 ];
 
@@ -145,6 +188,10 @@ describe("DashboardReportsService", () => {
             return Promise.resolve(membersPaidRows);
           case "reports/dashboard/challenge-participation.sql":
             return Promise.resolve(challengeParticipationRows);
+          case "reports/dashboard/member-payment-by-month.sql":
+            return Promise.resolve(memberPaymentByMonthRows);
+          case "reports/dashboard/member-payment-by-customer.sql":
+            return Promise.resolve(memberPaymentByCustomerRows);
           default:
             return Promise.resolve([]);
         }
@@ -222,14 +269,68 @@ describe("DashboardReportsService", () => {
           peakMonthRegistrants: 18,
         },
       },
+      memberPaymentByMonth: {
+        dashboard: DashboardSlug.MemberPaymentByMonth,
+        ...rangeQuery,
+        months: [
+          {
+            month: "2026-02-01",
+            taas: 1250.5,
+            task: 2400,
+            challenge: 3750.25,
+            engagement: 900,
+          },
+          {
+            month: "2026-03-01",
+            taas: 1500,
+            task: 2100.75,
+            challenge: 4200,
+            engagement: 1100,
+          },
+        ],
+      },
+      memberPaymentByCustomer: {
+        dashboard: DashboardSlug.MemberPaymentByCustomer,
+        ...rangeQuery,
+        series: [
+          {
+            key: "customer-client-a",
+            label: "Customer A",
+            customerId: "client-a",
+          },
+          {
+            key: "other-customers",
+            label: "Other Customers",
+            customerId: null,
+          },
+        ],
+        months: [
+          {
+            month: "2026-02-01",
+            values: {
+              "customer-client-a": 5000.25,
+              "other-customers": 1200,
+            },
+          },
+          {
+            month: "2026-03-01",
+            values: {
+              "customer-client-a": 6200,
+              "other-customers": 0,
+            },
+          },
+        ],
+      },
     });
 
     expect(sql.load.mock.calls).toEqual([
       ["reports/dashboard/new-signups.sql"],
       ["reports/dashboard/members-paid.sql"],
       ["reports/dashboard/challenge-participation.sql"],
+      ["reports/dashboard/member-payment-by-month.sql"],
+      ["reports/dashboard/member-payment-by-customer.sql"],
     ]);
-    expect(db.query).toHaveBeenCalledTimes(3);
+    expect(db.query).toHaveBeenCalledTimes(5);
     expect(db.query).toHaveBeenCalledWith("reports/dashboard/new-signups.sql", [
       rangeQuery.startDate,
       rangeQuery.endDate,
@@ -238,13 +339,15 @@ describe("DashboardReportsService", () => {
 
   it("loads only the requested detail dashboard", async () => {
     const result = await service.getDashboard(
-      DashboardSlug.MembersPaid,
+      DashboardSlug.MemberPaymentByCustomer,
       rangeQuery,
     );
 
-    expect(result.dashboard).toBe(DashboardSlug.MembersPaid);
+    expect(result.dashboard).toBe(DashboardSlug.MemberPaymentByCustomer);
     expect(sql.load).toHaveBeenCalledTimes(1);
-    expect(sql.load).toHaveBeenCalledWith("reports/dashboard/members-paid.sql");
+    expect(sql.load).toHaveBeenCalledWith(
+      "reports/dashboard/member-payment-by-customer.sql",
+    );
   });
 
   it("rejects an unsupported dashboard discriminator", async () => {
@@ -322,6 +425,44 @@ describe("DashboardReportsService", () => {
           peakMonthRegistrants: 12,
         },
       } satisfies ChallengeParticipationDashboardDto,
+      memberPaymentByMonth: {
+        dashboard: DashboardSlug.MemberPaymentByMonth,
+        ...rangeQuery,
+        months: [
+          {
+            month: "2026-02-01",
+            taas: 1000,
+            task: 2000,
+            challenge: 3000,
+            engagement: 4000,
+          },
+        ],
+      } satisfies MemberPaymentByMonthDashboardDto,
+      memberPaymentByCustomer: {
+        dashboard: DashboardSlug.MemberPaymentByCustomer,
+        ...rangeQuery,
+        series: [
+          {
+            key: "customer-client-a",
+            label: "Customer A",
+            customerId: "client-a",
+          },
+          {
+            key: "other-customers",
+            label: "Other Customers",
+            customerId: null,
+          },
+        ],
+        months: [
+          {
+            month: "2026-02-01",
+            values: {
+              "customer-client-a": 6500,
+              "other-customers": 3500,
+            },
+          },
+        ],
+      } satisfies MemberPaymentByCustomerDashboardDto,
     };
     jest.spyOn(service, "getAllDashboards").mockResolvedValue(dashboards);
 
@@ -345,6 +486,26 @@ describe("DashboardReportsService", () => {
         month: "2026-02-01",
         registrants: 12,
         submitters: 9,
+      },
+      {
+        dashboard: DashboardSlug.MemberPaymentByMonth,
+        month: "2026-02-01",
+        taas: 1000,
+        task: 2000,
+        challenge: 3000,
+        engagement: 4000,
+      },
+      {
+        dashboard: DashboardSlug.MemberPaymentByCustomer,
+        month: "2026-02-01",
+        customer: "Customer A",
+        amount: 6500,
+      },
+      {
+        dashboard: DashboardSlug.MemberPaymentByCustomer,
+        month: "2026-02-01",
+        customer: "Other Customers",
+        amount: 3500,
       },
     ]);
   });
