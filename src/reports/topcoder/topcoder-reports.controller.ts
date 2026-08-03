@@ -9,6 +9,8 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { TopcoderReportsService } from "./topcoder-reports.service";
 import { ChallengeSubmitterDataQueryDto } from "./dto/challenge-submitter-data.dto";
+import { LeaderboardGenericQueryDto } from "./dto/leaderboard-generic.dto";
+import { LeaderboardMmQueryDto } from "./dto/leaderboard-mm.dto";
 import { RegistrantCountriesQueryDto } from "./dto/registrant-countries.dto";
 import { RecentMemberDataQueryDto } from "./dto/recent-member-data.dto";
 import { WeeklyMemberParticipationQueryDto } from "./dto/weekly-member-participation.dto";
@@ -50,6 +52,28 @@ export class TopcoderReportsController {
   getChallengeSubmitterData(@Query() query: ChallengeSubmitterDataQueryDto) {
     const { challengeId } = query;
     return this.reports.getChallengeSubmitterData(challengeId);
+  }
+
+  @Get("/topcoder/leaderboard/generic")
+  @RequiredScopes(
+    AppScopes.AllReports,
+    AppScopes.TopcoderReports,
+    AppScopes.TopcoderLeaderboardReports,
+  )
+  @ApiOperation({ summary: "Generic leaderboard report data" })
+  getLeaderboardGeneric(@Query() query: LeaderboardGenericQueryDto) {
+    return this.reports.getLeaderboardGeneric(query);
+  }
+
+  @Get("/topcoder/leaderboard/mm")
+  @RequiredScopes(
+    AppScopes.AllReports,
+    AppScopes.TopcoderReports,
+    AppScopes.TopcoderLeaderboardReports,
+  )
+  @ApiOperation({ summary: "Marathon Match leaderboard report data" })
+  getLeaderboardMm(@Query() query: LeaderboardMmQueryDto) {
+    return this.reports.getLeaderboardMm(query);
   }
 
   @Get("/topcoder/mm-stats/:handle")
