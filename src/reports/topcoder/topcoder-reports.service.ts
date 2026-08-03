@@ -1036,6 +1036,8 @@ export class TopcoderReportsService implements OnModuleDestroy {
         points: number;
         prizes: number;
         photoURL: string | null;
+        rating: number;
+        ratingColor: string | null;
       }
     > = {};
 
@@ -1058,6 +1060,8 @@ export class TopcoderReportsService implements OnModuleDestroy {
           wins: {},
           points: 0,
           prizes: 0,
+          rating: row.rating as number,
+          ratingColor: row.ratingColor,
         };
       }
 
@@ -1091,6 +1095,8 @@ export class TopcoderReportsService implements OnModuleDestroy {
         placement: index,
         points: entry.points,
         wins: entry.wins,
+        rating: entry.rating,
+        ratingColor: entry.ratingColor,
         prizes: useCmsPlacementPrizes
           ? (cmsPlacementPrizeAmounts[index] ?? 0)
           : entry.prizes,
@@ -1211,7 +1217,6 @@ export class TopcoderReportsService implements OnModuleDestroy {
     const rows = await this.db.query<LeaderboardMmRow>(query, [
       filters.challengeIds,
     ]);
-console.log('here', rows);
 
     const placementData = rows.reduce(
       (acc: Record<string, LeaderboardMmRow[]>, row) => {
