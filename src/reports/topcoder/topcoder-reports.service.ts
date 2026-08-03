@@ -1073,7 +1073,7 @@ export class TopcoderReportsService implements OnModuleDestroy {
       const pointsByWin = log / sqrt;
 
       entriesByUser[row.userId].points += pointsByWin;
-      entriesByUser[row.userId].wins[row.challengeId] = row.placement;
+      entriesByUser[row.userId].wins[row.challengeId] = pointsByWin;
       if (!useCmsPlacementPrizes) {
         const prizeValue =
           (row.placementPrizes ?? []).find((p) => p.placement === row.placement)
