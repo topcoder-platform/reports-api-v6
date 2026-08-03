@@ -100,6 +100,37 @@ type ChallengeSubmitterDataRow = {
   finalScore: string | number | null;
 };
 
+type LeaderboardGenericRow = {
+  challengeId: string;
+  challengeName: string;
+  durationDays: number;
+  prizePool: number;
+  submissionsCount: number;
+  placementPrizes: { placement: number; value: number }[] | null;
+  userId: string;
+  handle: string;
+  name: string | null;
+  country: string | null;
+  countryCode: string | null;
+  photoURL: string | null;
+  rating: string | number | null;
+  ratingColor: string | null;
+  score: number;
+  submittedDate: string;
+  placement: number;
+};
+
+type LeaderboardMmRow = {
+  challengeId: string;
+  challengeName: string;
+  userId: string;
+  handle: string;
+  placement: number;
+  provisionalScore: number | null;
+  finalScore: number | null;
+  score: number | null;
+};
+
 type EngagementDataBaseRow = {
   member_id: string | null;
   fallback_handle: string | null;
@@ -969,6 +1000,282 @@ export class TopcoderReportsService implements OnModuleDestroy {
     });
 
     return projectNamesById;
+  }
+
+  async getLeaderboardGeneric(filters: {
+    challengeIds: string[];
+    pointsPerDay?: number;
+    placementPrizeAmounts?: string[];
+    showHeadingAndSubtitle?: boolean;
+  }) {
+    const query = this.sql.load("reports/topcoder/leaderboard-generic.sql");
+    const rows = await this.db.query<LeaderboardGenericRow>(query, [
+      filters.challengeIds,
+    ]);
+
+    const useCmsPlacementPrizes =
+      Array.isArray(filters.placementPrizeAmounts) &&
+      filters.placementPrizeAmounts.length > 0;
+    const cmsPlacementPrizeAmounts = (filters.placementPrizeAmounts ?? [])
+      .map((amount) => Number(amount))
+      .filter((amount) => Number.isFinite(amount));
+
+    const challenges: Record<
+      string,
+      { id: string; name: string; submissions: { [memberId: string]: number } }
+    > = {};
+    const entriesByUser: Record<
+      string,
+      {
+        userId: string;
+        handle: string;
+        name: string | null;
+        country: string | null;
+        countryCode: string | null;
+        wins: Record<string, number>;
+        points: number;
+        prizes: number;
+        photoURL: string | null;
+      }
+    > = {};
+
+    rows.forEach((row) => {
+      challenges[row.challengeId] = challenges[row.challengeId] ?? {
+        id: row.challengeId,
+        name: row.challengeName,
+        submissions: {},
+      };
+      challenges[row.challengeId].submissions[row.userId] = row.placement;
+
+      if (!entriesByUser[row.userId]) {
+        entriesByUser[row.userId] = {
+          userId: row.userId,
+          handle: row.handle,
+          name: row.name,
+          country: row.country,
+          countryCode: row.countryCode,
+          photoURL: row.photoURL,
+          wins: {},
+          points: 0,
+          prizes: 0,
+        };
+      }
+
+      const log =
+        Math.log10(Math.max(1, row.prizePool)) +
+        row.durationDays * (filters.pointsPerDay ?? 0);
+      const relativeRank = row.placement / Math.max(1, row.submissionsCount);
+      const sqrt = Math.sqrt(relativeRank);
+      const pointsByWin = log / sqrt;
+
+      entriesByUser[row.userId].points += pointsByWin;
+      entriesByUser[row.userId].wins[row.challengeId] = row.placement;
+      if (!useCmsPlacementPrizes) {
+        const prizeValue =
+          (row.placementPrizes ?? []).find((p) => p.placement === row.placement)
+            ?.value ?? 0;
+        entriesByUser[row.userId].prizes += prizeValue;
+      }
+    });
+
+    const placementData = Object.values(entriesByUser)
+      .filter((entry) => entry.points > 0)
+      .sort((a, b) => b.points - a.points)
+      .map((entry, index) => ({
+        userId: entry.userId,
+        handle: entry.handle,
+        name: entry.name ?? "",
+        country: entry.country ?? "",
+        countryCode: entry.countryCode ?? "",
+        photoURL: entry.photoURL,
+        placement: index,
+        points: entry.points,
+        wins: entry.wins,
+        prizes: useCmsPlacementPrizes
+          ? (cmsPlacementPrizeAmounts[index] ?? 0)
+          : entry.prizes,
+      }));
+
+    return {
+      placementData: filters.showHeadingAndSubtitle
+        ? placementData.slice(0, 10)
+        : placementData,
+      challenges,
+    };
+  }
+
+  private calculateWriterTesterBonuses(
+    placementData: Record<string, any[]>,
+    writersAndTesters: string[] | undefined,
+    pointsMap: number[] = [],
+    baseScoringPoints = 1,
+  ) {
+    const contributions = (writersAndTesters ?? [])
+      .map((entry) => {
+        const [handle = "", challengeId = "", role = ""] = entry.split(":");
+        if (!handle || !challengeId || !["writer", "tester"].includes(role)) {
+          return null;
+        }
+        return { handle, challengeId, role: role as "writer" | "tester" };
+      })
+      .filter(Boolean) as {
+      handle: string;
+      challengeId: string;
+      role: "writer" | "tester";
+    }[];
+
+    const bonusPoints: Record<string, number> = {};
+    const eligibility: Record<string, any> = {};
+    const writerTesterRoles: Record<
+      string,
+      Record<string, "writer" | "tester">
+    > = {};
+
+    if (!contributions.length) {
+      return { bonusPoints, eligibility, writerTesterRoles };
+    }
+
+    const pointsFn = (winner: any) =>
+      winner.score && winner.score <= 0
+        ? 0
+        : Number(pointsMap[winner.placement - 1] ?? baseScoringPoints);
+
+    const challengeIds = Object.keys(placementData);
+    const competitionMatchesByHandle: Record<string, Set<string>> = {};
+    const competitionPointsByHandle: Record<string, number> = {};
+
+    challengeIds.forEach((challengeId) => {
+      placementData[challengeId].forEach((entry) => {
+        competitionMatchesByHandle[entry.handle] =
+          competitionMatchesByHandle[entry.handle] ?? new Set();
+        competitionMatchesByHandle[entry.handle].add(challengeId);
+        competitionPointsByHandle[entry.handle] =
+          (competitionPointsByHandle[entry.handle] ?? 0) + pointsFn(entry);
+      });
+    });
+
+    const matchCount = challengeIds.length;
+    const minCompetitions = Math.ceil(matchCount / 2);
+    const contributionByHandle: Record<string, Set<string>> = {};
+
+    contributions.forEach(({ handle, challengeId, role }) => {
+      if (!challengeIds.includes(challengeId)) {
+        return;
+      }
+      if (competitionMatchesByHandle[handle]?.has(challengeId)) {
+        return;
+      }
+      contributionByHandle[handle] = contributionByHandle[handle] ?? new Set();
+      contributionByHandle[handle].add(challengeId);
+      writerTesterRoles[handle] = writerTesterRoles[handle] ?? {};
+      writerTesterRoles[handle][challengeId] = role;
+    });
+
+    Object.entries(contributionByHandle).forEach(
+      ([handle, contributionsSet]) => {
+        const contributionMatches = contributionsSet.size;
+        const competitionMatches =
+          competitionMatchesByHandle[handle]?.size ?? 0;
+        const competitionPoints = competitionPointsByHandle[handle] ?? 0;
+        const averageCompetitionPoints = competitionMatches
+          ? competitionPoints / competitionMatches
+          : 0;
+        const eligibleForChampionship =
+          competitionMatches >= minCompetitions &&
+          contributionMatches <= matchCount / 2;
+        const bonus = eligibleForChampionship
+          ? averageCompetitionPoints * contributionMatches
+          : 0;
+
+        bonusPoints[handle] = Number(bonus.toFixed(2));
+        eligibility[handle] = {
+          competitionMatches,
+          contributionMatches,
+          averageCompetitionPoints: Number(averageCompetitionPoints.toFixed(2)),
+          bonusPoints: bonusPoints[handle],
+          eligibleForChampionship,
+        };
+      },
+    );
+
+    return { bonusPoints, eligibility, writerTesterRoles };
+  }
+
+  async getLeaderboardMm(filters: {
+    challengeIds: string[];
+    placementPoints?: number[];
+    defaultPlacementPoints?: number;
+    writersAndTesters?: string[];
+  }) {
+    const query = this.sql.load("reports/topcoder/leaderboard-mm.sql");
+    const rows = await this.db.query<LeaderboardMmRow>(query, [
+      filters.challengeIds,
+    ]);
+console.log('here', rows);
+
+    const placementData = rows.reduce(
+      (acc: Record<string, LeaderboardMmRow[]>, row) => {
+        acc[row.challengeId] = acc[row.challengeId] ?? [];
+        acc[row.challengeId].push({
+          challengeId: row.challengeId,
+          challengeName: row.challengeName,
+          userId: row.userId,
+          handle: row.handle,
+          placement: row.placement,
+          provisionalScore: row.provisionalScore,
+          finalScore: row.finalScore,
+          score: row.score,
+        });
+        return acc;
+      },
+      {} as Record<string, LeaderboardMmRow[]>,
+    );
+
+    const memberHandles = new Set<string>();
+    Object.values(placementData).forEach((entries) => {
+      entries.forEach((entry) => memberHandles.add(entry.handle));
+    });
+
+    const membersDetails: Record<
+      string,
+      {
+        userId: string;
+        handle: string;
+        name: string;
+        country: string;
+        countryCode: string;
+      }
+    > = {};
+    memberHandles.forEach((handle) => {
+      membersDetails[handle] = {
+        userId: handle,
+        handle,
+        name: handle,
+        country: "",
+        countryCode: "",
+      };
+    });
+
+    const writerTesterData = this.calculateWriterTesterBonuses(
+      placementData,
+      filters.writersAndTesters,
+      filters.placementPoints ?? [],
+      filters.defaultPlacementPoints ?? 1,
+    );
+
+    return {
+      membersDetails,
+      challengesDetails: Object.fromEntries(
+        Object.entries(placementData).map(([challengeId, entries]) => [
+          challengeId,
+          { name: entries[0]?.challengeName ?? "" },
+        ]),
+      ),
+      placementData,
+      writerTesterBonusPoints: writerTesterData.bonusPoints,
+      writerTesterRoles: writerTesterData.writerTesterRoles,
+      writerTesterEligibility: writerTesterData.eligibility,
+    };
   }
 
   /**
