@@ -1,11 +1,13 @@
--- Monthly paid-member values split by the selected range's top five clients.
+-- Monthly member-payment values split by the selected range's top five clients.
 --
 -- Parameters:
 --   $1 timestamptz - inclusive reporting range start
 --   $2 timestamptz - exclusive reporting range end
 --
--- The same ranked customer series is used for every month. Payments for
--- unranked or unnamed clients are grouped under Other Customers.
+-- The same ranked customer series is used for every month. The latest
+-- non-cancelled payment record is counted in its creation month so projected
+-- payments remain visible. Payments for unranked or unnamed clients are
+-- grouped under Other Customers.
 -- Billing-account ids are normalized and compared as text so the historical
 -- zero sentinel falls back to challenge billing without unsafe integer casts.
 WITH bounds AS (
@@ -28,9 +30,9 @@ latest_payment_versions AS MATERIALIZED (
   FROM finance.payment p
   GROUP BY p.winnings_id
 ),
-paid_events AS MATERIALIZED (
+payment_events AS MATERIALIZED (
   SELECT
-    COALESCE(p.date_paid, p.created_at) AS paid_at,
+    p.created_at AS activity_at,
     COALESCE(p.gross_amount, p.total_amount, 0) AS amount,
     NULLIF(TRIM(cl.id), '') AS customer_id,
     NULLIF(TRIM(cl.name), '') AS customer_label
@@ -56,18 +58,18 @@ paid_events AS MATERIALIZED (
     )
   LEFT JOIN "billing-accounts"."Client" cl
     ON cl.id = COALESCE(payment_ba."clientId", challenge_ba."clientId")
-  WHERE p.payment_status = 'PAID'
+  WHERE p.payment_status IS DISTINCT FROM 'CANCELLED'
     AND w.type = 'PAYMENT'
-    AND COALESCE(p.date_paid, p.created_at) IS NOT NULL
+    AND p.created_at IS NOT NULL
     AND NULLIF(TRIM(w.winner_id), '') IS NOT NULL
     AND w.category::text IS DISTINCT FROM 'TOPGEAR_PAYMENT'
 ),
 selected_events AS (
   SELECT pe.*
-  FROM paid_events pe
+  FROM payment_events pe
   CROSS JOIN bounds b
-  WHERE pe.paid_at >= b.start_at
-    AND pe.paid_at < b.end_at
+  WHERE pe.activity_at >= b.start_at
+    AND pe.activity_at < b.end_at
 ),
 customer_totals AS (
   SELECT
@@ -118,7 +120,7 @@ series AS (
 ),
 monthly_amounts AS (
   SELECT
-    DATE_TRUNC('month', se.paid_at) AS month_start,
+    DATE_TRUNC('month', se.activity_at) AS month_start,
     COALESCE(
       'customer-' || tc.customer_id,
       'other-customers'
@@ -129,7 +131,7 @@ monthly_amounts AS (
     ON tc.customer_id = se.customer_id
    AND tc.customer_label = se.customer_label
   GROUP BY
-    DATE_TRUNC('month', se.paid_at),
+    DATE_TRUNC('month', se.activity_at),
     COALESCE('customer-' || tc.customer_id, 'other-customers')
 )
 SELECT

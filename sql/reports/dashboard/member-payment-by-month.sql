@@ -1,11 +1,12 @@
--- Monthly paid-member values split by canonical payment bucket.
+-- Monthly member-payment values split by canonical payment bucket.
 --
 -- Parameters:
 --   $1 timestamptz - inclusive reporting range start
 --   $2 timestamptz - exclusive reporting range end
 --
--- Only the latest version of each payment is considered. Gross amount is the
--- preferred member-payment value, with total amount used as a fallback.
+-- The latest non-cancelled payment record is counted in its creation month so
+-- projected payments remain visible. Gross amount is the preferred
+-- member-payment value, with total amount used as a fallback.
 WITH bounds AS (
   SELECT
     $1::timestamptz AT TIME ZONE 'UTC' AS start_at,
@@ -26,9 +27,9 @@ latest_payment_versions AS MATERIALIZED (
   FROM finance.payment p
   GROUP BY p.winnings_id
 ),
-paid_events AS MATERIALIZED (
+payment_events AS MATERIALIZED (
   SELECT
-    COALESCE(p.date_paid, p.created_at) AS paid_at,
+    p.created_at AS activity_at,
     COALESCE(p.gross_amount, p.total_amount, 0) AS amount,
     CASE
       WHEN w.category::text = 'TAAS_PAYMENT' THEN 'taas'
@@ -48,15 +49,15 @@ paid_events AS MATERIALIZED (
    AND lpv.max_version = p.version
   JOIN finance.winnings w
     ON w.winning_id = p.winnings_id
-  WHERE p.payment_status = 'PAID'
+  WHERE p.payment_status IS DISTINCT FROM 'CANCELLED'
     AND w.type = 'PAYMENT'
-    AND COALESCE(p.date_paid, p.created_at) IS NOT NULL
+    AND p.created_at IS NOT NULL
     AND NULLIF(TRIM(w.winner_id), '') IS NOT NULL
     AND w.category::text IS DISTINCT FROM 'TOPGEAR_PAYMENT'
 ),
 selected_months AS (
   SELECT
-    DATE_TRUNC('month', pe.paid_at) AS month_start,
+    DATE_TRUNC('month', pe.activity_at) AS month_start,
     COALESCE(SUM(pe.amount) FILTER (
       WHERE pe.payment_type = 'taas'
     ), 0) AS taas,
@@ -69,11 +70,11 @@ selected_months AS (
     COALESCE(SUM(pe.amount) FILTER (
       WHERE pe.payment_type = 'engagement'
     ), 0) AS engagement
-  FROM paid_events pe
+  FROM payment_events pe
   CROSS JOIN bounds b
-  WHERE pe.paid_at >= b.start_at
-    AND pe.paid_at < b.end_at
-  GROUP BY DATE_TRUNC('month', pe.paid_at)
+  WHERE pe.activity_at >= b.start_at
+    AND pe.activity_at < b.end_at
+  GROUP BY DATE_TRUNC('month', pe.activity_at)
 )
 SELECT
   TO_CHAR(m.month_start, 'YYYY-MM-01') AS month,

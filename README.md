@@ -38,10 +38,11 @@ Dashboard figures use these shared definitions:
   `PAYMENT` winning. It is grouped by the payment creation month so projected
   payments that are owed or on hold remain visible. Members are deduplicated
   within each payment bucket and month.
-- Member-payment values use the latest payment version and sum `gross_amount`,
-  falling back to `total_amount`. The payment-by-customer dashboard ranks the
-  top five billing-account clients across the selected range and groups all
-  unnamed or remaining clients under `Other Customers`.
+- Member-payment values use the latest non-cancelled finance payment and group
+  `gross_amount` by payment creation month, falling back to `total_amount`.
+  The payment-by-customer dashboard ranks the top five billing-account clients
+  across the selected range and groups all unnamed or remaining clients under
+  `Other Customers`.
 - Challenge participation uses the latest actual phase completion month for
   Challenge, Marathon Match, and First2Finish cohorts. Registrants are
   Submitter resources, and submitters have a non-deleted submission for the
