@@ -54,14 +54,16 @@ describe("Dashboard report SQL", () => {
     expect(sql).toMatch(/COUNT\(DISTINCT pe\.member_id\) FILTER/g);
   });
 
-  it("sums latest paid-member values by canonical payment bucket", () => {
+  it("sums projected member-payment values by canonical payment bucket", () => {
     const sql = sqlLoader.load("reports/dashboard/member-payment-by-month.sql");
 
     expect(sql).toContain("MAX(p.version) AS max_version");
     expect(sql).toContain("lpv.max_version = p.version");
-    expect(sql).toContain("p.payment_status = 'PAID'");
+    expect(sql).toContain("p.payment_status IS DISTINCT FROM 'CANCELLED'");
     expect(sql).toContain("w.type = 'PAYMENT'");
-    expect(sql).toContain("COALESCE(p.date_paid, p.created_at)");
+    expect(sql).toContain("p.created_at AS activity_at");
+    expect(sql).not.toContain("p.payment_status = 'PAID'");
+    expect(sql).not.toContain("p.date_paid");
     expect(sql).toContain(
       "COALESCE(p.gross_amount, p.total_amount, 0) AS amount",
     );
@@ -80,7 +82,10 @@ describe("Dashboard report SQL", () => {
     );
 
     expect(sql).toContain("MAX(p.version) AS max_version");
-    expect(sql).toContain("p.payment_status = 'PAID'");
+    expect(sql).toContain("p.payment_status IS DISTINCT FROM 'CANCELLED'");
+    expect(sql).toContain("p.created_at AS activity_at");
+    expect(sql).not.toContain("p.payment_status = 'PAID'");
+    expect(sql).not.toContain("p.date_paid");
     expect(sql).toContain(
       "COALESCE(p.gross_amount, p.total_amount, 0) AS amount",
     );
