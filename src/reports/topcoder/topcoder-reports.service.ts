@@ -1070,7 +1070,7 @@ export class TopcoderReportsService implements OnModuleDestroy {
         row.durationDays * (filters.pointsPerDay ?? 0);
       const relativeRank = row.placement / Math.max(1, row.submissionsCount);
       const sqrt = Math.sqrt(relativeRank);
-      const pointsByWin = log / sqrt;
+      const pointsByWin = Math.round(log / sqrt);
 
       entriesByUser[row.userId].points += pointsByWin;
       entriesByUser[row.userId].wins[row.challengeId] = pointsByWin;
