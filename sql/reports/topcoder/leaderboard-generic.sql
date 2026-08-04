@@ -163,13 +163,15 @@ challenge_summary AS (
     cc.challenge_name,
     cc.duration_days,
     COALESCE(SUM(pr.value), 0) AS prize_pool,
-    COUNT(DISTINCT ums.user_id) AS submissions_count,
+    (
+      SELECT COUNT(DISTINCT ums.user_id)
+      FROM unique_member_submissions AS ums
+      WHERE ums.challenge_id = cc.challenge_id
+    ) AS submissions_count,
     JSONB_AGG(
       JSONB_BUILD_OBJECT('placement', pr.placement, 'value', pr.value) ORDER BY pr.placement
     ) FILTER (WHERE pr.value IS NOT NULL) AS placement_prizes
   FROM challenge_context AS cc
-  LEFT JOIN unique_member_submissions AS ums
-    ON ums.challenge_id = cc.challenge_id
   LEFT JOIN challenge_prizes AS pr
     ON pr.challenge_id = cc.challenge_id
   GROUP BY cc.challenge_id, cc.challenge_name, cc.duration_days
