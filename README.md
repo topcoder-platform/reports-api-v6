@@ -12,9 +12,11 @@ The Reports Portal dashboard API is available under
 `/v6/reports/dashboard`:
 
 - `GET /v6/reports/dashboard` returns all dashboards, keyed as
-  `newSignups`, `membersPaid`, and `challengeParticipation`.
+  `newSignups`, `membersPaid`, `challengeParticipation`,
+  `memberPaymentByMonth`, and `memberPaymentByCustomer`.
 - `GET /v6/reports/dashboard/:dashboard` returns one dashboard. Supported
-  slugs are `new-signups`, `members-paid`, and `challenge-participation`.
+  slugs are `new-signups`, `members-paid`, `challenge-participation`,
+  `member-payment-by-month`, and `member-payment-by-customer`.
 - `GET /v6/reports/dashboard/export` downloads all monthly dashboard rows as
   a flat CSV.
 - `GET /v6/reports/dashboard/:dashboard/export` downloads one dashboard as a
@@ -24,20 +26,28 @@ All endpoints accept optional ISO-8601 `startDate` (inclusive) and `endDate`
 (exclusive) query parameters. With neither bound, the monthly series covers
 the latest six UTC calendar months, including the current month. With one
 bound, the other is derived six calendar months away. The response always
-includes the resolved timestamps, zero-filled calendar months, and an
-all-time summary.
+includes the resolved timestamps and zero-filled calendar months. The signup,
+members-paid, and challenge-participation dashboards also include an all-time
+summary.
 
 Dashboard figures use these shared definitions:
 
 - Signups come from `identity.user.create_date`. `status = 'A'` is activated;
   every other current status is not activated.
-- Paid-member activity requires a `PAID` finance payment for a `PAYMENT`
-  winning. Its event timestamp is `date_paid`, falling back to `created_at`.
-  Members are deduplicated within each payment bucket and month.
-- Registrations are Submitter resource creation events. Submissions are
-  non-deleted review submission events, using `submittedDate` and falling
-  back to `createdAt`. Each category is deduplicated independently by member
-  and month.
+- Paid-member activity uses the latest non-cancelled finance payment for a
+  `PAYMENT` winning. It is grouped by the payment creation month so projected
+  payments that are owed or on hold remain visible. Members are deduplicated
+  within each payment bucket and month.
+- Member-payment values use the latest non-cancelled finance payment and group
+  `gross_amount` by payment creation month, falling back to `total_amount`.
+  The payment-by-customer dashboard ranks the top five billing-account clients
+  across the selected range and groups all unnamed or remaining clients under
+  `Other Customers`.
+- Challenge participation uses the latest actual phase completion month for
+  Challenge, Marathon Match, and First2Finish cohorts. Registrants are
+  Submitter resources, and submitters have a non-deleted submission for the
+  same challenge and member. Each category is deduplicated by member and
+  cohort month.
 - Rates are percentages from 0 through 100.
 
 Human access is limited to Administrator and Talent Manager roles. Machine

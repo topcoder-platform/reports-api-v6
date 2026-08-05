@@ -66,6 +66,8 @@ workflows:
               - develop
               - PM-4931
               - improve-member-search-2
+          tags:
+              only: /^dev-.*/
 
     # Production builds are exectuted only on tagged commits to the
     # master branch.
