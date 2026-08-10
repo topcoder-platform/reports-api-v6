@@ -17,20 +17,31 @@ country_members AS (
   WHERE country_code IS NOT NULL
   GROUP BY country_code
 ),
-country_skill_counts AS (
-  SELECT
+country_member_skills AS (
+  SELECT DISTINCT
     members.country_code,
+    members.user_id,
     skill.id AS skill_id,
-    skill.name,
-    COUNT(DISTINCT user_skill.user_id)::bigint AS member_count
+    skill.name
   FROM member_profiles members
   JOIN skills.user_skill user_skill
     ON user_skill.user_id::bigint = members.user_id
+  JOIN skills.user_skill_level skill_level
+    ON skill_level.id = user_skill.user_skill_level_id
+   AND LOWER(skill_level.name) IN ('verified', 'self-declared')
   JOIN skills.skill skill
     ON skill.id = user_skill.skill_id
    AND skill.deleted_at IS NULL
   WHERE members.country_code IS NOT NULL
-  GROUP BY members.country_code, skill.id, skill.name
+),
+country_skill_counts AS (
+  SELECT
+    owned.country_code,
+    owned.skill_id,
+    owned.name,
+    COUNT(*)::bigint AS owned_count
+  FROM country_member_skills owned
+  GROUP BY owned.country_code, owned.skill_id, owned.name
 ),
 country_skills AS (
   SELECT
@@ -38,9 +49,10 @@ country_skills AS (
     JSONB_AGG(
       JSONB_BUILD_OBJECT(
         'name', name,
-        'count', member_count
+        'count', owned_count,
+        'ownedCount', owned_count
       )
-      ORDER BY member_count DESC, name ASC, skill_id ASC
+      ORDER BY owned_count DESC, name ASC, skill_id ASC
     ) AS skills
   FROM country_skill_counts
   GROUP BY country_code
@@ -94,31 +106,35 @@ winner_counts AS (
     AND NULLIF(TRIM(members.handle), '') IS NOT NULL
     AND wins.wins > 0
 ),
+ranked_members AS (
+  SELECT
+    winner_counts.*,
+    ROW_NUMBER() OVER (
+      PARTITION BY country_code
+      ORDER BY wins DESC, handle ASC, user_id ASC
+    ) AS member_rank
+  FROM winner_counts
+),
 top_members AS (
   SELECT
     country_code,
-    JSONB_BUILD_OBJECT(
-      'handle', handle,
-      'wins', wins,
-      'photoURL', photo_url,
-      'maxRating', max_rating
-    ) AS top_member
-  FROM (
-    SELECT
-      winner_counts.*,
-      ROW_NUMBER() OVER (
-        PARTITION BY country_code
-        ORDER BY wins DESC, handle ASC, user_id ASC
-      ) AS member_rank
-    FROM winner_counts
-  ) ranked_members
-  WHERE member_rank = 1
+    JSONB_AGG(
+      JSONB_BUILD_OBJECT(
+        'handle', handle,
+        'wins', wins,
+        'photoURL', photo_url,
+        'maxRating', max_rating
+      )
+      ORDER BY member_rank
+    ) FILTER (WHERE member_rank <= 3) AS top_members
+  FROM ranked_members
+  GROUP BY country_code
 )
 SELECT
   countries.country_code,
   countries.members_count AS "user.count",
   COALESCE(skills.skills, '[]'::jsonb) AS skills,
-  members.top_member
+  COALESCE(members.top_members, '[]'::jsonb) AS top_members
 FROM country_members countries
 LEFT JOIN country_skills skills
   ON skills.country_code = countries.country_code

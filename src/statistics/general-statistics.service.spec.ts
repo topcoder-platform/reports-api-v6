@@ -92,31 +92,47 @@ describe("GeneralStatisticsService", () => {
       {
         country_code: "IND",
         "user.count": "730554",
-        top_member: {
-          handle: "top-member",
-          maxRating: "2200",
-          photoURL: null,
-          wins: "1768",
-        },
+        top_members: [
+          {
+            handle: "top-member",
+            maxRating: "2200",
+            photoURL: null,
+            wins: "1768",
+          },
+          {
+            handle: "third-member",
+            maxRating: null,
+            photoURL: null,
+            wins: "100",
+          },
+        ],
         skills: [
-          { count: "40", name: "JavaScript" },
-          { count: "30", name: "Python" },
-          { count: "15", name: "Swift" },
+          { count: "50", name: "JavaScript", ownedCount: "50" },
+          { count: "30", name: "Python", ownedCount: "30" },
+          { count: "20", name: "Swift", ownedCount: "20" },
         ],
       },
       {
         country_code: "IN",
         "user.count": "10",
-        top_member: {
-          handle: "higher-winner",
-          maxRating: "2400",
-          photoURL: "https://example.com/higher.png",
-          wins: "2000",
-        },
+        top_members: [
+          {
+            handle: "higher-winner",
+            maxRating: "2400",
+            photoURL: "https://example.com/higher.png",
+            wins: "2000",
+          },
+          {
+            handle: "second-member",
+            maxRating: "2300",
+            photoURL: null,
+            wins: "1800",
+          },
+        ],
         skills: [
-          { count: "10", name: "javascript" },
-          { count: "25", name: "Rust" },
-          { count: "20", name: "Go" },
+          { count: "10", name: "javascript", ownedCount: "10" },
+          { count: "25", name: "Rust", ownedCount: "25" },
+          { count: "15", name: "Go", ownedCount: "15" },
         ],
       },
     ]);
@@ -127,19 +143,36 @@ describe("GeneralStatisticsService", () => {
         "country.country_code": "IND",
         "user.count": 730564,
         rank: 1,
-        skillAssignments: 140,
-        topMember: {
-          handle: "higher-winner",
-          maxRating: 2400,
-          photoURL: "https://example.com/higher.png",
-          wins: 2000,
-        },
-        topSkills: [
-          { count: 50, name: "JavaScript" },
-          { count: 30, name: "Python" },
-          { count: 25, name: "Rust" },
+        skillsBreakdown: [
+          { count: 60, name: "JavaScript", percentage: 40 },
+          { count: 30, name: "Python", percentage: 20 },
+          {
+            count: 25,
+            name: "Rust",
+            percentage: 16.666666666666664,
+          },
         ],
         totalSkills: 5,
+        topMembers: [
+          {
+            handle: "higher-winner",
+            maxRating: 2400,
+            photoURL: "https://example.com/higher.png",
+            wins: 2000,
+          },
+          {
+            handle: "second-member",
+            maxRating: 2300,
+            photoURL: null,
+            wins: 1800,
+          },
+          {
+            handle: "top-member",
+            maxRating: 2200,
+            photoURL: null,
+            wins: 1768,
+          },
+        ],
       },
     ]);
     expect(sql.load).toHaveBeenCalledWith(

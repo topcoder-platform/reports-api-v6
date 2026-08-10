@@ -16,13 +16,14 @@ type CountryMemberDetailRow = {
   skills: Array<{
     count?: number | string | null;
     name?: string | null;
+    ownedCount?: number | string | null;
   }> | null;
-  top_member: {
+  top_members: Array<{
     handle?: string | null;
     maxRating?: number | string | null;
     photoURL?: string | null;
     wins?: number | string | null;
-  } | null;
+  }> | null;
 };
 
 @Injectable()
@@ -86,8 +87,11 @@ export class GeneralStatisticsService {
       {
         countryCode: string | null;
         memberCount: number;
-        skills: Map<string, { count: number; name: string }>;
-        topMember: CountryMember | null;
+        skills: Map<
+          string,
+          { count: number; name: string; ownedCount: number }
+        >;
+        topMembers: CountryMember[];
       }
     >();
 
@@ -97,27 +101,35 @@ export class GeneralStatisticsService {
       const current = countries.get(countryName) ?? {
         countryCode: row.country_code,
         memberCount: 0,
-        skills: new Map<string, { count: number; name: string }>(),
-        topMember: null,
+        skills: new Map<
+          string,
+          { count: number; name: string; ownedCount: number }
+        >(),
+        topMembers: [],
       };
-      const candidate = row.top_member
-        ? {
-            handle: String(row.top_member.handle ?? ""),
-            maxRating:
-              row.top_member.maxRating !== null &&
-              row.top_member.maxRating !== undefined
-                ? Number(row.top_member.maxRating)
-                : null,
-            photoURL: row.top_member.photoURL ?? null,
-            wins: Number(row.top_member.wins ?? 0),
-          }
-        : null;
+      const candidates = (
+        Array.isArray(row.top_members) ? row.top_members : []
+      ).map((member) => ({
+        handle: String(member.handle ?? ""),
+        maxRating:
+          member.maxRating !== null && member.maxRating !== undefined
+            ? Number(member.maxRating)
+            : null,
+        photoURL: member.photoURL ?? null,
+        wins: Number(member.wins ?? 0),
+      }));
 
       current.memberCount += Number(row["user.count"] ?? 0);
       (Array.isArray(row.skills) ? row.skills : []).forEach((skill) => {
         const name = String(skill.name ?? "").trim();
         const count = Number(skill.count ?? 0);
-        if (!name || !Number.isFinite(count) || count <= 0) {
+        const ownedCount = Number(skill.ownedCount ?? 0);
+        if (
+          !name ||
+          !Number.isFinite(count) ||
+          !Number.isFinite(ownedCount) ||
+          ownedCount <= 0
+        ) {
           return;
         }
 
@@ -126,17 +138,10 @@ export class GeneralStatisticsService {
         current.skills.set(key, {
           count: (existing?.count ?? 0) + count,
           name: existing?.name ?? name,
+          ownedCount: (existing?.ownedCount ?? 0) + ownedCount,
         });
       });
-      if (
-        candidate &&
-        (!current.topMember ||
-          candidate.wins > current.topMember.wins ||
-          (candidate.wins === current.topMember.wins &&
-            candidate.handle.localeCompare(current.topMember.handle) < 0))
-      ) {
-        current.topMember = candidate;
-      }
+      current.topMembers.push(...candidates);
       countries.set(countryName, current);
     });
 
@@ -157,19 +162,40 @@ export class GeneralStatisticsService {
         (skillA, skillB) =>
           skillB.count - skillA.count || skillA.name.localeCompare(skillB.name),
       );
+      const totalOwnedSkills = skills.reduce(
+        (total, skill) => total + skill.ownedCount,
+        0,
+      );
+      const topMembersByHandle = new Map<string, CountryMember>();
+      country.topMembers
+        .sort(
+          (memberA, memberB) =>
+            memberB.wins - memberA.wins ||
+            memberA.handle.localeCompare(memberB.handle),
+        )
+        .forEach((member) => {
+          const key = member.handle.toLowerCase();
+          if (key && !topMembersByHandle.has(key)) {
+            topMembersByHandle.set(key, member);
+          }
+        });
+      const topMembers = Array.from(topMembersByHandle.values()).slice(0, 3);
 
       return {
         "country.country_name": countryName,
         "country.country_code": country.countryCode,
         "user.count": country.memberCount,
         rank,
-        skillAssignments: skills.reduce(
-          (total, skill) => total + skill.count,
-          0,
-        ),
-        topMember: country.topMember,
-        topSkills: skills.slice(0, 3),
+        skillsBreakdown: skills.slice(0, 3).map((skill) => ({
+          count: skill.count,
+          name: skill.name,
+          percentage:
+            totalOwnedSkills > 0
+              ? (skill.ownedCount / totalOwnedSkills) * 100
+              : 0,
+        })),
         totalSkills: skills.length,
+        topMembers,
       };
     });
   }

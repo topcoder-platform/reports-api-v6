@@ -29,23 +29,28 @@ describe("General statistics SQL", () => {
     expect(sql).toContain('first_place_count AS "challenge_stats.count"');
   });
 
-  it("aggregates country skills and one deterministic top member", () => {
+  it("aggregates owned skills and three deterministic top members", () => {
     const sql = sqlLoader.load(
       "reports/statistics/general/country-member-details.sql",
     );
 
+    expect(sql).toContain("NULLIF(TRIM(m.\"homeCountryCode\"), '')");
     expect(sql).toContain("JOIN skills.user_skill user_skill");
-    expect(sql).toContain("JOIN skills.user_skill_display_mode display_mode");
-    expect(sql).toContain("LOWER(display_mode.name) = 'principal'");
-    expect(sql).toContain("COUNT(DISTINCT user_skill.user_id)");
+    expect(sql).toContain("JOIN skills.user_skill_level skill_level");
+    expect(sql).toContain(
+      "LOWER(skill_level.name) IN ('verified', 'self-declared')",
+    );
+    expect(sql).toContain("COUNT(*)::bigint AS owned_count");
+    expect(sql).not.toContain("user_skill_win_summary");
+    expect(sql).toContain("'ownedCount', owned_count");
     expect(sql).toContain("JOIN skills.skill skill");
     expect(sql).toContain("skill.deleted_at IS NULL");
-    expect(sql).toContain("ORDER BY member_count DESC, name ASC, skill_id ASC");
+    expect(sql).toContain("ORDER BY owned_count DESC, name ASC, skill_id ASC");
     expect(sql).toContain("AS skills");
     expect(sql).not.toContain("skill_rank <= 3");
     expectMemberStatsWins(sql);
     expect(sql).toContain("ORDER BY wins DESC, handle ASC, user_id ASC");
-    expect(sql).toContain("WHERE member_rank = 1");
+    expect(sql).toContain("member_rank <= 3");
     expect(sql).toContain('countries.members_count AS "user.count"');
   });
 
