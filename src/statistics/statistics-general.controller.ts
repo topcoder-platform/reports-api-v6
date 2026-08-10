@@ -33,10 +33,26 @@ export class StatisticsGeneralController {
     return this.general.getCountriesRepresented();
   }
 
+  @Get("/country-member-details")
+  @ApiOperation({
+    summary: "Member, skill, and top-member details by country (desc)",
+  })
+  getCountryMemberDetails() {
+    return this.general.getCountryMemberDetails();
+  }
+
   @Get("/first-place-by-country")
   @ApiOperation({ summary: "First place finishes by country (desc)" })
   getFirstPlaceByCountry() {
     return this.general.getFirstPlaceByCountry();
+  }
+
+  @Get("/top-winners-by-country")
+  @ApiOperation({
+    summary: "First place finishes and top three winners by country (desc)",
+  })
+  getTopWinnersByCountry() {
+    return this.general.getTopWinnersByCountry();
   }
 
   @Get("/copiloted-challenges")
