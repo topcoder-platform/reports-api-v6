@@ -541,9 +541,19 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
         "Member count by country (desc)",
       ),
       publicReport(
+        "Country Member Details",
+        "/statistics/general/country-member-details",
+        "Member, skill, and top-member details by country (desc)",
+      ),
+      publicReport(
         "First Place by Country",
         "/statistics/general/first-place-by-country",
         "First place finishes by country (desc)",
+      ),
+      publicReport(
+        "Top Winners by Country",
+        "/statistics/general/top-winners-by-country",
+        "First place finishes and top three winners by country (desc)",
       ),
       publicReport(
         "Copiloted Challenges",
