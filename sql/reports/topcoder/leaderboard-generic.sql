@@ -65,7 +65,7 @@ member_submissions AS (
     ON s."challengeId" = cc.challenge_id
    AND s."memberId" IS NOT NULL
   LEFT JOIN LATERAL (
-    SELECT rs."aggregateScore", rs."scorecardId"
+    SELECT rs."aggregateScore", rs."scorecardId", rs."isPassing"
     FROM reviews."reviewSummation" AS rs
     WHERE rs."submissionId" = s.id
       AND COALESCE(rs."isFinal", TRUE) = TRUE
@@ -131,8 +131,14 @@ member_submissions AS (
         AND UPPER(ai_decision.status::text) = 'PASSED')
       OR (
         NOT challenge_reviewers.is_ai_only_challenge
-        AND COALESCE(final_review."aggregateScore", s."finalScore"::double precision, s."initialScore"::double precision)
-          >= COALESCE(sc."minimumPassingScore", sc."minScore", 0)
+        AND (
+          final_review."isPassing" IS TRUE
+          OR (
+            final_review."isPassing" IS NULL
+            AND COALESCE(final_review."aggregateScore", s."finalScore"::double precision, s."initialScore"::double precision)
+              >= COALESCE(sc."minimumPassingScore", sc."minScore", 0)
+          )
+        )
       )
     )
 ),
