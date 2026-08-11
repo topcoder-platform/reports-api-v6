@@ -250,8 +250,9 @@ export class PaymentsReportQueryDto {
 
   @ApiProperty({
     required: false,
-    description: "End date for the report query in ISO 8601 format",
-    example: "2023-01-31T23:59:59.000Z",
+    description:
+      "End date (inclusive through the full calendar day) for the report query in ISO 8601 format",
+    example: "2023-01-31",
   })
   @IsOptional()
   @IsDateString()
@@ -862,8 +863,9 @@ export class BaFeesReportQueryDto {
 
   @ApiProperty({
     required: false,
-    description: "End date for the report query in ISO 8601 format",
-    example: "2023-01-31T23:59:59.000Z",
+    description:
+      "End date (inclusive through the full calendar day) for the report query in ISO 8601 format",
+    example: "2023-01-31",
   })
   @IsOptional()
   @IsDateString()
