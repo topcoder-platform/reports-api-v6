@@ -331,16 +331,35 @@ describe("SfdcReportsService - getPaymentsReport", () => {
     );
   });
 
-  it("uses the full inclusive end date in the payments SQL", () => {
+  it("uses inclusive New York calendar date bounds in the payments SQL", () => {
     const paymentsSql = readFileSync(
       join(__dirname, "../../../sql/reports/sfdc/payments.sql"),
       "utf8",
     );
 
     expect(paymentsSql).toContain(
-      "DATE_TRUNC('day', $8::timestamptz) + INTERVAL '1 day'",
+      "($7::date::timestamp AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC'",
+    );
+    expect(paymentsSql).toContain(
+      "(($8::date + 1)::timestamp AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC'",
     );
     expect(paymentsSql).not.toContain("created_at <= $8::timestamptz");
+    expect(paymentsSql).not.toContain("DATE_TRUNC('day', $8::timestamptz)");
+  });
+
+  it("returns offset-bearing New York payment timestamps", () => {
+    const paymentsSql = readFileSync(
+      join(__dirname, "../../../sql/reports/sfdc/payments.sql"),
+      "utf8",
+    );
+
+    expect(paymentsSql).toContain(
+      "created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York',",
+    );
+    expect(paymentsSql).toContain(
+      "(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York') - created_at",
+    );
+    expect(paymentsSql).toContain(`'YYYY-MM-DD"T"HH24:MI:SS.MS'`);
   });
 
   it("returns mixed challenge, engagement, and unresolved challenge payments successfully", async () => {
@@ -1121,7 +1140,7 @@ describe("SfdcReportsService - getBaFeesReport", () => {
   });
 
   it.each(["ba-fees.sql", "ba-fees-monthly.sql"])(
-    "uses the full inclusive end date in %s",
+    "uses inclusive New York calendar date bounds in %s",
     (fileName) => {
       const baFeesSql = readFileSync(
         join(__dirname, `../../../sql/reports/sfdc/${fileName}`),
@@ -1129,11 +1148,33 @@ describe("SfdcReportsService - getBaFeesReport", () => {
       );
 
       expect(baFeesSql).toContain(
-        "DATE_TRUNC('day', $2::timestamptz) + INTERVAL '1 day'",
+        "($1::date::timestamp AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC'",
+      );
+      expect(baFeesSql).toContain(
+        "(($2::date + 1)::timestamp AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC'",
       );
       expect(baFeesSql).not.toContain("p.created_at <= $2::timestamptz");
+      expect(baFeesSql).not.toContain("DATE_TRUNC('day', $2::timestamptz)");
     },
   );
+
+  it("uses New York calendar dates for monthly BA fee buckets", () => {
+    const baFeesSql = readFileSync(
+      join(__dirname, "../../../sql/reports/sfdc/ba-fees-monthly.sql"),
+      "utf8",
+    );
+    const newYorkPaymentTimestamp =
+      "fp.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York'";
+
+    expect(baFeesSql).toContain(
+      `DATE_TRUNC('month', ${newYorkPaymentTimestamp})`,
+    );
+    expect(baFeesSql).toContain(`MIN(${newYorkPaymentTimestamp})::date`);
+    expect(baFeesSql).toContain(`MAX(${newYorkPaymentTimestamp})::date`);
+    expect(baFeesSql).not.toContain(
+      "fp.created_at AT TIME ZONE 'America/New_York'",
+    );
+  });
 
   it("runs a basic query successfully", async () => {
     const result = await service.getBaFeesReport(

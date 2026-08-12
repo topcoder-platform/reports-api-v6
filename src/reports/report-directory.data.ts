@@ -231,6 +231,28 @@ const paymentsEndDateParam: ReportParameter = {
   location: "query",
 };
 
+const paymentAccrualStartDateParam: ReportParameter = {
+  ...paymentsStartDateParam,
+  description: "Inclusive calendar start date in YYYY-MM-DD format",
+};
+
+const paymentAccrualEndDateParam: ReportParameter = {
+  ...paymentsEndDateParam,
+  description: "Inclusive full calendar end date in YYYY-MM-DD format",
+};
+
+const sfdcPaymentsStartDateParam: ReportParameter = {
+  ...paymentsStartDateParam,
+  description:
+    "Inclusive America/New_York calendar start date in YYYY-MM-DD format",
+};
+
+const sfdcPaymentsEndDateParam: ReportParameter = {
+  ...paymentsEndDateParam,
+  description:
+    "Inclusive full America/New_York calendar end date in YYYY-MM-DD format",
+};
+
 const challengeNameParam: ReportParameter = {
   name: "challengeName",
   type: "string",
@@ -294,8 +316,8 @@ const paymentsFilters = [
   challengeNameParam,
   challengeIdsParam,
   engagementIdsParam,
-  paymentsStartDateParam,
-  paymentsEndDateParam,
+  sfdcPaymentsStartDateParam,
+  sfdcPaymentsEndDateParam,
   handlesParam,
   minPaymentParam,
   maxPaymentParam,
@@ -306,14 +328,16 @@ const baFeesDateParams: ReportParameter[] = [
   {
     name: "startDate",
     type: "date",
-    description: "Start date for the report query in ISO format",
+    description:
+      "Inclusive America/New_York calendar start date in YYYY-MM-DD format",
     location: "query",
     required: true,
   },
   {
     name: "endDate",
     type: "date",
-    description: "End date for the report query in ISO format",
+    description:
+      "Inclusive full America/New_York calendar end date in YYYY-MM-DD format",
     location: "query",
   },
 ];
@@ -837,37 +861,37 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
         "Member Payment Accrual",
         "/payment/member-payment-accrual",
         "Member payment accruals for the provided date range (defaults to last 3 months)",
-        [paymentsStartDateParam, paymentsEndDateParam],
+        [paymentAccrualStartDateParam, paymentAccrualEndDateParam],
       ),
       adminOnlyTopcoderReport(
         "Member Payment Accrual-TaaS",
         "/payment/member-payment-accrual-taas",
         "Member payment accruals for TaaS payments for the provided date range (defaults to last 3 months)",
-        [paymentsStartDateParam, paymentsEndDateParam],
+        [paymentAccrualStartDateParam, paymentAccrualEndDateParam],
       ),
       adminOnlyTopcoderReport(
         "Member Payment Accrual-Topgear",
         "/payment/member-payment-accrual-topgear",
         "Member payment accruals for Topgear payments for the provided date range (defaults to last 3 months)",
-        [paymentsStartDateParam, paymentsEndDateParam],
+        [paymentAccrualStartDateParam, paymentAccrualEndDateParam],
       ),
       adminOnlyTopcoderReport(
         "Member Payment Accrual-Engagement",
         "/payment/member-payment-accrual-engagement",
         "Member payment accruals for engagement payments for the provided date range (defaults to last 3 months)",
-        [paymentsStartDateParam, paymentsEndDateParam],
+        [paymentAccrualStartDateParam, paymentAccrualEndDateParam],
       ),
       adminOnlyTopcoderReport(
         "Member Payment Accrual-Task",
         "/payment/member-payment-accrual-task",
         "Member payment accruals for task payments for the provided date range (defaults to last 3 months)",
-        [paymentsStartDateParam, paymentsEndDateParam],
+        [paymentAccrualStartDateParam, paymentAccrualEndDateParam],
       ),
       adminOnlyTopcoderReport(
         "Member Payment Accrual-Challenge",
         "/payment/member-payment-accrual-challenge",
         "Member payment accruals for challenge payments (contest, review board, copilot, checkpoint, and related challenge payouts) for the provided date range (defaults to last 3 months)",
-        [paymentsStartDateParam, paymentsEndDateParam],
+        [paymentAccrualStartDateParam, paymentAccrualEndDateParam],
       ),
     ],
   },

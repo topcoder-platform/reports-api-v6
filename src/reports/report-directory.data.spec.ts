@@ -19,6 +19,17 @@ describe("getAccessibleReportsDirectory", () => {
       "/payment/member-payment-accrual-task",
       "/payment/member-payment-accrual-challenge",
     ]);
+    expect(
+      directory.sfdc?.reports
+        .find((report) => report.path === "/sfdc/payments")
+        ?.parameters?.find((parameter) => parameter.name === "endDate")
+        ?.description,
+    ).toContain("America/New_York");
+    expect(
+      directory.payment?.reports[0].parameters?.find(
+        (parameter) => parameter.name === "endDate",
+      )?.description,
+    ).toContain("Inclusive full calendar end date");
     expect(directory.statistics?.reports.map((report) => report.path)).toEqual(
       expect.arrayContaining([
         "/statistics/general/country-member-details",

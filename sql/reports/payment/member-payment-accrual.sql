@@ -1,7 +1,7 @@
 WITH provided_dates AS (
   SELECT
-    NULLIF($1, '')::timestamptz AS start_date,
-    NULLIF($2, '')::timestamptz AS end_date
+    NULLIF($1, '')::date AS start_date,
+    NULLIF($2, '')::date AS end_date
 ),
 params AS (
   SELECT
@@ -50,9 +50,7 @@ recent_payments AS (
   JOIN params pr ON TRUE
   WHERE w.type = 'PAYMENT'
     AND p.created_at >= pr.start_date
-    AND p.created_at < (
-      DATE_TRUNC('day', pr.end_date) + INTERVAL '1 day'
-    )
+    AND p.created_at < (pr.end_date + INTERVAL '1 day')
 ),
 categorized_payments AS (
   SELECT

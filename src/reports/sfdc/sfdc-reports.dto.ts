@@ -241,8 +241,9 @@ export class PaymentsReportQueryDto {
 
   @ApiProperty({
     required: false,
-    description: "Start date for the report query in ISO 8601 format",
-    example: "2023-01-01T00:00:00.000Z",
+    description:
+      "Start date (inclusive from the start of the America/New_York calendar day) for the report query in YYYY-MM-DD format. For accepted ISO timestamps, only the written calendar-date portion is used",
+    example: "2023-01-01",
   })
   @IsOptional()
   @IsDateString()
@@ -251,7 +252,7 @@ export class PaymentsReportQueryDto {
   @ApiProperty({
     required: false,
     description:
-      "End date (inclusive through the full calendar day) for the report query in ISO 8601 format",
+      "End date (inclusive through the full America/New_York calendar day) for the report query in YYYY-MM-DD format. For accepted ISO timestamps, only the written calendar-date portion is used",
     example: "2023-01-31",
   })
   @IsOptional()
@@ -332,6 +333,11 @@ export class PaymentsReportResponse {
     description: "Winnings category from finance.winnings.category",
   })
   category: string;
+  @ApiProperty({
+    description:
+      "Payment creation timestamp in America/New_York with its UTC offset",
+    example: "2026-07-31T18:53:33.383-04:00",
+  })
   paymentDate: string;
   paymentId: string;
   paymentStatus: string;
@@ -854,8 +860,8 @@ export class BaFeesReportQueryDto {
   @ApiProperty({
     required: false,
     description:
-      "Start date for the report query in ISO 8601 format (inclusive). If omitted the report uses an open-ended lower bound.",
-    example: "2023-01-01T00:00:00.000Z",
+      "Start date (inclusive from the start of the America/New_York calendar day) for the report query in YYYY-MM-DD format. For accepted ISO timestamps, only the written calendar-date portion is used. If omitted the report uses an open-ended lower bound.",
+    example: "2023-01-01",
   })
   @IsOptional()
   @IsDateString()
@@ -864,7 +870,7 @@ export class BaFeesReportQueryDto {
   @ApiProperty({
     required: false,
     description:
-      "End date (inclusive through the full calendar day) for the report query in ISO 8601 format",
+      "End date (inclusive through the full America/New_York calendar day) for the report query in YYYY-MM-DD format. For accepted ISO timestamps, only the written calendar-date portion is used",
     example: "2023-01-31",
   })
   @IsOptional()
