@@ -331,6 +331,18 @@ describe("SfdcReportsService - getPaymentsReport", () => {
     );
   });
 
+  it("uses the full inclusive end date in the payments SQL", () => {
+    const paymentsSql = readFileSync(
+      join(__dirname, "../../../sql/reports/sfdc/payments.sql"),
+      "utf8",
+    );
+
+    expect(paymentsSql).toContain(
+      "DATE_TRUNC('day', $8::timestamptz) + INTERVAL '1 day'",
+    );
+    expect(paymentsSql).not.toContain("created_at <= $8::timestamptz");
+  });
+
   it("returns mixed challenge, engagement, and unresolved challenge payments successfully", async () => {
     const result = await service.getPaymentsReport(
       mockPaymentQueryDto.billingAccount,
@@ -1107,6 +1119,21 @@ describe("SfdcReportsService - getBaFeesReport", () => {
       "reports/sfdc/ba-fees-monthly.sql",
     );
   });
+
+  it.each(["ba-fees.sql", "ba-fees-monthly.sql"])(
+    "uses the full inclusive end date in %s",
+    (fileName) => {
+      const baFeesSql = readFileSync(
+        join(__dirname, `../../../sql/reports/sfdc/${fileName}`),
+        "utf8",
+      );
+
+      expect(baFeesSql).toContain(
+        "DATE_TRUNC('day', $2::timestamptz) + INTERVAL '1 day'",
+      );
+      expect(baFeesSql).not.toContain("p.created_at <= $2::timestamptz");
+    },
+  );
 
   it("runs a basic query successfully", async () => {
     const result = await service.getBaFeesReport(

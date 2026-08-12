@@ -20,7 +20,7 @@ WITH filtered_payments AS (
     ON w.winning_id = p.winnings_id
   WHERE
     ($1::timestamptz IS NULL OR p.created_at >= $1::timestamptz)
-    AND ($2::timestamptz IS NULL OR p.created_at <= $2::timestamptz)
+    AND ($2::timestamptz IS NULL OR p.created_at < (DATE_TRUNC('day', $2::timestamptz) + INTERVAL '1 day'))
     AND ($3::text[] IS NULL OR p.billing_account = ANY($3::text[]))
     AND ($4::text[] IS NULL OR p.billing_account != ALL($4::text[]))
 ),

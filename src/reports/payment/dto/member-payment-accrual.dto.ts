@@ -13,8 +13,8 @@ export class MemberPaymentAccrualQueryDto {
 
   @ApiPropertyOptional({
     description:
-      "End date (inclusive) for filtering payment creation date in ISO 8601 format",
-    example: "2024-01-31T23:59:59.000Z",
+      "End date (inclusive through the full calendar day) for filtering payment creation date in ISO 8601 format",
+    example: "2024-01-31",
   })
   @IsOptional()
   @IsDateString()
