@@ -33,8 +33,8 @@ stats_wins AS (
 winner_profiles AS (
   SELECT
     COALESCE(
-      NULLIF(TRIM(m."competitionCountryCode"), ''),
-      NULLIF(TRIM(m."homeCountryCode"), '')
+      NULLIF(TRIM(m."homeCountryCode"), ''),
+      NULLIF(TRIM(m."competitionCountryCode"), '')
     ) AS country_code,
     m."userId" AS user_id,
     m.handle,
@@ -47,8 +47,8 @@ winner_profiles AS (
   LEFT JOIN members."memberMaxRating" mmr
     ON mmr."userId" = m."userId"
   WHERE COALESCE(
-    NULLIF(TRIM(m."competitionCountryCode"), ''),
-    NULLIF(TRIM(m."homeCountryCode"), '')
+    NULLIF(TRIM(m."homeCountryCode"), ''),
+    NULLIF(TRIM(m."competitionCountryCode"), '')
   ) IS NOT NULL
     AND wins.wins > 0
 ),
