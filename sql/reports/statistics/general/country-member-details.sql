@@ -2,8 +2,8 @@ WITH member_profiles AS (
   SELECT
     m."userId" AS user_id,
     COALESCE(
-      NULLIF(TRIM(m."competitionCountryCode"), ''),
-      NULLIF(TRIM(m."homeCountryCode"), '')
+      NULLIF(TRIM(m."homeCountryCode"), ''),
+      NULLIF(TRIM(m."competitionCountryCode"), '')
     ) AS country_code,
     m.handle,
     m."photoURL" AS photo_url
