@@ -50,7 +50,9 @@ recent_payments AS (
   JOIN params pr ON TRUE
   WHERE w.type = 'PAYMENT'
     AND p.created_at >= pr.start_date
-    AND p.created_at <= pr.end_date
+    AND p.created_at < (
+      DATE_TRUNC('day', pr.end_date) + INTERVAL '1 day'
+    )
 ),
 categorized_payments AS (
   SELECT

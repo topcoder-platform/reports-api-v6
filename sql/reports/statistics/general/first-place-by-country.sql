@@ -1,16 +1,45 @@
-WITH winners AS (
-  SELECT s."memberId"::text AS member_id
-  FROM reviews.submission s
-  WHERE s.placement = 1
+WITH history_wins AS (
+  SELECT
+    history."userId",
+    history."trackId",
+    history."typeId",
+    COUNT(*)::bigint AS wins
+  FROM members."memberStatsHistory" history
+  WHERE history.placement = 1
+  GROUP BY history."userId", history."trackId", history."typeId"
+),
+member_wins AS (
+  SELECT
+    stats."userId",
+    SUM(COALESCE(stats.wins, history.wins, 0))::bigint AS wins
+  FROM members."memberStats" stats
+  LEFT JOIN history_wins history
+    ON history."userId" = stats."userId"
+   AND history."trackId" = stats."trackId"
+   AND history."typeId" = stats."typeId"
+  LEFT JOIN challenges."ChallengeTrack" track
+    ON track.id::text = stats."trackId"
+  WHERE stats."isPrivate" = false
+    AND (
+      UPPER(COALESCE(track.name, stats."trackId")) LIKE '%DEVELOP%'
+      OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%DESIGN%'
+      OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%DATA%SCIENCE%'
+      OR UPPER(COALESCE(track.name, stats."trackId")) = 'QA'
+      OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%QUALITY%ASSURANCE%'
+      OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%COPILOT%'
+    )
+  GROUP BY stats."userId"
 ),
 winners_country AS (
   SELECT
     COALESCE(
-      NULLIF(TRIM(m."homeCountryCode"), ''),
-      NULLIF(TRIM(m."competitionCountryCode"), '')
-    ) AS country_code
-  FROM winners w
-  JOIN members.member m ON m."userId"::text = w.member_id
+      NULLIF(TRIM(m."competitionCountryCode"), ''),
+      NULLIF(TRIM(m."homeCountryCode"), '')
+    ) AS country_code,
+    w.wins
+  FROM member_wins w
+  JOIN members.member m ON m."userId" = w."userId"
+  WHERE w.wins > 0
 )
 SELECT
   country_code,
@@ -19,7 +48,7 @@ SELECT
 FROM (
   SELECT
     country_code,
-    COUNT(*)::bigint AS first_place_count
+    SUM(wins)::bigint AS first_place_count
   FROM winners_country
   WHERE country_code IS NOT NULL
   GROUP BY country_code

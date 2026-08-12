@@ -19,6 +19,12 @@ describe("getAccessibleReportsDirectory", () => {
       "/payment/member-payment-accrual-task",
       "/payment/member-payment-accrual-challenge",
     ]);
+    expect(directory.statistics?.reports.map((report) => report.path)).toEqual(
+      expect.arrayContaining([
+        "/statistics/general/country-member-details",
+        "/statistics/general/top-winners-by-country",
+      ]),
+    );
   });
 
   it("returns public reports plus all challenge reports for product managers", () => {

@@ -74,7 +74,7 @@ WHERE
     ))
     AND ($6::text IS NULL OR challenge_name ILIKE '%' || $6 || '%')
     AND created_at >= COALESCE($7::timestamptz, (NOW() AT TIME ZONE 'UTC') - INTERVAL '45 days')
-    AND ($8::timestamptz IS NULL OR created_at <= $8::timestamptz)
+    AND ($8::timestamptz IS NULL OR created_at < (DATE_TRUNC('day', $8::timestamptz) + INTERVAL '1 day'))
     AND ($9::numeric IS NULL OR total_amount >= $9::numeric)
     AND ($10::numeric IS NULL OR total_amount <= $10::numeric)
     AND ($11::text[] IS NULL OR reported_challenge_status::text = ANY($11::text[]))
