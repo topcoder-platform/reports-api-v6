@@ -2,6 +2,7 @@ WITH challenge_context AS (
   SELECT
     c.id AS challenge_id,
     c.name AS challenge_name,
+    c.status AS challenge_status,
     COALESCE(
       cp."actualStartDate",
       cp."scheduledStartDate"
@@ -28,12 +29,14 @@ member_submissions AS (
     cc.challenge_id,
     s.id AS submission_id,
     s."memberId" AS user_id,
+    cc.challenge_status,
     COALESCE(
       NULLIF(TRIM(u.handle), ''),
       NULLIF(TRIM(mem.handle), ''),
       fallback.member_handle
     ) AS handle,
     COALESCE(NULLIF(TRIM(mem."firstName"), ''), NULLIF(TRIM(u.handle), ''), NULLIF(TRIM(mem.handle), '')) AS name,
+    challenge_reviewers.is_ai_only_challenge AS is_ai_only_challenge,
     COALESCE(
       home_code.name,
       home_id.name,
@@ -52,6 +55,7 @@ member_submissions AS (
     COALESCE(
       CASE
         WHEN challenge_reviewers.is_ai_only_challenge
+          OR ($2::boolean = TRUE AND cc.challenge_status <> 'COMPLETED')
           THEN ai_decision."totalScore"
         ELSE final_review."aggregateScore"
       END,
@@ -119,7 +123,7 @@ member_submissions AS (
     ON UPPER(comp_id.id) = UPPER(mem."competitionCountryCode")
   WHERE COALESCE(
           CASE
-            WHEN challenge_reviewers.is_ai_only_challenge
+            WHEN ($2::boolean = TRUE AND cc.challenge_status <> 'COMPLETED') OR challenge_reviewers.is_ai_only_challenge
               THEN ai_decision."totalScore"
             ELSE final_review."aggregateScore"
           END,
@@ -127,7 +131,8 @@ member_submissions AS (
           s."initialScore"::double precision
         ) IS NOT NULL
     AND (
-      (challenge_reviewers.is_ai_only_challenge
+      ((challenge_reviewers.is_ai_only_challenge
+        OR ($2::boolean = TRUE AND cc.challenge_status <> 'COMPLETED'))
         AND UPPER(ai_decision.status::text) = 'PASSED')
       OR (
         NOT challenge_reviewers.is_ai_only_challenge
@@ -192,6 +197,8 @@ SELECT
   ums.user_id AS "userId",
   ums.handle AS handle,
   ums.name AS name,
+  ums.challenge_status AS "challengeStatus",
+  ums.is_ai_only_challenge AS "isAiOnlyChallenge",
   COALESCE(
     home_code.name,
     home_id.name,

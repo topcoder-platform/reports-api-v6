@@ -118,6 +118,8 @@ type LeaderboardGenericRow = {
   score: number;
   submittedDate: string;
   placement: number;
+  challengeStatus: string;
+  isAiOnlyChallenge: boolean;
 };
 
 type LeaderboardMmRow = {
@@ -1007,10 +1009,12 @@ export class TopcoderReportsService implements OnModuleDestroy {
     pointsPerDay?: number;
     placementPrizeAmounts?: string[];
     showHeadingAndSubtitle?: boolean;
+    showRealtimeScore?: boolean;
   }) {
     const query = this.sql.load("reports/topcoder/leaderboard-generic.sql");
     const rows = await this.db.query<LeaderboardGenericRow>(query, [
       filters.challengeIds,
+      filters.showRealtimeScore === true,
     ]);
 
     const useCmsPlacementPrizes =
@@ -1038,6 +1042,10 @@ export class TopcoderReportsService implements OnModuleDestroy {
         photoURL: string | null;
         rating: number;
         ratingColor: string | null;
+        challengeScores: Record<
+          string,
+          { score: number; isProvisional: boolean }
+        >;
       }
     > = {};
 
@@ -1062,6 +1070,7 @@ export class TopcoderReportsService implements OnModuleDestroy {
           prizes: 0,
           rating: row.rating as number,
           ratingColor: row.ratingColor,
+          challengeScores: {},
         };
       }
 
@@ -1074,6 +1083,12 @@ export class TopcoderReportsService implements OnModuleDestroy {
 
       entriesByUser[row.userId].points += pointsByWin;
       entriesByUser[row.userId].wins[row.challengeId] = pointsByWin;
+      entriesByUser[row.userId].challengeScores[row.challengeId] = {
+        score: row.score,
+        isProvisional:
+          filters.showRealtimeScore === true &&
+          row.challengeStatus !== "COMPLETED",
+      };
       if (!useCmsPlacementPrizes) {
         const prizeValue =
           (row.placementPrizes ?? []).find((p) => p.placement === row.placement)
@@ -1095,6 +1110,7 @@ export class TopcoderReportsService implements OnModuleDestroy {
         placement: index,
         points: entry.points,
         wins: entry.wins,
+        challengeScores: entry.challengeScores,
         rating: entry.rating,
         ratingColor: entry.ratingColor,
         prizes: useCmsPlacementPrizes
