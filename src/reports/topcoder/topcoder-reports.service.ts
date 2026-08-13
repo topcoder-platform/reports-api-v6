@@ -1093,9 +1093,6 @@ export class TopcoderReportsService implements OnModuleDestroy {
       const pointsByWin = log / sqrt;
 
       entriesByUser[row.userId].points += pointsByWin;
-      entriesByUser[row.userId].submissionCount += Number(
-        row.userSubmissionsCount ?? 0,
-      );
       entriesByUser[row.userId].wins[row.challengeId] = pointsByWin;
       entriesByUser[row.userId].challengeScores[row.challengeId] = {
         score: row.score,

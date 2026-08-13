@@ -63,8 +63,7 @@ member_submissions AS (
       s."initialScore"::double precision
     ) AS score,
     COALESCE(s."submittedDate", s."createdAt") AS submitted_date,
-    cc.duration_days,
-    COUNT(*) OVER (PARTITION BY s."challengeId", s."memberId") AS "userSubmissionsCount"
+    cc.duration_days
   FROM challenge_context AS cc
   JOIN reviews."submission" AS s
     ON s."challengeId" = cc.challenge_id
