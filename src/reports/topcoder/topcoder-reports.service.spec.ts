@@ -197,6 +197,7 @@ describe("TopcoderReportsService", () => {
       ratingColor: "#000000",
       score: 123,
       submittedDate: "2026-08-13T00:00:00Z",
+      submissionCount: 1,
       placement: 1,
       challengeStatus: "ACTIVE",
       isAiOnlyChallenge: true,
@@ -223,6 +224,7 @@ describe("TopcoderReportsService", () => {
       score: 123,
       isProvisional: true,
     });
+    expect(resultWithRealtime.placementData[0].submissionCount).toBe(1);
 
     db.query.mockResolvedValueOnce([genericRow]);
 

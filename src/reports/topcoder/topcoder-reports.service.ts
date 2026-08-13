@@ -120,6 +120,7 @@ type LeaderboardGenericRow = {
   placement: number;
   challengeStatus: string;
   isAiOnlyChallenge: boolean;
+  userSubmissionsCount: number;
 };
 
 type LeaderboardMmRow = {
@@ -1068,6 +1069,7 @@ export class TopcoderReportsService implements OnModuleDestroy {
           wins: {},
           points: 0,
           prizes: 0,
+          submissionCount: 0,
           rating: row.rating as number,
           ratingColor: row.ratingColor,
           challengeScores: {},
@@ -1082,6 +1084,7 @@ export class TopcoderReportsService implements OnModuleDestroy {
       const pointsByWin = log / sqrt;
 
       entriesByUser[row.userId].points += pointsByWin;
+      entriesByUser[row.userId].submissionCount += Number(row.userSubmissionsCount ?? 0);
       entriesByUser[row.userId].wins[row.challengeId] = pointsByWin;
       entriesByUser[row.userId].challengeScores[row.challengeId] = {
         score: row.score,
@@ -1116,6 +1119,7 @@ export class TopcoderReportsService implements OnModuleDestroy {
         prizes: useCmsPlacementPrizes
           ? (cmsPlacementPrizeAmounts[index] ?? 0)
           : entry.prizes,
+        submissionCount: entry.submissionCount,
       }));
 
     return {
