@@ -33,8 +33,8 @@ member_wins AS (
 winners_country AS (
   SELECT
     COALESCE(
-      NULLIF(TRIM(m."competitionCountryCode"), ''),
-      NULLIF(TRIM(m."homeCountryCode"), '')
+      NULLIF(TRIM(m."homeCountryCode"), ''),
+      NULLIF(TRIM(m."competitionCountryCode"), '')
     ) AS country_code,
     w.wins
   FROM member_wins w
