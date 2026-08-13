@@ -158,6 +158,17 @@ unique_member_submissions AS (
     ms.submitted_date DESC NULLS LAST,
     ms.submission_id DESC
 ),
+member_submission_counts AS (
+  SELECT
+    cc.challenge_id,
+    s."memberId" AS user_id,
+    COUNT(*) AS submission_count
+  FROM challenge_context AS cc
+  JOIN reviews."submission" AS s
+    ON s."challengeId" = cc.challenge_id
+   AND s."memberId" IS NOT NULL
+  GROUP BY cc.challenge_id, s."memberId"
+),
 challenge_prizes AS (
   SELECT
     cps."challengeId" AS challenge_id,
@@ -215,6 +226,7 @@ SELECT
   ums.ratingColor AS "ratingColor",
   ums.score AS score,
   ums.submitted_date AS submitted_date,
+  COALESCE(msc.submission_count, 1) AS "submissionCount",
   ROW_NUMBER() OVER (
     PARTITION BY ums.challenge_id
     ORDER BY ums.score DESC NULLS LAST, ums.submitted_date ASC NULLS LAST, ums.user_id ASC
@@ -228,6 +240,9 @@ LEFT JOIN lookups."Country" AS comp_code
   ON UPPER(comp_code."countryCode") = UPPER(ums.country_code)
 LEFT JOIN lookups."Country" AS comp_id
   ON UPPER(comp_id.id) = UPPER(ums.country_code)
+LEFT JOIN member_submission_counts AS msc
+  ON msc.challenge_id = ums.challenge_id
+ AND msc.user_id = ums.user_id
 JOIN challenge_summary AS cs
   ON cs.challenge_id = ums.challenge_id
 ORDER BY ums.challenge_id, ums.score DESC NULLS LAST, ums.submitted_date ASC NULLS LAST, ums.user_id ASC;
