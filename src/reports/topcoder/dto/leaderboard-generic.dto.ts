@@ -39,4 +39,9 @@ export class LeaderboardGenericQueryDto {
   @IsOptional()
   @IsBoolean()
   showHeadingAndSubtitle?: boolean;
+
+  @Transform(({ value }) => value === "true" || value === true)
+  @IsOptional()
+  @IsBoolean()
+  showRealtimeScore?: boolean;
 }
