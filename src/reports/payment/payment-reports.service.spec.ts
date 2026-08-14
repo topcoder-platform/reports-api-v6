@@ -78,10 +78,11 @@ describe("PaymentReportsService", () => {
       "reports/payment/member-payment-accrual.sql",
     );
 
+    expect(paymentSql).toContain("NULLIF($1, '')::date AS start_date");
+    expect(paymentSql).toContain("NULLIF($2, '')::date AS end_date");
     expect(paymentSql).toContain("p.created_at >= pr.start_date");
-    expect(paymentSql).toContain(
-      "DATE_TRUNC('day', pr.end_date) + INTERVAL '1 day'",
-    );
+    expect(paymentSql).toContain("pr.end_date + INTERVAL '1 day'");
     expect(paymentSql).not.toContain("p.created_at <= pr.end_date");
+    expect(paymentSql).not.toContain("DATE_TRUNC('day', pr.end_date)");
   });
 });

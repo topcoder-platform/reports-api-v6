@@ -44,7 +44,13 @@ WITH resolved_payment_references AS (
 )
 SELECT 
     payment_id as "paymentId",
-    created_at AT TIME ZONE 'America/New_York' as "paymentDate",
+    TO_CHAR(
+        created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York',
+        'YYYY-MM-DD"T"HH24:MI:SS.MS'
+    ) || TO_CHAR(
+        (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York') - created_at,
+        'HH24:MI'
+    ) as "paymentDate",
     billing_account as "billingAccountId",
     payment_status as "paymentStatus",
     challenge_fee as "challengeFee",
@@ -73,8 +79,16 @@ WHERE
         WHERE m2.handle = ANY($5::text[])
     ))
     AND ($6::text IS NULL OR challenge_name ILIKE '%' || $6 || '%')
-    AND created_at >= COALESCE($7::timestamptz, (NOW() AT TIME ZONE 'UTC') - INTERVAL '45 days')
-    AND ($8::timestamptz IS NULL OR created_at < (DATE_TRUNC('day', $8::timestamptz) + INTERVAL '1 day'))
+    AND created_at >= COALESCE(
+        ($7::date::timestamp AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC',
+        (NOW() AT TIME ZONE 'UTC') - INTERVAL '45 days'
+    )
+    AND (
+        $8::date IS NULL
+        OR created_at < (
+            (($8::date + 1)::timestamp AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC'
+        )
+    )
     AND ($9::numeric IS NULL OR total_amount >= $9::numeric)
     AND ($10::numeric IS NULL OR total_amount <= $10::numeric)
     AND ($11::text[] IS NULL OR reported_challenge_status::text = ANY($11::text[]))
