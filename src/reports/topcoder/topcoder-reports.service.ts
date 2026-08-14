@@ -127,12 +127,48 @@ type LeaderboardGenericRow = {
 type LeaderboardMmRow = {
   challengeId: string;
   challengeName: string;
+  isMarathonMatch: boolean;
   userId: string;
+  submissionId: string;
   handle: string;
+  name: string | null;
+  country: string | null;
+  countryCode: string | null;
+  photoURL: string | null;
+  rating: string | number | null;
+  ratingColor: string | null;
   placement: number;
+  provisionalRank: number;
   provisionalScore: number | null;
   finalScore: number | null;
   score: number | null;
+  submittedDate: string | null;
+};
+
+// Mirrors the web LeaderboardEntry shape. `finalScore` is intentionally optional and
+// omitted (not null) when a match has no final results, because the leaderboard table
+// decides between "Final" and "Provisional" columns via `finalScore !== undefined`.
+type LeaderboardMmEntry = {
+  challengeId: string;
+  challengeName: string;
+  userId: string;
+  handle: string;
+  placement: number;
+  provisionalRank: number;
+  provisionalScore?: number;
+  finalScore?: number;
+  score?: number;
+};
+
+type LeaderboardMmMemberInfo = {
+  userId: string;
+  handle: string;
+  name: string;
+  country: string;
+  countryCode: string;
+  photoURL?: string;
+  rating?: number;
+  ratingColor?: string;
 };
 
 type EngagementDataBaseRow = {
@@ -1247,45 +1283,41 @@ export class TopcoderReportsService implements OnModuleDestroy {
     ]);
 
     const placementData = rows.reduce(
-      (acc: Record<string, LeaderboardMmRow[]>, row) => {
+      (acc: Record<string, LeaderboardMmEntry[]>, row) => {
         acc[row.challengeId] = acc[row.challengeId] ?? [];
         acc[row.challengeId].push({
           challengeId: row.challengeId,
           challengeName: row.challengeName,
           userId: row.userId,
           handle: row.handle,
-          placement: row.placement,
-          provisionalScore: row.provisionalScore,
-          finalScore: row.finalScore,
-          score: row.score,
+          placement: Number(row.placement),
+          provisionalRank: Number(row.provisionalRank),
+          ...(row.provisionalScore !== null && {
+            provisionalScore: Number(row.provisionalScore),
+          }),
+          ...(row.finalScore !== null && {
+            finalScore: Number(row.finalScore),
+          }),
+          ...(row.score !== null && { score: Number(row.score) }),
         });
         return acc;
       },
-      {} as Record<string, LeaderboardMmRow[]>,
+      {} as Record<string, LeaderboardMmEntry[]>,
     );
 
-    const memberHandles = new Set<string>();
-    Object.values(placementData).forEach((entries) => {
-      entries.forEach((entry) => memberHandles.add(entry.handle));
-    });
-
-    const membersDetails: Record<
-      string,
-      {
-        userId: string;
-        handle: string;
-        name: string;
-        country: string;
-        countryCode: string;
-      }
-    > = {};
-    memberHandles.forEach((handle) => {
-      membersDetails[handle] = {
-        userId: handle,
-        handle,
-        name: handle,
-        country: "",
-        countryCode: "",
+    const membersDetails: Record<string, LeaderboardMmMemberInfo> = {};
+    rows.forEach((row) => {
+      const rating = row.rating === null ? undefined : Number(row.rating);
+      membersDetails[row.handle] = {
+        ...membersDetails[row.handle],
+        userId: row.userId,
+        handle: row.handle,
+        name: row.name ?? row.handle,
+        country: row.country ?? "",
+        countryCode: row.countryCode ?? "",
+        ...(row.photoURL && { photoURL: row.photoURL }),
+        ...(rating !== undefined && Number.isFinite(rating) && { rating }),
+        ...(row.ratingColor && { ratingColor: row.ratingColor }),
       };
     });
 
