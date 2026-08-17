@@ -1,6 +1,12 @@
-import { Injectable, NotFoundException, OnModuleDestroy } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  OnModuleDestroy,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { DbService } from "../../db/db.service";
+import { CampusChallengeFilter } from "./dto/campus-leaderboard.dto";
 import { SqlLoaderService } from "../../common/sql-loader.service";
 import { alpha3ToCountryName } from "../../common/country.util";
 import { Pool } from "pg";
@@ -122,6 +128,80 @@ type LeaderboardGenericRow = {
   challengeStatus: string;
   isAiOnlyChallenge: boolean;
   userSubmissionsCount: number;
+};
+
+type CampusGroupRow = {
+  groupId: string;
+  groupName: string;
+  groupOldId: string | null;
+  privateGroup: boolean;
+  callerIsMember: boolean;
+};
+
+type CampusLeaderboardRow = {
+  userId: string;
+  handle: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  photoURL: string | null;
+  rating: string | number | null;
+  ratingColor: string | null;
+  groupJoinedAt: Date | string | null;
+  memberSince: Date | string | null;
+  challengeId: string | null;
+  challengeName: string | null;
+  challengeStatus: string | null;
+  challengeType: string | null;
+  challengeTrack: string | null;
+  challengeEndDate: Date | string | null;
+  isCampusChallenge: boolean | null;
+  isPublicChallenge: boolean | null;
+  registeredAt: Date | string | null;
+  registered: boolean | null;
+  submitted: boolean | null;
+  passedReview: boolean | null;
+  submittedDate: Date | string | null;
+  score: string | number | null;
+  won: boolean | null;
+  placement: number | null;
+};
+
+type CampusParticipationEntry = {
+  challengeId: string;
+  challengeName: string | null;
+  challengeStatus: string | null;
+  challengeType: string | null;
+  challengeTrack: string | null;
+  challengeEndDate: string | null;
+  isCampusChallenge: boolean;
+  isPublicChallenge: boolean;
+  registered: boolean;
+  registeredAt: string | null;
+  submitted: boolean;
+  submittedDate: string | null;
+  passedReview: boolean;
+  score: number | null;
+  won: boolean;
+  placement: number | null;
+};
+
+type CampusLeaderboardEntry = {
+  rank: number;
+  userId: string;
+  handle: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  photoURL: string | null;
+  rating: number | null;
+  ratingColor: string | null;
+  signupDate: string | null;
+  memberSince: string | null;
+  registrations: number;
+  submissions: number;
+  passingSubmissions: number;
+  wins: number;
+  hasActivity: boolean;
+  challenges: CampusParticipationEntry[];
 };
 
 type LeaderboardMmRow = {
@@ -1172,6 +1252,216 @@ export class TopcoderReportsService implements OnModuleDestroy {
         : placementData,
       challenges,
     };
+  }
+
+  /**
+   * Campus program leaderboard for every member of the requested group.
+   *
+   * Members with no challenge activity are included (ranked last). Submissions and
+   * passing submissions are counted at most once per member per challenge.
+   *
+   * @param filters Group name and challenge visibility filter.
+   * @param caller Caller identity used to authorize access to private groups.
+   */
+  async getCampusLeaderboard(
+    filters: {
+      groupName: string;
+      challengeFilter?: CampusChallengeFilter;
+    },
+    caller: {
+      userId?: string | number | null;
+      hasReportAccess?: boolean;
+    } = {},
+  ) {
+    const groupName = filters.groupName?.trim() ?? "";
+    const callerId =
+      caller.userId === null || caller.userId === undefined
+        ? null
+        : String(caller.userId).trim() || null;
+
+    const groupQuery = this.sql.load(
+      "reports/topcoder/campus-leaderboard-group.sql",
+    );
+    const [group] = await this.db.query<CampusGroupRow>(groupQuery, [
+      groupName,
+      callerId,
+    ]);
+
+    if (!group) {
+      throw new NotFoundException(`Group "${groupName}" was not found.`);
+    }
+
+    if (
+      group.privateGroup &&
+      !caller.hasReportAccess &&
+      !group.callerIsMember
+    ) {
+      throw new ForbiddenException(
+        "You do not have the required permissions to access this leaderboard.",
+      );
+    }
+
+    const challengeFilter =
+      filters.challengeFilter ?? CampusChallengeFilter.All;
+    const query = this.sql.load("reports/topcoder/campus-leaderboard.sql");
+    const rows = await this.db.query<CampusLeaderboardRow>(query, [groupName]);
+
+    const membersById = new Map<string, CampusLeaderboardEntry>();
+    // Unfiltered participation, kept aside so the summary tiles can report
+    // activity across every challenge regardless of the visibility filter.
+    const allChallengesByUser = new Map<string, CampusParticipationEntry[]>();
+
+    rows.forEach((row) => {
+      const userId = String(row.userId);
+      let member = membersById.get(userId);
+
+      if (!member) {
+        member = {
+          rank: 0,
+          userId,
+          handle: this.toOptionalString(row.handle),
+          firstName: this.toOptionalString(row.firstName),
+          lastName: this.toOptionalString(row.lastName),
+          photoURL: this.toOptionalString(row.photoURL),
+          rating: this.toNullableNumber(row.rating),
+          ratingColor: this.toOptionalString(row.ratingColor),
+          signupDate:
+            this.normalizeDate(row.groupJoinedAt) ??
+            this.normalizeDate(row.memberSince),
+          memberSince: this.normalizeDate(row.memberSince),
+          registrations: 0,
+          submissions: 0,
+          passingSubmissions: 0,
+          wins: 0,
+          hasActivity: false,
+          challenges: [],
+        };
+        membersById.set(userId, member);
+        allChallengesByUser.set(userId, []);
+      }
+
+      if (!row.challengeId) {
+        return;
+      }
+
+      allChallengesByUser.get(userId)!.push({
+        challengeId: row.challengeId,
+        challengeName: this.toOptionalString(row.challengeName),
+        challengeStatus: this.toOptionalString(row.challengeStatus),
+        challengeType: this.toOptionalString(row.challengeType),
+        challengeTrack: this.toOptionalString(row.challengeTrack),
+        challengeEndDate: this.normalizeDate(row.challengeEndDate),
+        isCampusChallenge: row.isCampusChallenge === true,
+        isPublicChallenge: row.isPublicChallenge === true,
+        registered: row.registered === true,
+        registeredAt: this.normalizeDate(row.registeredAt),
+        submitted: row.submitted === true,
+        submittedDate: this.normalizeDate(row.submittedDate),
+        passedReview: row.passedReview === true,
+        score: this.toNullableNumber(row.score),
+        won: row.won === true,
+        placement: row.placement ?? null,
+      });
+    });
+
+    const members = Array.from(membersById.values());
+
+    const summary = {
+      totalMembers: members.length,
+      membersRegistered: members.filter((member) =>
+        allChallengesByUser
+          .get(member.userId)!
+          .some((entry) => entry.registered),
+      ).length,
+      membersSubmitted: members.filter((member) =>
+        allChallengesByUser
+          .get(member.userId)!
+          .some((entry) => entry.submitted),
+      ).length,
+    };
+
+    members.forEach((member) => {
+      const challenges = allChallengesByUser
+        .get(member.userId)!
+        .filter((entry) =>
+          this.matchesCampusChallengeFilter(entry, challengeFilter),
+        );
+
+      member.challenges = challenges;
+      member.hasActivity = challenges.length > 0;
+      member.registrations = challenges.filter(
+        (entry) => entry.registered,
+      ).length;
+      member.submissions = challenges.filter((entry) => entry.submitted).length;
+      member.passingSubmissions = challenges.filter(
+        (entry) => entry.submitted && entry.passedReview,
+      ).length;
+      member.wins = challenges.filter((entry) => entry.won).length;
+    });
+
+    const sortKeys = (member: CampusLeaderboardEntry) => [
+      -member.wins,
+      -member.passingSubmissions,
+      -member.registrations,
+      member.signupDate
+        ? Date.parse(member.signupDate)
+        : Number.MAX_SAFE_INTEGER,
+    ];
+
+    const sortedMembers = members.sort((left, right) => {
+      const leftKeys = sortKeys(left);
+      const rightKeys = sortKeys(right);
+
+      for (let index = 0; index < leftKeys.length; index += 1) {
+        if (leftKeys[index] !== rightKeys[index]) {
+          return leftKeys[index] - rightKeys[index];
+        }
+      }
+
+      return (left.handle ?? "").localeCompare(right.handle ?? "");
+    });
+
+    let previousKeys: number[] | null = null;
+    let previousRank = 0;
+
+    const leaderboard = sortedMembers.map((member, index) => {
+      const keys = sortKeys(member);
+      const tiedWithPrevious =
+        !!previousKeys && previousKeys.every((key, i) => key === keys[i]);
+      const rank = tiedWithPrevious ? previousRank : index + 1;
+
+      previousKeys = keys;
+      previousRank = rank;
+
+      return { ...member, rank };
+    });
+
+    return {
+      group: {
+        id: group.groupId,
+        name: group.groupName,
+        oldId: group.groupOldId ?? null,
+        privateGroup: group.privateGroup === true,
+      },
+      challengeFilter,
+      summary,
+      members: leaderboard,
+    };
+  }
+
+  private matchesCampusChallengeFilter(
+    entry: CampusParticipationEntry,
+    challengeFilter: CampusChallengeFilter,
+  ): boolean {
+    if (challengeFilter === CampusChallengeFilter.Public) {
+      return entry.isPublicChallenge;
+    }
+
+    if (challengeFilter === CampusChallengeFilter.Campus) {
+      return entry.isCampusChallenge;
+    }
+
+    return true;
   }
 
   private calculateWriterTesterBonuses(

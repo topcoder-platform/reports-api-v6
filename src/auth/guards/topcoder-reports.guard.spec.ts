@@ -51,6 +51,15 @@ class TestTopcoderReportsController {
   getCompletedProfiles(): undefined {
     return undefined;
   }
+
+  /**
+   * Represents the campus leaderboard route, which any authenticated caller may read.
+   * Returns no value because the handler body is not exercised in these unit tests.
+   */
+  @RequiredScopes()
+  getCampusLeaderboard(): undefined {
+    return undefined;
+  }
 }
 
 type TestHandlerName = keyof TestTopcoderReportsController;
@@ -107,6 +116,12 @@ describe("TopcoderReportsGuard", () => {
         }),
       ),
     ).toThrow(ForbiddenException);
+  });
+
+  it("lets any authenticated caller reach the campus leaderboard", () => {
+    expect(
+      guard.canActivate(createExecutionContext("getCampusLeaderboard", {})),
+    ).toBe(true);
   });
 
   it("preserves the completed profiles talent manager exception", () => {
