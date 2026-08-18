@@ -1403,7 +1403,7 @@ export class TopcoderReportsService implements OnModuleDestroy {
       -member.wins,
       -member.passingSubmissions,
       -member.registrations,
-      member.signupDate
+      member.signupDate && Number.isFinite(Date.parse(member.signupDate))
         ? Date.parse(member.signupDate)
         : Number.MAX_SAFE_INTEGER,
     ];
