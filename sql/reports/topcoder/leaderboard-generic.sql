@@ -2,6 +2,7 @@ WITH challenge_context AS (
   SELECT
     c.id AS challenge_id,
     c.name AS challenge_name,
+    c.status AS challenge_status,
     COALESCE(
       cp."actualStartDate",
       cp."scheduledStartDate"
@@ -28,12 +29,14 @@ member_submissions AS (
     cc.challenge_id,
     s.id AS submission_id,
     s."memberId" AS user_id,
+    cc.challenge_status,
     COALESCE(
       NULLIF(TRIM(u.handle), ''),
       NULLIF(TRIM(mem.handle), ''),
       fallback.member_handle
     ) AS handle,
     COALESCE(NULLIF(TRIM(mem."firstName"), ''), NULLIF(TRIM(u.handle), ''), NULLIF(TRIM(mem.handle), '')) AS name,
+    challenge_reviewers.is_ai_only_challenge AS is_ai_only_challenge,
     COALESCE(
       home_code.name,
       home_id.name,
@@ -52,6 +55,7 @@ member_submissions AS (
     COALESCE(
       CASE
         WHEN challenge_reviewers.is_ai_only_challenge
+          OR ($2::boolean = TRUE AND cc.challenge_status <> 'COMPLETED')
           THEN ai_decision."totalScore"
         ELSE final_review."aggregateScore"
       END,
@@ -119,7 +123,7 @@ member_submissions AS (
     ON UPPER(comp_id.id) = UPPER(mem."competitionCountryCode")
   WHERE COALESCE(
           CASE
-            WHEN challenge_reviewers.is_ai_only_challenge
+            WHEN ($2::boolean = TRUE AND cc.challenge_status <> 'COMPLETED') OR challenge_reviewers.is_ai_only_challenge
               THEN ai_decision."totalScore"
             ELSE final_review."aggregateScore"
           END,
@@ -127,7 +131,8 @@ member_submissions AS (
           s."initialScore"::double precision
         ) IS NOT NULL
     AND (
-      (challenge_reviewers.is_ai_only_challenge
+      ((challenge_reviewers.is_ai_only_challenge
+        OR ($2::boolean = TRUE AND cc.challenge_status <> 'COMPLETED'))
         AND UPPER(ai_decision.status::text) = 'PASSED')
       OR (
         NOT challenge_reviewers.is_ai_only_challenge
@@ -152,6 +157,17 @@ unique_member_submissions AS (
     ms.score DESC NULLS LAST,
     ms.submitted_date DESC NULLS LAST,
     ms.submission_id DESC
+),
+member_submission_counts AS (
+  SELECT
+    cc.challenge_id,
+    s."memberId" AS user_id,
+    COUNT(*) AS submission_count
+  FROM challenge_context AS cc
+  JOIN reviews."submission" AS s
+    ON s."challengeId" = cc.challenge_id
+   AND s."memberId" IS NOT NULL
+  GROUP BY cc.challenge_id, s."memberId"
 ),
 challenge_prizes AS (
   SELECT
@@ -192,6 +208,8 @@ SELECT
   ums.user_id AS "userId",
   ums.handle AS handle,
   ums.name AS name,
+  ums.challenge_status AS "challengeStatus",
+  ums.is_ai_only_challenge AS "isAiOnlyChallenge",
   COALESCE(
     home_code.name,
     home_id.name,
@@ -208,6 +226,7 @@ SELECT
   ums.ratingColor AS "ratingColor",
   ums.score AS score,
   ums.submitted_date AS submitted_date,
+  COALESCE(msc.submission_count, 1) AS "submissionCount",
   ROW_NUMBER() OVER (
     PARTITION BY ums.challenge_id
     ORDER BY ums.score DESC NULLS LAST, ums.submitted_date ASC NULLS LAST, ums.user_id ASC
@@ -221,6 +240,9 @@ LEFT JOIN lookups."Country" AS comp_code
   ON UPPER(comp_code."countryCode") = UPPER(ums.country_code)
 LEFT JOIN lookups."Country" AS comp_id
   ON UPPER(comp_id.id) = UPPER(ums.country_code)
+LEFT JOIN member_submission_counts AS msc
+  ON msc.challenge_id = ums.challenge_id
+ AND msc.user_id = ums.user_id
 JOIN challenge_summary AS cs
   ON cs.challenge_id = ums.challenge_id
 ORDER BY ums.challenge_id, ums.score DESC NULLS LAST, ums.submitted_date ASC NULLS LAST, ums.user_id ASC;

@@ -20,8 +20,18 @@ WITH filtered_payments AS (
   LEFT JOIN finance.winnings w
     ON w.winning_id = p.winnings_id
   WHERE
-    ($1::timestamptz IS NULL OR p.created_at >= $1::timestamptz)
-    AND ($2::timestamptz IS NULL OR p.created_at < (DATE_TRUNC('day', $2::timestamptz) + INTERVAL '1 day'))
+    (
+      $1::date IS NULL
+      OR p.created_at >= (
+        ($1::date::timestamp AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC'
+      )
+    )
+    AND (
+      $2::date IS NULL
+      OR p.created_at < (
+        (($2::date + 1)::timestamp AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC'
+      )
+    )
     AND ($3::text[] IS NULL OR p.billing_account = ANY($3::text[]))
     AND ($4::text[] IS NULL OR p.billing_account != ALL($4::text[]))
 ),
@@ -34,17 +44,17 @@ latest_status AS (
 )
 SELECT
   fp.billing_account AS "billingAccountId",
-  TO_CHAR(DATE_TRUNC('month', fp.created_at AT TIME ZONE 'America/New_York'), 'YYYY-MM') AS "month",
+  TO_CHAR(DATE_TRUNC('month', fp.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York'), 'YYYY-MM') AS "month",
   COALESCE(SUM(fp.challenge_fee), 0) AS "totalFees",
   COALESCE(SUM(fp.total_amount), 0) AS "totalMemberPayments",
   COUNT(fp.payment_id) AS "paymentCount",
-  MIN(fp.created_at AT TIME ZONE 'America/New_York')::date AS "earliestPaymentDate",
-  MAX(fp.created_at AT TIME ZONE 'America/New_York')::date AS "latestPaymentDate",
+  MIN(fp.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York')::date AS "earliestPaymentDate",
+  MAX(fp.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York')::date AS "latestPaymentDate",
   ls.payment_status_desc AS "currentPaymentStatus"
 FROM filtered_payments fp
 LEFT JOIN latest_status ls ON ls.billing_account = fp.billing_account
 GROUP BY
   fp.billing_account,
-  DATE_TRUNC('month', fp.created_at AT TIME ZONE 'America/New_York'),
+  DATE_TRUNC('month', fp.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York'),
   ls.payment_status_desc
 ORDER BY fp.billing_account, "month" DESC;

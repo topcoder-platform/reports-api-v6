@@ -178,4 +178,70 @@ describe("TopcoderReportsService", () => {
 
     expect(db.query).not.toHaveBeenCalled();
   });
+
+  it("passes showRealtimeScore to the generic leaderboard query and marks active AI-only rows as provisional when enabled", async () => {
+    const genericRow = {
+      challengeId: "ch1",
+      challengeName: "Challenge One",
+      durationDays: 1,
+      prizePool: 1000,
+      submissionsCount: 1,
+      placementPrizes: null,
+      userId: "u1",
+      handle: "user1",
+      name: "User One",
+      country: "USA",
+      countryCode: "US",
+      photoURL: null,
+      rating: 1500,
+      ratingColor: "#000000",
+      score: 123,
+      submittedDate: "2026-08-13T00:00:00Z",
+      submissionCount: 1,
+      placement: 1,
+      challengeStatus: "ACTIVE",
+      isAiOnlyChallenge: true,
+    };
+
+    db.query.mockResolvedValueOnce([genericRow]);
+
+    const resultWithRealtime = await service.getLeaderboardGeneric({
+      challengeIds: ["ch1"],
+      pointsPerDay: 10,
+      placementPrizeAmounts: [],
+      showRealtimeScore: true,
+    });
+
+    expect(sql.load).toHaveBeenCalledWith(
+      "reports/topcoder/leaderboard-generic.sql",
+    );
+    expect(db.query).toHaveBeenCalledWith(
+      "reports/topcoder/leaderboard-generic.sql",
+      [["ch1"], true],
+    );
+    expect(resultWithRealtime.placementData).toHaveLength(1);
+    expect(resultWithRealtime.placementData[0].challengeScores?.ch1).toEqual({
+      score: 123,
+      isProvisional: true,
+    });
+    expect(resultWithRealtime.placementData[0].submissionCount).toBe(1);
+
+    db.query.mockResolvedValueOnce([genericRow]);
+
+    const resultWithoutRealtime = await service.getLeaderboardGeneric({
+      challengeIds: ["ch1"],
+      pointsPerDay: 10,
+      placementPrizeAmounts: [],
+      showRealtimeScore: false,
+    });
+
+    expect(db.query).toHaveBeenCalledWith(
+      "reports/topcoder/leaderboard-generic.sql",
+      [["ch1"], false],
+    );
+    expect(resultWithoutRealtime.placementData[0].challengeScores?.ch1).toEqual({
+      score: 123,
+      isProvisional: false,
+    });
+  });
 });
