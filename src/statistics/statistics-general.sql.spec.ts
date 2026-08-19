@@ -3,6 +3,19 @@ import { SqlLoaderService } from "../common/sql-loader.service";
 describe("General statistics SQL", () => {
   const sqlLoader = new SqlLoaderService();
 
+  function expectSubmissionWins(sql: string) {
+    expect(sql).toContain("FROM reviews.submission s");
+    expect(sql).toContain("s.placement = 1");
+    expect(sql).toContain('JOIN challenges."Challenge" c');
+    expect(sql).toContain('LEFT JOIN challenges."ChallengeType" ct');
+    expect(sql).toContain("NOT ct.name = ANY($1)");
+    expect(sql).toContain(
+      'SELECT DISTINCT\n    s."memberId"::text AS member_id',
+    );
+    expect(sql).not.toContain('members."memberStats"');
+    expect(sql).not.toContain('challenges."ChallengeWinner"');
+  }
+
   function expectMemberStatsWins(sql: string) {
     expect(sql).toContain('FROM members."memberStats" stats');
     expect(sql).toContain('FROM members."memberStatsHistory" history');
@@ -19,7 +32,7 @@ describe("General statistics SQL", () => {
       "reports/statistics/general/top-winners-by-country.sql",
     );
 
-    expectMemberStatsWins(sql);
+    expectSubmissionWins(sql);
     expect(sql).toContain("PARTITION BY country_code");
     expect(sql).toContain("ORDER BY wins DESC, handle ASC, user_id ASC");
     expect(sql).toContain("winner_rank <= 3");
@@ -54,11 +67,12 @@ describe("General statistics SQL", () => {
     expect(sql).toContain('countries.members_count AS "user.count"');
   });
 
-  it("uses public member stats wins for country totals", () => {
+  it("uses first place submissions for country totals", () => {
     const sql = sqlLoader.load(
       "reports/statistics/general/first-place-by-country.sql",
     );
 
-    expectMemberStatsWins(sql);
+    expectSubmissionWins(sql);
+    expect(sql).toContain('first_place_count AS "challenge_stats.count"');
   });
 });

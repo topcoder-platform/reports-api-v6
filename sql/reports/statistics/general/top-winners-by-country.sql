@@ -1,37 +1,21 @@
-WITH history_wins AS (
-  SELECT
-    history."userId",
-    history."trackId",
-    history."typeId",
-    COUNT(*)::bigint AS wins
-  FROM members."memberStatsHistory" history
-  WHERE history.placement = 1
-  GROUP BY history."userId", history."trackId", history."typeId"
-),
-stats_wins AS (
-  SELECT
-    stats."userId",
-    SUM(COALESCE(stats.wins, history.wins, 0))::bigint AS wins
-  FROM members."memberStats" stats
-  LEFT JOIN history_wins history
-    ON history."userId" = stats."userId"
-   AND history."trackId" = stats."trackId"
-   AND history."typeId" = stats."typeId"
-  LEFT JOIN challenges."ChallengeTrack" track
-    ON track.id::text = stats."trackId"
+WITH winners AS (
+  SELECT DISTINCT
+    s."memberId"::text AS member_id,
+    s."challengeId" AS challenge_id
+  FROM reviews.submission s
+  JOIN challenges."Challenge" c
+    ON c.id = s."challengeId"
   LEFT JOIN challenges."ChallengeType" ct
-    ON ct.id::text = stats."typeId"
-  WHERE stats."isPrivate" = false
-    AND (
-      UPPER(COALESCE(track.name, stats."trackId")) LIKE '%DEVELOP%'
-      OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%DESIGN%'
-      OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%DATA%SCIENCE%'
-      OR UPPER(COALESCE(track.name, stats."trackId")) = 'QA'
-      OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%QUALITY%ASSURANCE%'
-      OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%COPILOT%'
-    )
+    ON ct.id = c."typeId"
+  WHERE s.placement = 1
     AND (ct.name IS NULL OR NOT ct.name = ANY($1))
-  GROUP BY stats."userId"
+),
+member_wins AS (
+  SELECT
+    member_id,
+    COUNT(*)::bigint AS wins
+  FROM winners
+  GROUP BY member_id
 ),
 winner_profiles AS (
   SELECT
@@ -43,17 +27,17 @@ winner_profiles AS (
     m.handle,
     m."photoURL" AS photo_url,
     mmr.rating AS max_rating,
-    wins.wins
-  FROM stats_wins wins
+    w.wins
+  FROM member_wins w
   JOIN members.member m
-    ON m."userId" = wins."userId"
+    ON m."userId"::text = w.member_id
   LEFT JOIN members."memberMaxRating" mmr
     ON mmr."userId" = m."userId"
   WHERE COALESCE(
     NULLIF(TRIM(m."homeCountryCode"), ''),
     NULLIF(TRIM(m."competitionCountryCode"), '')
   ) IS NOT NULL
-    AND wins.wins > 0
+    AND w.wins > 0
 ),
 country_totals AS (
   SELECT
