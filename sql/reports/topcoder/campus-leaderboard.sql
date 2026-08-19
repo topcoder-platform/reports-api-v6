@@ -153,6 +153,7 @@ member_wins AS (
   JOIN group_members AS gm
     ON gm.member_id = cw."userId"::text
   WHERE cw.placement = 1
+    AND cw.type = 'PLACEMENT'
   GROUP BY cw."userId", cw."challengeId"
 ),
 participation AS (
