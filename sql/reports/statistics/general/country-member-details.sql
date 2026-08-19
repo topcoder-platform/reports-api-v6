@@ -57,40 +57,24 @@ country_skills AS (
   FROM country_skill_counts
   GROUP BY country_code
 ),
-history_wins AS (
-  SELECT
-    history."userId",
-    history."trackId",
-    history."typeId",
-    COUNT(*)::bigint AS wins
-  FROM members."memberStatsHistory" history
-  WHERE history.placement = 1
-  GROUP BY history."userId", history."trackId", history."typeId"
-),
-stats_wins AS (
-  SELECT
-    stats."userId",
-    SUM(COALESCE(stats.wins, history.wins, 0))::bigint AS wins
-  FROM members."memberStats" stats
-  LEFT JOIN history_wins history
-    ON history."userId" = stats."userId"
-   AND history."trackId" = stats."trackId"
-   AND history."typeId" = stats."typeId"
-  LEFT JOIN challenges."ChallengeTrack" track
-    ON track.id::text = stats."trackId"
+winners AS (
+  SELECT DISTINCT
+    s."memberId"::text AS member_id,
+    s."challengeId" AS challenge_id
+  FROM reviews.submission s
+  JOIN challenges."Challenge" c
+    ON c.id = s."challengeId"
   LEFT JOIN challenges."ChallengeType" ct
-    ON ct.id::text = stats."typeId"
-  WHERE stats."isPrivate" = false
-    AND (
-      UPPER(COALESCE(track.name, stats."trackId")) LIKE '%DEVELOP%'
-      OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%DESIGN%'
-      OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%DATA%SCIENCE%'
-      OR UPPER(COALESCE(track.name, stats."trackId")) = 'QA'
-      OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%QUALITY%ASSURANCE%'
-      OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%COPILOT%'
-    )
+    ON ct.id = c."typeId"
+  WHERE s.placement = 1
     AND (ct.name IS NULL OR NOT ct.name = ANY($1))
-  GROUP BY stats."userId"
+),
+member_wins AS (
+  SELECT
+    member_id,
+    COUNT(*)::bigint AS wins
+  FROM winners
+  GROUP BY member_id
 ),
 winner_counts AS (
   SELECT
@@ -100,9 +84,9 @@ winner_counts AS (
     members.photo_url,
     rating.rating AS max_rating,
     wins.wins
-  FROM stats_wins wins
+  FROM member_wins wins
   JOIN member_profiles members
-    ON members.user_id = wins."userId"
+    ON members.user_id::text = wins.member_id
   LEFT JOIN members."memberMaxRating" rating
     ON rating."userId" = members.user_id
   WHERE members.country_code IS NOT NULL

@@ -16,17 +16,6 @@ describe("General statistics SQL", () => {
     expect(sql).not.toContain('challenges."ChallengeWinner"');
   }
 
-  function expectMemberStatsWins(sql: string) {
-    expect(sql).toContain('FROM members."memberStats" stats');
-    expect(sql).toContain('FROM members."memberStatsHistory" history');
-    expect(sql).toContain("history.placement = 1");
-    expect(sql).toContain('stats."isPrivate" = false');
-    expect(sql).toContain("SUM(COALESCE(stats.wins, history.wins, 0))");
-    expect(sql).toContain('JOIN challenges."ChallengeTrack" track');
-    expect(sql).not.toContain('challenges."ChallengeWinner"');
-    expect(sql).not.toContain("reviews.submission");
-  }
-
   it("returns at most three deterministically ranked winners per country", () => {
     const sql = sqlLoader.load(
       "reports/statistics/general/top-winners-by-country.sql",
@@ -61,7 +50,7 @@ describe("General statistics SQL", () => {
     expect(sql).toContain("ORDER BY owned_count DESC, name ASC, skill_id ASC");
     expect(sql).toContain("AS skills");
     expect(sql).not.toContain("skill_rank <= 3");
-    expectMemberStatsWins(sql);
+    expectSubmissionWins(sql);
     expect(sql).toContain("ORDER BY wins DESC, handle ASC, user_id ASC");
     expect(sql).toContain("member_rank <= 3");
     expect(sql).toContain('countries.members_count AS "user.count"');
@@ -72,7 +61,11 @@ describe("General statistics SQL", () => {
       "reports/statistics/general/first-place-by-country.sql",
     );
 
-    expectSubmissionWins(sql);
+    expect(sql).toContain("FROM reviews.submission s");
+    expect(sql).toContain("s.placement = 1");
     expect(sql).toContain('first_place_count AS "challenge_stats.count"');
+    // Intentionally left as the original unfiltered query so its numbers can be
+    // compared against top-winners-by-country.sql.
+    expect(sql).not.toContain("ANY($1)");
   });
 });

@@ -245,7 +245,7 @@ export class GeneralStatisticsService {
       country_code: string | null;
       "challenge_stats.count": number | string | null;
       rank: number | string | null;
-    }>(q, [this.excludedChallengeTypes]);
+    }>(q);
     return rows.map((row) => {
       const countryName =
         alpha3ToCountryName(row.country_code) ?? row.country_code ?? "";
