@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { DbService } from "../db/db.service";
 import { SqlLoaderService } from "../common/sql-loader.service";
 import { alpha3ToCountryName } from "../common/country.util";
@@ -28,10 +29,44 @@ type CountryMemberDetailRow = {
 
 @Injectable()
 export class GeneralStatisticsService {
+  private readonly excludedChallengeTypes: string[];
+
   constructor(
     private readonly db: DbService,
     private readonly sql: SqlLoaderService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    this.excludedChallengeTypes = this.parseExcludedChallengeTypes();
+  }
+
+  private parseExcludedChallengeTypes(): string[] {
+    const raw = this.config
+      .get<string>(
+        "REPORTS_EXCLUDED_CHALLENGE_TYPES",
+        '["Task","First2Finish"]',
+      )
+      .trim();
+
+    if (!raw) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((item) => typeof item === "string" && item.trim())
+          .map((item) => item.trim());
+      }
+    } catch {
+      // ignore JSON parse failure and fall back to comma-separated values
+    }
+
+    return raw
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
 
   async getMemberCount() {
     const q = this.sql.load("reports/statistics/general/member-count.sql");
@@ -81,7 +116,9 @@ export class GeneralStatisticsService {
     const q = this.sql.load(
       "reports/statistics/general/country-member-details.sql",
     );
-    const rows = await this.db.query<CountryMemberDetailRow>(q);
+    const rows = await this.db.query<CountryMemberDetailRow>(q, [
+      this.excludedChallengeTypes,
+    ]);
     const countries = new Map<
       string,
       {
@@ -208,7 +245,7 @@ export class GeneralStatisticsService {
       country_code: string | null;
       "challenge_stats.count": number | string | null;
       rank: number | string | null;
-    }>(q);
+    }>(q, [this.excludedChallengeTypes]);
     return rows.map((row) => {
       const countryName =
         alpha3ToCountryName(row.country_code) ?? row.country_code ?? "";
@@ -235,7 +272,7 @@ export class GeneralStatisticsService {
         photoURL?: string | null;
         wins?: number | string | null;
       }> | null;
-    }>(q);
+    }>(q, [this.excludedChallengeTypes]);
 
     return rows.map((row) => {
       const countryName =
