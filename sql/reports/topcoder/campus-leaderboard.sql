@@ -144,7 +144,7 @@ member_submissions AS (
   FROM scored_submissions AS ss
   GROUP BY ss.member_id, ss.challenge_id
 ),
-member_wins AS (
+member_placements AS (
   SELECT
     cw."userId"::text AS member_id,
     cw."challengeId" AS challenge_id,
@@ -152,8 +152,7 @@ member_wins AS (
   FROM challenges."ChallengeWinner" AS cw
   JOIN group_members AS gm
     ON gm.member_id = cw."userId"::text
-  WHERE cw.placement = 1
-    AND cw.type = 'PLACEMENT'
+  WHERE cw.type = 'PLACEMENT'
   GROUP BY cw."userId", cw."challengeId"
 ),
 participation AS (
@@ -161,7 +160,7 @@ participation AS (
   UNION
   SELECT member_id, challenge_id FROM member_submissions
   UNION
-  SELECT member_id, challenge_id FROM member_wins
+  SELECT member_id, challenge_id FROM member_placements
 ),
 member_participation AS (
   SELECT
@@ -180,7 +179,7 @@ member_participation AS (
     COALESCE(sub.has_passing_submission, FALSE) AS passed_review,
     sub.first_submitted_date,
     sub.best_score,
-    (win.member_id IS NOT NULL) AS won,
+    (win.member_id IS NOT NULL AND win.placement = 1) AS won,
     win.placement
   FROM participation AS p
   CROSS JOIN group_identifiers AS gi
@@ -196,7 +195,7 @@ member_participation AS (
   LEFT JOIN member_submissions AS sub
     ON sub.member_id = p.member_id
    AND sub.challenge_id = p.challenge_id
-  LEFT JOIN member_wins AS win
+  LEFT JOIN member_placements AS win
     ON win.member_id = p.member_id
    AND win.challenge_id = p.challenge_id
 ),
