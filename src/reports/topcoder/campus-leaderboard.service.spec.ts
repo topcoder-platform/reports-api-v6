@@ -181,6 +181,35 @@ describe("TopcoderReportsService.getCampusLeaderboard", () => {
     });
   });
 
+  it("returns non-winning placements such as 2nd and 3rd place", async () => {
+    leaderboardRows = [
+      participationRow({
+        challengeId: "c1",
+        submitted: true,
+        passedReview: true,
+        won: false,
+        placement: 2,
+      }),
+      participationRow({
+        challengeId: "c2",
+        submitted: true,
+        passedReview: true,
+        won: false,
+        placement: 3,
+      }),
+    ];
+
+    const result = await service.getCampusLeaderboard({ groupName: "mecw" });
+
+    expect(result.members).toHaveLength(1);
+    expect(result.members[0].challenges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ placement: 2 }),
+        expect.objectContaining({ placement: 3 }),
+      ]),
+    );
+  });
+
   it("ranks by wins, then passing submissions, then registrations, then signup time", async () => {
     leaderboardRows = [
       // One win, fewest registrations -> first.
