@@ -70,6 +70,8 @@ describe("getAccessibleReportsDirectory", () => {
       "/member/engagement-data",
       "/member/recent-member-data",
       "/member/search",
+      "/expert-skill-categories",
+      "/expert-skill-category-members",
     ]);
   });
 
@@ -115,6 +117,8 @@ describe("getAccessibleReportsDirectory", () => {
       "/member/engagement-data",
       "/member/recent-member-data",
       "/member/search",
+      "/expert-skill-categories",
+      "/expert-skill-category-members",
     ]);
   });
 

@@ -31,3 +31,22 @@ export function alpha3ToCountryName(code?: string | null): string | null {
   const upper = trimmed.toUpperCase();
   return countryUtil.getName(upper, "en") || null;
 }
+
+export function toAlpha2CountryCode(code?: string | null): string {
+  const trimmed = String(code || "")
+    .trim()
+    .toUpperCase();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (trimmed.length === 2) {
+    return trimmed;
+  }
+
+  if (trimmed.length === 3) {
+    return countryUtil.alpha3ToAlpha2(trimmed) || "";
+  }
+
+  return "";
+}
