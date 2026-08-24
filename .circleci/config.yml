@@ -65,7 +65,7 @@ workflows:
             only:
               - develop
               - PM-4931
-              - improve-member-search-2
+              - PM-4704
           tags:
               only: /^dev-.*/
 
