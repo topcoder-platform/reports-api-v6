@@ -1,7 +1,8 @@
 -- Campus program leaderboard: every member of the requested group (including
 -- members with no challenge activity at all) with one row per challenge they
--- registered for, submitted to, or won. Members without activity come back as a
--- single row with a NULL "challengeId".
+-- registered for, submitted to, or won. Tasks and First2Finish challenges are
+-- excluded. Members without activity come back as a single row with a NULL
+-- "challengeId".
 -- $1 = group name (case insensitive, also accepts the group id / legacy id)
 WITH RECURSIVE params AS (
   SELECT LOWER(BTRIM($1)) AS group_key
@@ -198,6 +199,11 @@ member_participation AS (
   LEFT JOIN member_placements AS win
     ON win.member_id = p.member_id
    AND win.challenge_id = p.challenge_id
+  -- Tasks and First2Finish challenges do not count towards the leaderboard.
+  WHERE COALESCE(c."taskIsTask", FALSE) = FALSE
+    AND COALESCE(ct."isTask", FALSE) = FALSE
+    AND UPPER(COALESCE(ct.abbreviation, '')) NOT IN ('TSK', 'F2F')
+    AND UPPER(COALESCE(ct.name, '')) NOT IN ('TASK', 'FIRST2FINISH')
 ),
 max_rating AS (
   SELECT DISTINCT ON (mmr."userId")
