@@ -24,17 +24,6 @@ describe("permissions.util", () => {
     ).toBe(true);
   });
 
-  it("allows topcoder-prefixed talent manager roles for expert skills", () => {
-    expect(
-      hasAccessToScopes(
-        {
-          roles: ["Topcoder Talent Manager"],
-        },
-        [Scopes.Member.ExpertSkills],
-      ),
-    ).toBe(true);
-  });
-
   it("allows topcoder-prefixed talent manager roles for recent member data", () => {
     expect(
       hasAccessToScopes(

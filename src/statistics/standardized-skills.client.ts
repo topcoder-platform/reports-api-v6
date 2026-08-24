@@ -19,6 +19,70 @@ type M2MClient = {
 const CATEGORIES_PATH =
   "/v5/standardized-skills/categories?disablePagination=true&sortBy=name";
 
+function parseValidIssuers(value?: string): string[] {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return [];
+  }
+
+  if (raw.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((issuer) =>
+            String(issuer || "")
+              .trim()
+              .replace(/\/$/, ""),
+          )
+          .filter(Boolean);
+      }
+    } catch {
+      return [];
+    }
+  }
+
+  return raw
+    .split(",")
+    .map((issuer) => issuer.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+}
+
+function issuerHostname(issuer: string): string | undefined {
+  try {
+    return new URL(issuer).hostname.toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveApiBaseUrl(
+  issuers: string[],
+  deployEnv?: string,
+): string | undefined {
+  const apiIssuers = issuers.filter((issuer) =>
+    Boolean(issuerHostname(issuer)?.startsWith("api.")),
+  );
+  if (!apiIssuers.length) {
+    return undefined;
+  }
+
+  const environment = String(deployEnv || "").toLowerCase();
+  const preferProd = environment === "prod" || environment === "production";
+  const prodUrl = apiIssuers.find(
+    (issuer) => !issuerHostname(issuer)?.includes("-dev"),
+  );
+  const devUrl = apiIssuers.find((issuer) =>
+    Boolean(issuerHostname(issuer)?.includes("-dev")),
+  );
+
+  if (preferProd) {
+    return prodUrl || devUrl || apiIssuers[0];
+  }
+
+  return devUrl || prodUrl || apiIssuers[0];
+}
+
 @Injectable()
 export class StandardizedSkillsClient {
   private readonly logger = new Logger(StandardizedSkillsClient.name);
@@ -74,16 +138,17 @@ export class StandardizedSkillsClient {
   }
 
   private buildCategoriesUrl(): string {
-    const baseUrl = String(
-      this.config.get<string>("TOPCODER_API_URL_BASE") || "",
-    )
-      .trim()
-      .replace(/\/$/, "");
+    const issuers = parseValidIssuers(this.config.get<string>("VALID_ISSUERS"));
+    const deployEnv =
+      this.config.get<string>("DEPLOY_ENV") ||
+      this.config.get<string>("LOGICAL_ENV") ||
+      this.config.get<string>("NODE_ENV");
+    const baseUrl = resolveApiBaseUrl(issuers, deployEnv);
 
     if (!baseUrl) {
-      this.logger.error("TOPCODER_API_URL_BASE is not configured.");
+      this.logger.error("VALID_ISSUERS does not include a Topcoder API host.");
       throw new InternalServerErrorException(
-        "TOPCODER_API_URL_BASE is not configured.",
+        "VALID_ISSUERS does not include a Topcoder API host.",
       );
     }
 

@@ -10,6 +10,9 @@ import { StatisticsDevelopmentController } from "./statistics-development.contro
 import { DevelopmentStatisticsService } from "./development-statistics.service";
 import { StatisticsQaController } from "./statistics-qa.controller";
 import { QaStatisticsService } from "./qa-statistics.service";
+import { StatisticsExpertSkillsController } from "./statistics-expert-skills.controller";
+import { ExpertSkillsStatisticsService } from "./expert-skills-statistics.service";
+import { StandardizedSkillsClient } from "./standardized-skills.client";
 import { SqlLoaderService } from "../common/sql-loader.service";
 
 @Module({
@@ -19,6 +22,7 @@ import { SqlLoaderService } from "../common/sql-loader.service";
     StatisticsDesignController,
     StatisticsDevelopmentController,
     StatisticsQaController,
+    StatisticsExpertSkillsController,
   ],
   providers: [
     SrmDataService,
@@ -27,6 +31,8 @@ import { SqlLoaderService } from "../common/sql-loader.service";
     DesignStatisticsService,
     DevelopmentStatisticsService,
     QaStatisticsService,
+    ExpertSkillsStatisticsService,
+    StandardizedSkillsClient,
     SqlLoaderService,
   ],
 })

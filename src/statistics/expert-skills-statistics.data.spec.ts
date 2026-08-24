@@ -4,9 +4,9 @@ import {
   getCategoryAppearance,
   normalizeCategoryName,
   normalizeCategorySizes,
-} from "./expert-skill-categories.data";
+} from "./expert-skills-statistics.data";
 
-describe("expert-skill-categories.data", () => {
+describe("expert-skills-statistics.data", () => {
   it("normalizes catalog names for lookup", () => {
     expect(normalizeCategoryName("Programming & Development")).toBe(
       normalizeCategoryName("Programming and Development"),

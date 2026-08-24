@@ -1,43 +1,32 @@
 import { NotFoundException } from "@nestjs/common";
-import { Test, TestingModule } from "@nestjs/testing";
-import { DbService } from "../../db/db.service";
-import { ExpertSkillsService } from "./expert-skills.service";
+import { DbService } from "../db/db.service";
+import { SqlLoaderService } from "../common/sql-loader.service";
+import { ExpertSkillsStatisticsService } from "./expert-skills-statistics.service";
 import { StandardizedSkillsClient } from "./standardized-skills.client";
 
-describe("ExpertSkillsService", () => {
-  let service: ExpertSkillsService;
-
-  const mockDbService = {
+describe("ExpertSkillsStatisticsService", () => {
+  const db = {
     query: jest.fn(),
   };
-  const mockStandardizedSkillsClient = {
+  const sql = {
+    load: jest.fn().mockReturnValue("SELECT expert skills"),
+  };
+  const standardizedSkills = {
     fetchCategories: jest.fn(),
   };
+  const service = new ExpertSkillsStatisticsService(
+    db as unknown as DbService,
+    sql as unknown as SqlLoaderService,
+    standardizedSkills as unknown as StandardizedSkillsClient,
+  );
 
-  beforeEach(async () => {
-    mockDbService.query.mockReset();
-    mockStandardizedSkillsClient.fetchCategories.mockReset();
-
-    const moduleRef: TestingModule = await Test.createTestingModule({
-      providers: [
-        ExpertSkillsService,
-        { provide: DbService, useValue: mockDbService },
-        {
-          provide: StandardizedSkillsClient,
-          useValue: mockStandardizedSkillsClient,
-        },
-      ],
-    }).compile();
-
-    service = moduleRef.get<ExpertSkillsService>(ExpertSkillsService);
-  });
-
-  it("creates the service", () => {
-    expect(service).toBeDefined();
+  beforeEach(() => {
+    jest.clearAllMocks();
+    sql.load.mockReturnValue("SELECT expert skills");
   });
 
   it("maps catalog categories to stats and normalized sizes", async () => {
-    mockStandardizedSkillsClient.fetchCategories.mockResolvedValue([
+    standardizedSkills.fetchCategories.mockResolvedValue([
       {
         id: "481b5ebc-2fe6-45ed-a90c-736936d458d7",
         name: "Programming and Development",
@@ -47,7 +36,7 @@ describe("ExpertSkillsService", () => {
         name: "Scripting and Automation",
       },
     ]);
-    mockDbService.query.mockResolvedValueOnce([
+    db.query.mockResolvedValueOnce([
       {
         id: "481b5ebc-2fe6-45ed-a90c-736936d458d7",
         totalMembers: 101,
@@ -65,16 +54,11 @@ describe("ExpertSkillsService", () => {
     ]);
 
     const result = await service.getCategories();
-    const sql = mockDbService.query.mock.calls[0][0] as string;
-    const params = mockDbService.query.mock.calls[0][1] as unknown[];
 
-    expect(mockStandardizedSkillsClient.fetchCategories).toHaveBeenCalledTimes(
-      1,
+    expect(sql.load).toHaveBeenCalledWith(
+      "reports/statistics/expert-skills/category-stats.sql",
     );
-    expect(sql).toContain("unnest($1::uuid[])");
-    expect(sql).toContain("challenge_win");
-    expect(sql).not.toContain("NOT ILIKE 'Test Cat%'");
-    expect(params).toEqual([
+    expect(db.query).toHaveBeenCalledWith("SELECT expert skills", [
       [
         "481b5ebc-2fe6-45ed-a90c-736936d458d7",
         "1f5ed3e8-8d22-44ea-b75d-ea85147a04da",
@@ -91,26 +75,25 @@ describe("ExpertSkillsService", () => {
       }),
     );
     expect(result[0].color).toMatch(/^#[0-9A-F]{6}$/i);
-    expect(result[0].icon).toMatch(/Icon$/);
     expect(result[1].name).toBe("Scripting and Automation");
     expect(result[1].size).toBe(3);
   });
 
   it("returns an empty list when the catalog has no categories", async () => {
-    mockStandardizedSkillsClient.fetchCategories.mockResolvedValue([]);
+    standardizedSkills.fetchCategories.mockResolvedValue([]);
 
     await expect(service.getCategories()).resolves.toEqual([]);
-    expect(mockDbService.query).not.toHaveBeenCalled();
+    expect(db.query).not.toHaveBeenCalled();
   });
 
   it("returns top members for a catalog category name", async () => {
-    mockStandardizedSkillsClient.fetchCategories.mockResolvedValue([
+    standardizedSkills.fetchCategories.mockResolvedValue([
       {
         id: "481b5ebc-2fe6-45ed-a90c-736936d458d7",
         name: "Programming and Development",
       },
     ]);
-    mockDbService.query.mockResolvedValueOnce([
+    db.query.mockResolvedValueOnce([
       {
         handle: "billzedison",
         firstName: "Honghan",
@@ -125,12 +108,11 @@ describe("ExpertSkillsService", () => {
     const result = await service.getCategoryMembers(
       "Programming & Development",
     );
-    const membersSql = mockDbService.query.mock.calls[0][0] as string;
-    const membersParams = mockDbService.query.mock.calls[0][1] as unknown[];
 
-    expect(membersSql).toContain("ORDER BY cw.wins DESC, m.handle ASC");
-    expect(membersSql).toContain("LIMIT $2");
-    expect(membersParams).toEqual([
+    expect(sql.load).toHaveBeenCalledWith(
+      "reports/statistics/expert-skills/category-members.sql",
+    );
+    expect(db.query).toHaveBeenCalledWith("SELECT expert skills", [
       "481b5ebc-2fe6-45ed-a90c-736936d458d7",
       100,
     ]);
@@ -148,7 +130,7 @@ describe("ExpertSkillsService", () => {
   });
 
   it("throws when the selected category is not in the catalog", async () => {
-    mockStandardizedSkillsClient.fetchCategories.mockResolvedValue([
+    standardizedSkills.fetchCategories.mockResolvedValue([
       {
         id: "481b5ebc-2fe6-45ed-a90c-736936d458d7",
         name: "Programming and Development",
@@ -158,6 +140,6 @@ describe("ExpertSkillsService", () => {
     await expect(
       service.getCategoryMembers("Test Cat QA 1"),
     ).rejects.toBeInstanceOf(NotFoundException);
-    expect(mockDbService.query).not.toHaveBeenCalled();
+    expect(db.query).not.toHaveBeenCalled();
   });
 });

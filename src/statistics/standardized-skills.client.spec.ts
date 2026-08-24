@@ -6,13 +6,18 @@ import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { StandardizedSkillsClient } from "./standardized-skills.client";
 
-const API_BASE_URL = "https://api.example.test";
+const API_BASE_URL = "https://api.topcoder-dev.com";
 const CATEGORIES_URL = `${API_BASE_URL}/v5/standardized-skills/categories?disablePagination=true&sortBy=name`;
+const VALID_ISSUERS = JSON.stringify([
+  "https://topcoder-dev.auth0.com/",
+  "https://api.topcoder.com",
+  "https://api.topcoder-dev.com",
+]);
 
 describe("StandardizedSkillsClient", () => {
   let client: StandardizedSkillsClient;
   const configValues: Record<string, string | undefined> = {
-    TOPCODER_API_URL_BASE: API_BASE_URL,
+    VALID_ISSUERS,
   };
   const mockConfigService = {
     get: jest.fn((key: string, defaultValue?: string) => {
@@ -28,7 +33,7 @@ describe("StandardizedSkillsClient", () => {
     Object.keys(configValues).forEach((key) => {
       delete configValues[key];
     });
-    configValues.TOPCODER_API_URL_BASE = API_BASE_URL;
+    configValues.VALID_ISSUERS = VALID_ISSUERS;
     global.fetch = fetchMock as unknown as typeof fetch;
 
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -45,7 +50,7 @@ describe("StandardizedSkillsClient", () => {
     global.fetch = originalFetch;
   });
 
-  it("fetches categories from the standardized-skills catalog", async () => {
+  it("fetches categories using the API host from VALID_ISSUERS", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: () =>
@@ -106,8 +111,10 @@ describe("StandardizedSkillsClient", () => {
     );
   });
 
-  it("throws when TOPCODER_API_URL_BASE is not configured", async () => {
-    delete configValues.TOPCODER_API_URL_BASE;
+  it("throws when VALID_ISSUERS does not include an API host", async () => {
+    configValues.VALID_ISSUERS = JSON.stringify([
+      "https://topcoder-dev.auth0.com/",
+    ]);
 
     await expect(client.fetchCategories()).rejects.toBeInstanceOf(
       InternalServerErrorException,

@@ -12,7 +12,6 @@ import { ChallengesReportsModule } from "./reports/challenges/challenges-reports
 import { IdentityReportsModule } from "./reports/identity/identity-reports.module";
 import { ReportsModule } from "./reports/reports.module";
 import { MemberSearchModule } from "./reports/member/member-search.module";
-import { ExpertSkillsModule } from "./reports/expert-skills/expert-skills.module";
 import { PaymentReportsModule } from "./reports/payment/payment-reports.module";
 import { DashboardReportsModule } from "./reports/dashboard/dashboard-reports.module";
 
@@ -28,7 +27,6 @@ import { DashboardReportsModule } from "./reports/dashboard/dashboard-reports.mo
     IdentityReportsModule,
     ReportsModule,
     MemberSearchModule,
-    ExpertSkillsModule,
     PaymentReportsModule,
     DashboardReportsModule,
     HealthModule,

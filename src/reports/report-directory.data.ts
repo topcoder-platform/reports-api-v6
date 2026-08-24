@@ -684,6 +684,26 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
         "/statistics/qa/wins",
         "Quality Assurance challenge wins by member (desc)",
       ),
+      publicReport(
+        "Expert Skill Categories",
+        "/statistics/expert-skills/categories",
+        "Skill categories from the standardized-skills catalog with win-normalized bubble sizes",
+      ),
+      publicReport(
+        "Expert Skill Category Members",
+        "/statistics/expert-skills/category-members",
+        "Top 100 members in a skill category, sorted by wins",
+        [
+          {
+            name: "selectedcategory",
+            type: "string",
+            description:
+              "Category name from the standardized-skills catalog, or the category UUID",
+            required: true,
+            location: "query",
+          },
+        ],
+      ),
     ],
   },
   topcoder: {
@@ -849,36 +869,6 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
           AppScopes.AllReports,
           AppScopes.TopcoderReports,
           AppScopes.Member.MemberSearch,
-        ],
-      ),
-      report(
-        "Expert Skill Categories",
-        "/expert-skill-categories",
-        "Skill categories from the standardized-skills catalog for the Skill Statistics bubble view, including win-normalized sizes",
-        [
-          AppScopes.AllReports,
-          AppScopes.TopcoderReports,
-          AppScopes.Member.ExpertSkills,
-        ],
-      ),
-      report(
-        "Expert Skill Category Members",
-        "/expert-skill-category-members",
-        "Top 100 members in a skill category, sorted by wins in that category",
-        [
-          AppScopes.AllReports,
-          AppScopes.TopcoderReports,
-          AppScopes.Member.ExpertSkills,
-        ],
-        [
-          {
-            name: "selectedcategory",
-            type: "string",
-            description:
-              "Category name from the standardized-skills catalog, or the category UUID",
-            required: true,
-            location: "query",
-          },
         ],
       ),
     ],
