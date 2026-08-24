@@ -10,10 +10,6 @@ import {
   normalizeCategoryName,
   normalizeCategorySizes,
 } from "./expert-skills-statistics.data";
-import {
-  StandardizedSkillCategory,
-  StandardizedSkillsClient,
-} from "./standardized-skills.client";
 
 const MEMBERS_LIMIT = 100;
 const COUNTRY_DISPLAY_NAMES: Record<string, string> = {
@@ -42,6 +38,11 @@ type MemberRow = {
   countryCode: string | null;
   rating: number | null;
   wins: number | null;
+};
+
+type SkillCategoryRow = {
+  id: string;
+  name: string;
 };
 
 function toCountryName(countryCode: string, rawValue?: string | null): string {
@@ -78,11 +79,10 @@ export class ExpertSkillsStatisticsService {
   constructor(
     private readonly db: DbService,
     private readonly sql: SqlLoaderService,
-    private readonly standardizedSkills: StandardizedSkillsClient,
   ) {}
 
   async getCategories() {
-    const categories = await this.standardizedSkills.fetchCategories();
+    const categories = await this.loadCategories();
     if (!categories.length) {
       return [];
     }
@@ -141,13 +141,13 @@ export class ExpertSkillsStatisticsService {
 
   private async findCategory(
     selectedCategory: string,
-  ): Promise<StandardizedSkillCategory> {
+  ): Promise<SkillCategoryRow> {
     const requested = String(selectedCategory || "").trim();
     if (!requested) {
       throw new NotFoundException("Skill category not found.");
     }
 
-    const categories = await this.standardizedSkills.fetchCategories();
+    const categories = await this.loadCategories();
     const normalizedRequested = normalizeCategoryName(requested);
     const match = categories.find(
       (category) =>
@@ -160,6 +160,18 @@ export class ExpertSkillsStatisticsService {
     }
 
     return match;
+  }
+
+  private async loadCategories(): Promise<SkillCategoryRow[]> {
+    const q = this.sql.load("reports/statistics/expert-skills/categories.sql");
+    const rows = await this.db.query<SkillCategoryRow>(q);
+
+    return rows
+      .map((row) => ({
+        id: String(row.id || "").trim(),
+        name: String(row.name || "").trim(),
+      }))
+      .filter((row) => row.id && row.name);
   }
 
   private async loadCategoryStats(

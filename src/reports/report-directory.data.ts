@@ -687,7 +687,7 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
       publicReport(
         "Expert Skill Categories",
         "/statistics/expert-skills/categories",
-        "Skill categories from the standardized-skills catalog with win-normalized bubble sizes",
+        "Skill categories from skills.skill_category with win-normalized bubble sizes",
       ),
       publicReport(
         "Expert Skill Category Members",

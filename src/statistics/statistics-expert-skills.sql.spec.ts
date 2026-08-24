@@ -3,6 +3,16 @@ import { SqlLoaderService } from "../common/sql-loader.service";
 describe("Expert skills statistics SQL", () => {
   const sqlLoader = new SqlLoaderService();
 
+  it("loads skill categories from the skills catalog table", () => {
+    const sql = sqlLoader.load(
+      "reports/statistics/expert-skills/categories.sql",
+    );
+
+    expect(sql).toContain("FROM skills.skill_category sc");
+    expect(sql).toContain("ORDER BY sc.name ASC");
+    expect(sql).not.toContain("NOT ILIKE 'Test Cat%'");
+  });
+
   it("aggregates category members, skills, and top win breakdown", () => {
     const sql = sqlLoader.load(
       "reports/statistics/expert-skills/category-stats.sql",

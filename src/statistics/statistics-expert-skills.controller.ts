@@ -10,7 +10,7 @@ export class StatisticsExpertSkillsController {
   @Get("/categories")
   @ApiOperation({
     summary:
-      "Skill categories from the standardized-skills catalog with win-normalized bubble sizes",
+      "Skill categories from skills.skill_category with win-normalized bubble sizes",
   })
   getCategories() {
     return this.expertSkills.getCategories();
