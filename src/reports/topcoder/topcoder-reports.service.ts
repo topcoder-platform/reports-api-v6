@@ -1258,7 +1258,8 @@ export class TopcoderReportsService implements OnModuleDestroy {
    * Campus program leaderboard for every member of the requested group.
    *
    * Members with no challenge activity are included (ranked last). Submissions and
-   * passing submissions are counted at most once per member per challenge.
+   * passing submissions are counted at most once per member per challenge. Tasks
+   * and First2Finish challenges are excluded.
    *
    * @param filters Group name and challenge visibility filter.
    * @param caller Caller identity used to authorize access to private groups.
