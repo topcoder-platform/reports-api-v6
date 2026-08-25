@@ -32,6 +32,7 @@ const participationRow = (overrides: Row = {}): Row => ({
   registered: true,
   submitted: false,
   passedReview: false,
+  reviewed: false,
   submittedDate: null,
   score: null,
   won: false,
@@ -179,6 +180,32 @@ describe("TopcoderReportsService.getCampusLeaderboard", () => {
       hasActivity: false,
       challenges: [],
     });
+  });
+
+  it("reports whether a submission has been reviewed yet", async () => {
+    leaderboardRows = [
+      participationRow({
+        challengeId: "c1",
+        submitted: true,
+        passedReview: false,
+        reviewed: false,
+      }),
+      participationRow({
+        challengeId: "c2",
+        submitted: true,
+        passedReview: false,
+        reviewed: true,
+      }),
+    ];
+
+    const result = await service.getCampusLeaderboard({ groupName: "mecw" });
+    const [pending, failed] = result.members[0].challenges.sort((left, right) =>
+      left.challengeId.localeCompare(right.challengeId),
+    );
+
+    expect(pending).toMatchObject({ challengeId: "c1", reviewed: false });
+    expect(failed).toMatchObject({ challengeId: "c2", reviewed: true });
+    expect(result.members[0].passingSubmissions).toBe(0);
   });
 
   it("returns non-winning placements such as 2nd and 3rd place", async () => {

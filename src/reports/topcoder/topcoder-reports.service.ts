@@ -160,6 +160,7 @@ type CampusLeaderboardRow = {
   registered: boolean | null;
   submitted: boolean | null;
   passedReview: boolean | null;
+  reviewed: boolean | null;
   submittedDate: Date | string | null;
   score: string | number | null;
   won: boolean | null;
@@ -180,6 +181,7 @@ type CampusParticipationEntry = {
   submitted: boolean;
   submittedDate: string | null;
   passedReview: boolean;
+  reviewed: boolean;
   score: number | null;
   won: boolean;
   placement: number | null;
@@ -1359,6 +1361,7 @@ export class TopcoderReportsService implements OnModuleDestroy {
         submitted: row.submitted === true,
         submittedDate: this.normalizeDate(row.submittedDate),
         passedReview: row.passedReview === true,
+        reviewed: row.reviewed === true,
         score: this.toNullableNumber(row.score),
         won: row.won === true,
         placement: row.placement ?? null,
