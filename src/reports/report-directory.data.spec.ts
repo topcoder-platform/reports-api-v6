@@ -52,6 +52,12 @@ describe("getAccessibleReportsDirectory", () => {
     expect(directory.identity).toBeUndefined();
     expect(directory.sfdc).toBeUndefined();
     expect(directory.topcoder).toBeUndefined();
+    expect(
+      directory.statistics?.reports.map((report) => report.path),
+    ).not.toContain("/statistics/expert-skills/categories");
+    expect(
+      directory.statistics?.reports.map((report) => report.path),
+    ).not.toContain("/statistics/expert-skills/category-members");
   });
 
   it("returns challenge, member, and role-mapped identity reports for talent managers", () => {
@@ -74,6 +80,12 @@ describe("getAccessibleReportsDirectory", () => {
       "/member/recent-member-data",
       "/member/search",
     ]);
+    expect(directory.statistics?.reports.map((report) => report.path)).toEqual(
+      expect.arrayContaining([
+        "/statistics/expert-skills/categories",
+        "/statistics/expert-skills/category-members",
+      ]),
+    );
   });
 
   it("returns bulk member lookup for topcoder project managers", () => {
@@ -98,6 +110,12 @@ describe("getAccessibleReportsDirectory", () => {
     expect(directory.identity).toBeUndefined();
     expect(directory.sfdc).toBeUndefined();
     expect(directory.statistics?.reports.length).toBeGreaterThan(0);
+    expect(
+      directory.statistics?.reports.map((report) => report.path),
+    ).not.toContain("/statistics/expert-skills/categories");
+    expect(
+      directory.statistics?.reports.map((report) => report.path),
+    ).not.toContain("/statistics/expert-skills/category-members");
     expect(directory.topcoder).toBeUndefined();
   });
 
@@ -119,6 +137,12 @@ describe("getAccessibleReportsDirectory", () => {
       "/member/recent-member-data",
       "/member/search",
     ]);
+    expect(
+      directory.statistics?.reports.map((report) => report.path),
+    ).not.toContain("/statistics/expert-skills/categories");
+    expect(
+      directory.statistics?.reports.map((report) => report.path),
+    ).not.toContain("/statistics/expert-skills/category-members");
   });
 
   it("returns an empty directory when no JWT user is present", () => {

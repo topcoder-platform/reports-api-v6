@@ -13,8 +13,36 @@ describe("expert-skills-statistics.data", () => {
     );
   });
 
-  it("assigns a stable color and icon from the category id", () => {
-    const first = getCategoryAppearance("481b5ebc-2fe6-45ed-a90c-736936d458d7");
+  it("maps known category names to Figma icons regardless of id", () => {
+    expect(
+      getCategoryAppearance(
+        "481b5ebc-2fe6-45ed-a90c-736936d458d7",
+        "Programming & Development",
+      ),
+    ).toEqual({
+      color: "#1B4F72",
+      icon: "TerminalIcon",
+    });
+    expect(getCategoryAppearance("unused-id", "Web Development")).toEqual({
+      color: "#7EB8C4",
+      icon: "GlobeAltIcon",
+    });
+    expect(
+      getCategoryAppearance(
+        "unused-id",
+        "Software Development Lifecycle (SDLC)",
+      ).icon,
+    ).toBe("RefreshIcon");
+    expect(
+      getCategoryAppearance("unused-id", "UX Design and Multimedia").icon,
+    ).toBe("PencilAltIcon");
+  });
+
+  it("hashes unknown categories by id so new catalog entries still render", () => {
+    const first = getCategoryAppearance(
+      "481b5ebc-2fe6-45ed-a90c-736936d458d7",
+      "Test Cat QA 1",
+    );
     const second = getCategoryAppearance(
       "481b5ebc-2fe6-45ed-a90c-736936d458d7",
     );

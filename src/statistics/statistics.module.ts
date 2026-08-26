@@ -12,6 +12,7 @@ import { StatisticsQaController } from "./statistics-qa.controller";
 import { QaStatisticsService } from "./qa-statistics.service";
 import { StatisticsExpertSkillsController } from "./statistics-expert-skills.controller";
 import { ExpertSkillsStatisticsService } from "./expert-skills-statistics.service";
+import { ExpertSkillsGuard } from "./guards/expert-skills.guard";
 import { SqlLoaderService } from "../common/sql-loader.service";
 
 @Module({
@@ -31,6 +32,7 @@ import { SqlLoaderService } from "../common/sql-loader.service";
     DevelopmentStatisticsService,
     QaStatisticsService,
     ExpertSkillsStatisticsService,
+    ExpertSkillsGuard,
     SqlLoaderService,
   ],
 })

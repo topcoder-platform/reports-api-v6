@@ -1,4 +1,4 @@
-import { Scopes as AppScopes } from "../app-constants";
+import { Scopes as AppScopes, UserRoles } from "../app-constants";
 import {
   AuthUserLike,
   getNormalizedRoles,
@@ -58,6 +58,7 @@ export type ReportsDirectory = Partial<Record<ReportGroupKey, ReportGroup>>;
 type RegisteredReport = AvailableReport & {
   requiredScopes: readonly string[];
   adminOnly?: boolean;
+  allowedRoles?: readonly string[];
 };
 
 type RegisteredReportGroup = Omit<ReportGroup, "reports"> & {
@@ -168,6 +169,16 @@ const publicReport = (
   description: string,
   parameters: ReportParameter[] = [],
 ): RegisteredReport => report(name, path, description, [], parameters);
+
+const talentManagerReport = (
+  name: string,
+  path: string,
+  description: string,
+  parameters: ReportParameter[] = [],
+): RegisteredReport => ({
+  ...publicReport(name, path, description, parameters),
+  allowedRoles: [UserRoles.TalentManager],
+});
 
 const challengeStatusParam: ReportParameter = {
   name: "challengeStatus",
@@ -684,15 +695,15 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
         "/statistics/qa/wins",
         "Quality Assurance challenge wins by member (desc)",
       ),
-      publicReport(
+      talentManagerReport(
         "Expert Skill Categories",
         "/statistics/expert-skills/categories",
-        "Skill categories from skills.skill_category with win-normalized bubble sizes",
+        "Skill categories from skills.skill_category with win-normalized bubble sizes. Accessible by Administrator and Talent Manager roles only.",
       ),
-      publicReport(
+      talentManagerReport(
         "Expert Skill Category Members",
         "/statistics/expert-skills/category-members",
-        "Top 100 members in a skill category, sorted by wins",
+        "Top 100 members in a skill category, sorted by wins. Accessible by Administrator and Talent Manager roles only.",
         [
           {
             name: "selectedcategory",
@@ -978,6 +989,18 @@ export function getAccessibleReportsDirectory(
       const accessibleReports = group.reports.filter((reportDefinition) => {
         if (reportDefinition.adminOnly && !isAdmin) {
           return false;
+        }
+
+        if (reportDefinition.allowedRoles?.length) {
+          if (isAdmin) {
+            return true;
+          }
+
+          const allowedRoles = new Set(
+            reportDefinition.allowedRoles.map((role) => role.toLowerCase()),
+          );
+
+          return normalizedRoles.some((role) => allowedRoles.has(role));
         }
 
         return hasAccessToScopes(authUser, reportDefinition.requiredScopes);

@@ -98,7 +98,7 @@ export class ExpertSkillsStatisticsService {
 
     return categories.map((category, index) => {
       const stats = statsById.get(category.id);
-      const appearance = getCategoryAppearance(category.id);
+      const appearance = getCategoryAppearance(category.id, category.name);
 
       return {
         id: category.id,
