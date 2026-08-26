@@ -3,7 +3,6 @@ import {
   Get,
   Param,
   Query,
-  Req,
   UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
@@ -21,7 +20,6 @@ import { TopcoderReportsGuard } from "../../auth/guards/topcoder-reports.guard";
 import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.interceptor";
 import { Scopes as RequiredScopes } from "../../auth/decorators/scopes.decorator";
 import { Scopes as AppScopes } from "../../app-constants";
-import { AuthUserLike, hasAccessToScopes } from "../../auth/permissions.util";
 
 @ApiTags("Topcoder Reports")
 @ApiBearerAuth()
@@ -69,27 +67,15 @@ export class TopcoderReportsController {
   }
 
   @Get("/topcoder/leaderboard/campus")
-  // Campus members read their own program leaderboard, so no report scope is
-  // required; access to private groups is enforced in the service instead.
+  // Campus program leaderboards are readable by any authenticated caller, so no
+  // report scope is required.
   @RequiredScopes()
   @ApiOperation({
     summary:
       "Campus program leaderboard for every member of the requested group, including members with no challenge activity",
   })
-  getCampusLeaderboard(
-    @Query() query: CampusLeaderboardQueryDto,
-    @Req() request: { authUser?: AuthUserLike & { userId?: string | number } },
-  ) {
-    const authUser = request.authUser;
-
-    return this.reports.getCampusLeaderboard(query, {
-      userId: authUser?.userId,
-      hasReportAccess: hasAccessToScopes(authUser, [
-        AppScopes.AllReports,
-        AppScopes.TopcoderReports,
-        AppScopes.TopcoderLeaderboardReports,
-      ]),
-    });
+  getCampusLeaderboard(@Query() query: CampusLeaderboardQueryDto) {
+    return this.reports.getCampusLeaderboard(query);
   }
 
   @Get("/topcoder/leaderboard/mm")

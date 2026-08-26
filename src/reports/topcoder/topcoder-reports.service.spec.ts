@@ -239,9 +239,11 @@ describe("TopcoderReportsService", () => {
       "reports/topcoder/leaderboard-generic.sql",
       [["ch1"], false],
     );
-    expect(resultWithoutRealtime.placementData[0].challengeScores?.ch1).toEqual({
-      score: 123,
-      isProvisional: false,
-    });
+    expect(resultWithoutRealtime.placementData[0].challengeScores?.ch1).toEqual(
+      {
+        score: 123,
+        isProvisional: false,
+      },
+    );
   });
 });

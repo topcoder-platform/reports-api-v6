@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import { NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { DbService } from "../../db/db.service";
 import { SqlLoaderService } from "../../common/sql-loader.service";
@@ -32,6 +32,7 @@ const participationRow = (overrides: Row = {}): Row => ({
   registered: true,
   submitted: false,
   passedReview: false,
+  reviewed: false,
   submittedDate: null,
   score: null,
   won: false,
@@ -51,7 +52,6 @@ describe("TopcoderReportsService.getCampusLeaderboard", () => {
         groupName: "MECW",
         groupOldId: null,
         privateGroup: false,
-        callerIsMember: false,
       },
     ];
     leaderboardRows = [];
@@ -89,39 +89,19 @@ describe("TopcoderReportsService.getCampusLeaderboard", () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it("rejects non-members without report access for private groups", async () => {
+  it("allows any caller to read private group leaderboards", async () => {
     groupRows = [
       {
         groupId: "group-1",
         groupName: "MECW",
         groupOldId: null,
         privateGroup: true,
-        callerIsMember: false,
-      },
-    ];
-
-    await expect(
-      service.getCampusLeaderboard(
-        { groupName: "mecw" },
-        { userId: 999, hasReportAccess: false },
-      ),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-  });
-
-  it("allows group members and report readers to read private group leaderboards", async () => {
-    groupRows = [
-      {
-        groupId: "group-1",
-        groupName: "MECW",
-        groupOldId: null,
-        privateGroup: true,
-        callerIsMember: true,
       },
     ];
     leaderboardRows = [participationRow()];
 
     await expect(
-      service.getCampusLeaderboard({ groupName: "mecw" }, { userId: 1 }),
+      service.getCampusLeaderboard({ groupName: "mecw" }),
     ).resolves.toMatchObject({ group: { id: "group-1", name: "MECW" } });
   });
 
@@ -179,6 +159,32 @@ describe("TopcoderReportsService.getCampusLeaderboard", () => {
       hasActivity: false,
       challenges: [],
     });
+  });
+
+  it("reports whether a submission has been reviewed yet", async () => {
+    leaderboardRows = [
+      participationRow({
+        challengeId: "c1",
+        submitted: true,
+        passedReview: false,
+        reviewed: false,
+      }),
+      participationRow({
+        challengeId: "c2",
+        submitted: true,
+        passedReview: false,
+        reviewed: true,
+      }),
+    ];
+
+    const result = await service.getCampusLeaderboard({ groupName: "mecw" });
+    const [pending, failed] = result.members[0].challenges.sort((left, right) =>
+      left.challengeId.localeCompare(right.challengeId),
+    );
+
+    expect(pending).toMatchObject({ challengeId: "c1", reviewed: false });
+    expect(failed).toMatchObject({ challengeId: "c2", reviewed: true });
+    expect(result.members[0].passingSubmissions).toBe(0);
   });
 
   it("returns non-winning placements such as 2nd and 3rd place", async () => {
