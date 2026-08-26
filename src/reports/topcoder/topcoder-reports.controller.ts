@@ -3,12 +3,14 @@ import {
   Get,
   Param,
   Query,
+  Req,
   UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { TopcoderReportsService } from "./topcoder-reports.service";
 import { ChallengeSubmitterDataQueryDto } from "./dto/challenge-submitter-data.dto";
+import { CampusLeaderboardQueryDto } from "./dto/campus-leaderboard.dto";
 import { LeaderboardGenericQueryDto } from "./dto/leaderboard-generic.dto";
 import { LeaderboardMmQueryDto } from "./dto/leaderboard-mm.dto";
 import { RegistrantCountriesQueryDto } from "./dto/registrant-countries.dto";
@@ -19,6 +21,7 @@ import { TopcoderReportsGuard } from "../../auth/guards/topcoder-reports.guard";
 import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.interceptor";
 import { Scopes as RequiredScopes } from "../../auth/decorators/scopes.decorator";
 import { Scopes as AppScopes } from "../../app-constants";
+import { AuthUserLike, hasAccessToScopes } from "../../auth/permissions.util";
 
 @ApiTags("Topcoder Reports")
 @ApiBearerAuth()
@@ -63,6 +66,30 @@ export class TopcoderReportsController {
   @ApiOperation({ summary: "Generic leaderboard report data" })
   getLeaderboardGeneric(@Query() query: LeaderboardGenericQueryDto) {
     return this.reports.getLeaderboardGeneric(query);
+  }
+
+  @Get("/topcoder/leaderboard/campus")
+  // Campus members read their own program leaderboard, so no report scope is
+  // required; access to private groups is enforced in the service instead.
+  @RequiredScopes()
+  @ApiOperation({
+    summary:
+      "Campus program leaderboard for every member of the requested group, including members with no challenge activity",
+  })
+  getCampusLeaderboard(
+    @Query() query: CampusLeaderboardQueryDto,
+    @Req() request: { authUser?: AuthUserLike & { userId?: string | number } },
+  ) {
+    const authUser = request.authUser;
+
+    return this.reports.getCampusLeaderboard(query, {
+      userId: authUser?.userId,
+      hasReportAccess: hasAccessToScopes(authUser, [
+        AppScopes.AllReports,
+        AppScopes.TopcoderReports,
+        AppScopes.TopcoderLeaderboardReports,
+      ]),
+    });
   }
 
   @Get("/topcoder/leaderboard/mm")

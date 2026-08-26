@@ -19,6 +19,8 @@ stats_wins AS (
    AND history."typeId" = stats."typeId"
   LEFT JOIN challenges."ChallengeTrack" track
     ON track.id::text = stats."trackId"
+  LEFT JOIN challenges."ChallengeType" ct
+    ON ct.id::text = stats."typeId"
   WHERE stats."isPrivate" = false
     AND (
       UPPER(COALESCE(track.name, stats."trackId")) LIKE '%DEVELOP%'
@@ -28,6 +30,7 @@ stats_wins AS (
       OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%QUALITY%ASSURANCE%'
       OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%COPILOT%'
     )
+    AND (ct.name IS NULL OR NOT ct.name = ANY($1))
   GROUP BY stats."userId"
 ),
 winner_profiles AS (

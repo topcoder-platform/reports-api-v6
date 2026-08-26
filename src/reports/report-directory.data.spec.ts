@@ -34,6 +34,8 @@ describe("getAccessibleReportsDirectory", () => {
       expect.arrayContaining([
         "/statistics/general/country-member-details",
         "/statistics/general/top-winners-by-country",
+        "/statistics/expert-skills/categories",
+        "/statistics/expert-skills/category-members",
       ]),
     );
   });
@@ -61,6 +63,7 @@ describe("getAccessibleReportsDirectory", () => {
       "challenges",
       "identity",
       "member",
+      "sfdc",
       "statistics",
     ]);
     expect(directory.identity?.reports.map((report) => report.path)).toEqual([

@@ -684,6 +684,26 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
         "/statistics/qa/wins",
         "Quality Assurance challenge wins by member (desc)",
       ),
+      publicReport(
+        "Expert Skill Categories",
+        "/statistics/expert-skills/categories",
+        "Skill categories from skills.skill_category with win-normalized bubble sizes",
+      ),
+      publicReport(
+        "Expert Skill Category Members",
+        "/statistics/expert-skills/category-members",
+        "Top 100 members in a skill category, sorted by wins",
+        [
+          {
+            name: "selectedcategory",
+            type: "string",
+            description:
+              "Category name from the standardized-skills catalog, or the category UUID",
+            required: true,
+            location: "query",
+          },
+        ],
+      ),
     ],
   },
   topcoder: {

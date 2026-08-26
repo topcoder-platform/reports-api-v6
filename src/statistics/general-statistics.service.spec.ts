@@ -1,3 +1,4 @@
+import { ConfigService } from "@nestjs/config";
 import { DbService } from "../db/db.service";
 import { SqlLoaderService } from "../common/sql-loader.service";
 import { GeneralStatisticsService } from "./general-statistics.service";
@@ -9,9 +10,13 @@ describe("GeneralStatisticsService", () => {
   const sql = {
     load: jest.fn().mockReturnValue("SELECT tooltip data"),
   };
+  const config = {
+    get: jest.fn().mockReturnValue('["Task","First2Finish"]'),
+  };
   const service = new GeneralStatisticsService(
     db as unknown as DbService,
     sql as unknown as SqlLoaderService,
+    config as unknown as ConfigService,
   );
 
   beforeEach(() => {
@@ -65,6 +70,10 @@ describe("GeneralStatisticsService", () => {
     expect(sql.load).toHaveBeenCalledWith(
       "reports/statistics/general/top-winners-by-country.sql",
     );
+    expect(db.query).toHaveBeenCalledWith(
+      "SELECT tooltip data",
+      [["Task", "First2Finish"]],
+    );
   });
 
   it("uses safe defaults when winner details are absent", async () => {
@@ -85,6 +94,10 @@ describe("GeneralStatisticsService", () => {
         topWinners: [],
       },
     ]);
+    expect(db.query).toHaveBeenCalledWith(
+      "SELECT tooltip data",
+      [["Task", "First2Finish"]],
+    );
   });
 
   it("normalizes country member, skill, and top-member details", async () => {
@@ -177,6 +190,10 @@ describe("GeneralStatisticsService", () => {
     ]);
     expect(sql.load).toHaveBeenCalledWith(
       "reports/statistics/general/country-member-details.sql",
+    );
+    expect(db.query).toHaveBeenCalledWith(
+      "SELECT tooltip data",
+      [["Task", "First2Finish"]],
     );
   });
 });
