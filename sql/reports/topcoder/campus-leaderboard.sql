@@ -100,7 +100,21 @@ scored_submissions AS (
                ) >= COALESCE(sc."minimumPassingScore", sc."minScore", 0)
         END
       )
-    END AS is_passing
+    END AS is_passing,
+    -- Whether the submission has a review outcome at all. Without this a review
+    -- that is still running is indistinguishable from one that failed.
+    CASE
+      WHEN challenge_reviewers.is_ai_only_challenge
+        THEN ai_decision.status IS NOT NULL
+      ELSE (
+        final_review."isPassing" IS NOT NULL
+        OR COALESCE(
+             final_review."aggregateScore",
+             s."finalScore"::double precision,
+             s."initialScore"::double precision
+           ) IS NOT NULL
+      )
+    END AS is_reviewed
   FROM reviews.submission AS s
   JOIN group_members AS gm
     ON gm.member_id = s."memberId"
@@ -141,6 +155,7 @@ member_submissions AS (
     ss.challenge_id,
     MIN(ss.submitted_date) AS first_submitted_date,
     BOOL_OR(COALESCE(ss.is_passing, FALSE)) AS has_passing_submission,
+    BOOL_OR(COALESCE(ss.is_reviewed, FALSE)) AS has_reviewed_submission,
     MAX(ss.score) FILTER (WHERE ss.score IS NOT NULL) AS best_score
   FROM scored_submissions AS ss
   GROUP BY ss.member_id, ss.challenge_id
@@ -178,6 +193,7 @@ member_participation AS (
     (reg.member_id IS NOT NULL) AS registered,
     (sub.member_id IS NOT NULL) AS submitted,
     COALESCE(sub.has_passing_submission, FALSE) AS passed_review,
+    COALESCE(sub.has_reviewed_submission, FALSE) AS reviewed,
     sub.first_submitted_date,
     sub.best_score,
     (win.member_id IS NOT NULL AND win.placement = 1) AS won,
@@ -238,6 +254,7 @@ SELECT
   mp.registered AS registered,
   mp.submitted AS submitted,
   mp.passed_review AS "passedReview",
+  mp.reviewed AS reviewed,
   mp.first_submitted_date AS "submittedDate",
   mp.best_score AS score,
   mp.won AS won,
