@@ -1,5 +1,4 @@
 import {
-  ForbiddenException,
   Injectable,
   NotFoundException,
   OnModuleDestroy,
@@ -135,7 +134,6 @@ type CampusGroupRow = {
   groupName: string;
   groupOldId: string | null;
   privateGroup: boolean;
-  callerIsMember: boolean;
 };
 
 type CampusLeaderboardRow = {
@@ -1263,45 +1261,25 @@ export class TopcoderReportsService implements OnModuleDestroy {
    * passing submissions are counted at most once per member per challenge. Tasks
    * and First2Finish challenges are excluded.
    *
+   * Readable by any authenticated caller.
+   *
    * @param filters Group name and challenge visibility filter.
-   * @param caller Caller identity used to authorize access to private groups.
    */
-  async getCampusLeaderboard(
-    filters: {
-      groupName: string;
-      challengeFilter?: CampusChallengeFilter;
-    },
-    caller: {
-      userId?: string | number | null;
-      hasReportAccess?: boolean;
-    } = {},
-  ) {
+  async getCampusLeaderboard(filters: {
+    groupName: string;
+    challengeFilter?: CampusChallengeFilter;
+  }) {
     const groupName = filters.groupName?.trim() ?? "";
-    const callerId =
-      caller.userId === null || caller.userId === undefined
-        ? null
-        : String(caller.userId).trim() || null;
 
     const groupQuery = this.sql.load(
       "reports/topcoder/campus-leaderboard-group.sql",
     );
     const [group] = await this.db.query<CampusGroupRow>(groupQuery, [
       groupName,
-      callerId,
     ]);
 
     if (!group) {
       throw new NotFoundException(`Group "${groupName}" was not found.`);
-    }
-
-    if (
-      group.privateGroup &&
-      !caller.hasReportAccess &&
-      !group.callerIsMember
-    ) {
-      throw new ForbiddenException(
-        "You do not have the required permissions to access this leaderboard.",
-      );
     }
 
     const challengeFilter =

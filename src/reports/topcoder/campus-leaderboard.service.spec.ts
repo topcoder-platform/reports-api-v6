@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import { NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { DbService } from "../../db/db.service";
 import { SqlLoaderService } from "../../common/sql-loader.service";
@@ -52,7 +52,6 @@ describe("TopcoderReportsService.getCampusLeaderboard", () => {
         groupName: "MECW",
         groupOldId: null,
         privateGroup: false,
-        callerIsMember: false,
       },
     ];
     leaderboardRows = [];
@@ -90,39 +89,19 @@ describe("TopcoderReportsService.getCampusLeaderboard", () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it("rejects non-members without report access for private groups", async () => {
+  it("allows any caller to read private group leaderboards", async () => {
     groupRows = [
       {
         groupId: "group-1",
         groupName: "MECW",
         groupOldId: null,
         privateGroup: true,
-        callerIsMember: false,
-      },
-    ];
-
-    await expect(
-      service.getCampusLeaderboard(
-        { groupName: "mecw" },
-        { userId: 999, hasReportAccess: false },
-      ),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-  });
-
-  it("allows group members and report readers to read private group leaderboards", async () => {
-    groupRows = [
-      {
-        groupId: "group-1",
-        groupName: "MECW",
-        groupOldId: null,
-        privateGroup: true,
-        callerIsMember: true,
       },
     ];
     leaderboardRows = [participationRow()];
 
     await expect(
-      service.getCampusLeaderboard({ groupName: "mecw" }, { userId: 1 }),
+      service.getCampusLeaderboard({ groupName: "mecw" }),
     ).resolves.toMatchObject({ group: { id: "group-1", name: "MECW" } });
   });
 
