@@ -50,8 +50,9 @@ const CATEGORY_ICONS = [
   "DeviceMobileIcon",
   "ShareIcon",
   "WifiIcon",
-  "ClipboardListIcon",
+  "ViewBoardsIcon",
   "CodeIcon",
+  "CogIcon",
 ];
 
 export type CategoryAppearance = {
@@ -76,12 +77,16 @@ const NAMED_CATEGORY_APPEARANCE: Array<[string[], CategoryAppearance]> = [
   ],
   [["Cybersecurity"], { color: "#5B9BD5", icon: "ShieldCheckIcon" }],
   [
-    ["Software Development Lifecycle (SDLC)", "Software Development Lifecycle"],
+    [
+      "Software Development Lifecycle (SDLC)",
+      "Software Development Lifecycle",
+      "SDLC",
+    ],
     { color: "#1A3D3D", icon: "RefreshIcon" },
   ],
   [["Cloud Computing"], { color: "#2C4A6E", icon: "CloudIcon" }],
   [["Operating Systems"], { color: "#3D7EA6", icon: "ChipIcon" }],
-  [["DevOps and Automation"], { color: "#2D4A3E", icon: "RefreshIcon" }],
+  [["DevOps and Automation"], { color: "#2D4A3E", icon: "CogIcon" }],
   [["Data Analysis and Big Data"], { color: "#2C5F8A", icon: "ChartBarIcon" }],
   [["Virtualization"], { color: "#3D7EA6", icon: "DuplicateIcon" }],
   [
@@ -113,7 +118,7 @@ const NAMED_CATEGORY_APPEARANCE: Array<[string[], CategoryAppearance]> = [
   ],
   [["Blockchain"], { color: "#2C4A6E", icon: "ShareIcon" }],
   [["IoT (Internet of Things)"], { color: "#3D8B8F", icon: "WifiIcon" }],
-  [["Project Management"], { color: "#3D7EA6", icon: "ClipboardListIcon" }],
+  [["Project Management"], { color: "#3D7EA6", icon: "ViewBoardsIcon" }],
   [["Scripting and Automation"], { color: "#5B9BD5", icon: "CodeIcon" }],
 ];
 
