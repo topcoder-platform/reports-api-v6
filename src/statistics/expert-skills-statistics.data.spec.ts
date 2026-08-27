@@ -34,8 +34,47 @@ describe("expert-skills-statistics.data", () => {
       ).icon,
     ).toBe("RefreshIcon");
     expect(
+      getCategoryAppearance("unused-id", "DevOps and Automation").icon,
+    ).toBe("CogIcon");
+    expect(
       getCategoryAppearance("unused-id", "UX Design and Multimedia").icon,
     ).toBe("PencilAltIcon");
+    expect(getCategoryAppearance("unused-id", "Project Management").icon).toBe(
+      "ViewBoardsIcon",
+    );
+  });
+
+  it("gives each known category a unique icon", () => {
+    const names = [
+      "Programming and Development",
+      "Web Development",
+      "Networking and Telecommunications",
+      "Cybersecurity",
+      "Software Development Lifecycle (SDLC)",
+      "Cloud Computing",
+      "Operating Systems",
+      "DevOps and Automation",
+      "Data Analysis and Big Data",
+      "Virtualization",
+      "Databases and Data Warehousing",
+      "Mathematics and Statistics",
+      "Database Management",
+      "Geospatial Information Systems (GIS)",
+      "Machine Learning and AI",
+      "User Experience Design and Multimedia",
+      "Hardware and Systems Administration",
+      "Mobile App Development",
+      "Software Testing and Quality Assurance",
+      "Blockchain",
+      "IoT (Internet of Things)",
+      "Project Management",
+      "Scripting and Automation",
+    ];
+    const icons = names.map(
+      (name) => getCategoryAppearance("unused-id", name).icon,
+    );
+
+    expect(new Set(icons).size).toBe(names.length);
   });
 
   it("hashes unknown categories by id so new catalog entries still render", () => {
