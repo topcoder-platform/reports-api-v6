@@ -122,6 +122,9 @@ export class GeneralStatisticsService {
     const q = this.sql.load(
       "reports/statistics/general/country-member-details.sql",
     );
+
+    console.log('HERE', this.excludedUserIds);
+
     const rows = await this.db.query<CountryMemberDetailRow>(q, [
       this.excludedChallengeTypes,
       this.excludedUserIds,
