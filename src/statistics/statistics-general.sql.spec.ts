@@ -27,6 +27,7 @@ describe("General statistics SQL", () => {
     expect(sql).toContain('members."memberMaxRating"');
     expect(sql).toContain("'maxRating', max_rating");
     expect(sql).toContain('first_place_count AS "challenge_stats.count"');
+    expect(sql).toContain('NOT (stats."userId"::text = ANY($2))');
   });
 
   it("aggregates owned skills and three deterministic top members", () => {
@@ -52,6 +53,7 @@ describe("General statistics SQL", () => {
     expect(sql).toContain("ORDER BY wins DESC, handle ASC, user_id ASC");
     expect(sql).toContain("member_rank <= 3");
     expect(sql).toContain('countries.members_count AS "user.count"');
+    expect(sql).toContain('WHERE NOT (m."userId"::text = ANY($2))');
   });
 
   it("uses public member stats wins for country totals", () => {
