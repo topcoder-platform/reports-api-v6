@@ -110,6 +110,18 @@ ENGAGEMENTS_DB_URL="postgresql://user:password@localhost:5432/engagements"
 # DATABASE_URL connection, including members.member, members.memberAddress,
 # members.memberPhone, identity.country, lookups.Country, and projects.projects.
 
+# ---------------------------------------------------
+# General statistics exclusions
+# ---------------------------------------------------
+
+# Challenge type names excluded from the general statistics win counts.
+# JSON array or comma-separated. Defaults to '["Task","First2Finish"]'.
+REPORTS_EXCLUDED_CHALLENGE_TYPES='["Task","First2Finish"]'
+
+# Member user IDs excluded from the general statistics (country member details
+# and top winners by country). JSON array or comma-separated; defaults to empty.
+REPORTS_EXCLUDED_USER_IDS='["8547899","251280"]'
+
 # Old tc-payments database URL (used by member-tax CSV export script)
 OLD_PAYMENTS_DATABASE_URL="postgresql://user:password@localhost:5432/tc_payments?schema=public"
 

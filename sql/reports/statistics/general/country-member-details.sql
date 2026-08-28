@@ -8,6 +8,7 @@ WITH member_profiles AS (
     m.handle,
     m."photoURL" AS photo_url
   FROM members.member m
+  WHERE NOT (m."userId"::text = ANY($2))
 ),
 country_members AS (
   SELECT

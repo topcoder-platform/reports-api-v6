@@ -11,7 +11,15 @@ describe("GeneralStatisticsService", () => {
     load: jest.fn().mockReturnValue("SELECT tooltip data"),
   };
   const config = {
-    get: jest.fn().mockReturnValue('["Task","First2Finish"]'),
+    get: jest.fn((key: string, defaultValue?: string) => {
+      if (key === "REPORTS_EXCLUDED_CHALLENGE_TYPES") {
+        return '["Task","First2Finish"]';
+      }
+      if (key === "REPORTS_EXCLUDED_USER_IDS") {
+        return '["8547899", 251280]';
+      }
+      return defaultValue;
+    }),
   };
   const service = new GeneralStatisticsService(
     db as unknown as DbService,
@@ -70,10 +78,10 @@ describe("GeneralStatisticsService", () => {
     expect(sql.load).toHaveBeenCalledWith(
       "reports/statistics/general/top-winners-by-country.sql",
     );
-    expect(db.query).toHaveBeenCalledWith(
-      "SELECT tooltip data",
-      [["Task", "First2Finish"]],
-    );
+    expect(db.query).toHaveBeenCalledWith("SELECT tooltip data", [
+      ["Task", "First2Finish"],
+      ["8547899", "251280"],
+    ]);
   });
 
   it("uses safe defaults when winner details are absent", async () => {
@@ -94,10 +102,29 @@ describe("GeneralStatisticsService", () => {
         topWinners: [],
       },
     ]);
-    expect(db.query).toHaveBeenCalledWith(
-      "SELECT tooltip data",
-      [["Task", "First2Finish"]],
+    expect(db.query).toHaveBeenCalledWith("SELECT tooltip data", [
+      ["Task", "First2Finish"],
+      ["8547899", "251280"],
+    ]);
+  });
+
+  it("passes no excluded users when the config is unset", async () => {
+    const emptyConfig = {
+      get: jest.fn((_key: string, defaultValue?: string) => defaultValue),
+    };
+    const serviceWithDefaults = new GeneralStatisticsService(
+      db as unknown as DbService,
+      sql as unknown as SqlLoaderService,
+      emptyConfig as unknown as ConfigService,
     );
+    db.query.mockResolvedValue([]);
+
+    await serviceWithDefaults.getTopWinnersByCountry();
+
+    expect(db.query).toHaveBeenCalledWith("SELECT tooltip data", [
+      ["Task", "First2Finish"],
+      [],
+    ]);
   });
 
   it("normalizes country member, skill, and top-member details", async () => {
@@ -191,9 +218,9 @@ describe("GeneralStatisticsService", () => {
     expect(sql.load).toHaveBeenCalledWith(
       "reports/statistics/general/country-member-details.sql",
     );
-    expect(db.query).toHaveBeenCalledWith(
-      "SELECT tooltip data",
-      [["Task", "First2Finish"]],
-    );
+    expect(db.query).toHaveBeenCalledWith("SELECT tooltip data", [
+      ["Task", "First2Finish"],
+      ["8547899", "251280"],
+    ]);
   });
 });

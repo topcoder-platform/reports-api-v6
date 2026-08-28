@@ -30,22 +30,26 @@ type CountryMemberDetailRow = {
 @Injectable()
 export class GeneralStatisticsService {
   private readonly excludedChallengeTypes: string[];
+  private readonly excludedUserIds: string[];
 
   constructor(
     private readonly db: DbService,
     private readonly sql: SqlLoaderService,
     private readonly config: ConfigService,
   ) {
-    this.excludedChallengeTypes = this.parseExcludedChallengeTypes();
+    this.excludedChallengeTypes = this.parseListConfig(
+      "REPORTS_EXCLUDED_CHALLENGE_TYPES",
+      '["Task","First2Finish"]',
+    );
+    this.excludedUserIds = this.parseListConfig(
+      "REPORTS_EXCLUDED_USER_IDS",
+      "[]",
+    );
   }
 
-  private parseExcludedChallengeTypes(): string[] {
-    const raw = this.config
-      .get<string>(
-        "REPORTS_EXCLUDED_CHALLENGE_TYPES",
-        '["Task","First2Finish"]',
-      )
-      .trim();
+  // Accepts either a JSON array string ('["1","2"]') or a comma-separated list.
+  private parseListConfig(key: string, defaultValue: string): string[] {
+    const raw = (this.config.get<string>(key, defaultValue) ?? "").trim();
 
     if (!raw) {
       return [];
@@ -55,8 +59,10 @@ export class GeneralStatisticsService {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         return parsed
-          .filter((item) => typeof item === "string" && item.trim())
-          .map((item) => item.trim());
+          .map((item) =>
+            typeof item === "number" ? String(item) : String(item ?? "").trim(),
+          )
+          .filter(Boolean);
       }
     } catch {
       // ignore JSON parse failure and fall back to comma-separated values
@@ -118,6 +124,7 @@ export class GeneralStatisticsService {
     );
     const rows = await this.db.query<CountryMemberDetailRow>(q, [
       this.excludedChallengeTypes,
+      this.excludedUserIds,
     ]);
     const countries = new Map<
       string,
@@ -272,7 +279,7 @@ export class GeneralStatisticsService {
         photoURL?: string | null;
         wins?: number | string | null;
       }> | null;
-    }>(q, [this.excludedChallengeTypes]);
+    }>(q, [this.excludedChallengeTypes, this.excludedUserIds]);
 
     return rows.map((row) => {
       const countryName =

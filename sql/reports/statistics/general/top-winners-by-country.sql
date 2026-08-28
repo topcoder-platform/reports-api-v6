@@ -21,7 +21,8 @@ stats_wins AS (
     ON track.id::text = stats."trackId"
   LEFT JOIN challenges."ChallengeType" ct
     ON ct.id::text = stats."typeId"
-  WHERE stats."isPrivate" = false
+  WHERE NOT (stats."userId"::text = ANY($2))
+    AND stats."isPrivate" = false
     AND (
       UPPER(COALESCE(track.name, stats."trackId")) LIKE '%DEVELOP%'
       OR UPPER(COALESCE(track.name, stats."trackId")) LIKE '%DESIGN%'
