@@ -85,6 +85,14 @@ export class MemberSearchBodyDto {
 
   @ApiPropertyOptional({
     description:
+      "When true, only return members who have the platform Copilot role.",
+  })
+  @IsOptional()
+  @IsBoolean()
+  copilot?: boolean;
+
+  @ApiPropertyOptional({
+    description:
       "Filter by multiple preferred role values from the member's open-to-work personalization trait.",
     type: [String],
     example: ["AI_ML_ENGINEER", "FULL_STACK_DEVELOPER"],

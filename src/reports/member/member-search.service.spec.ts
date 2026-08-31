@@ -171,6 +171,7 @@ describe("MemberSearchService", () => {
           isRecentlyActive: undefined,
           isVerified: undefined,
           openToWork: undefined,
+          isCopilot: undefined,
           location: "",
           matchedSkills: null,
           matchIndex: undefined,
@@ -212,6 +213,7 @@ describe("MemberSearchService", () => {
           isRecentlyActive: false,
           isVerified: false,
           openToWork: false,
+          isCopilot: false,
           location: "",
           matchedSkills: [],
           matchIndex: 0,
@@ -269,6 +271,7 @@ describe("MemberSearchService", () => {
       openToWork: false,
       recentlyActive: false,
       verifiedProfile: false,
+      copilot: false,
     });
 
     const dataSql = mockDbService.query.mock.calls[0][0] as string;
@@ -277,6 +280,61 @@ describe("MemberSearchService", () => {
     expect(dataSql).not.toContain(
       'EXISTS (SELECT 1 FROM recently_active ra WHERE ra.user_id = m."userId")',
     );
+    expect(dataSql).not.toContain(
+      'EXISTS (SELECT 1 FROM copilot_members cm WHERE cm.user_id = m."userId")',
+    );
+  });
+
+  it("restricts results to copilot role holders when copilot filter is enabled", async () => {
+    mockDbService.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: 0 }]);
+
+    await service.search({ copilot: true, countries: ["us"] });
+
+    const dataSql = mockDbService.query.mock.calls[0][0] as string;
+    const countSql = mockDbService.query.mock.calls[1][0] as string;
+
+    expect(dataSql).toContain("copilot_members AS (");
+    expect(dataSql).toContain("LOWER(r.name) = 'copilot'");
+    expect(dataSql).toContain(
+      'EXISTS (SELECT 1 FROM copilot_members cm WHERE cm.user_id = m."userId")',
+    );
+    // Copilot filter lives in filtered_members, so the count query honours it too.
+    expect(countSql).toContain(
+      'EXISTS (SELECT 1 FROM copilot_members cm WHERE cm.user_id = m."userId")',
+    );
+    expect(dataSql).toContain('m."homeCountryCode" = ANY($1::text[])');
+  });
+
+  it("always selects the copilot indicator for returned members", async () => {
+    mockDbService.query
+      .mockResolvedValueOnce([
+        {
+          id: "123",
+          handle: "tourist",
+          name: "Tourist Member",
+          photoUrl: null,
+          isRecentlyActive: true,
+          isVerified: true,
+          openToWork: true,
+          isCopilot: true,
+          location: "Sydney Australia",
+          matchedSkills: [],
+          matchIndex: 42,
+        },
+      ])
+      .mockResolvedValueOnce([{ total: 1 }]);
+
+    const result = await service.search({});
+
+    const dataSql = mockDbService.query.mock.calls[0][0] as string;
+
+    expect(dataSql).toContain("(cm.user_id IS NOT NULL)");
+    expect(dataSql).toContain(
+      'LEFT JOIN copilot_members      cm ON cm.user_id = m."userId"',
+    );
+    expect(result.data[0].isCopilot).toBe(true);
   });
 
   it("adds profileComplete CTE/join only when enabled and keeps count params free of pagination", async () => {

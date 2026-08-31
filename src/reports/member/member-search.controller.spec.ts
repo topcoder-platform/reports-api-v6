@@ -62,6 +62,7 @@ describe("MemberSearchController", () => {
           isRecentlyActive: true,
           isVerified: true,
           openToWork: false,
+          isCopilot: true,
           location: "Gomel Belarus",
           matchedSkills: [],
           matchIndex: 97,
