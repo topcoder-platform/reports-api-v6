@@ -69,12 +69,12 @@ Each report will be a separate SQL query, potentially with a few parameters (lik
 - **Language**: TypeScript
 - **Database**: PostgreSQL
 - **ORM**: Prisma
-- **Package Manager**: pnpm
+- **Package Manager**: pnpm 11.15.1
 
 ## Prerequisites
 
-- Node.js (v22 or later recommended)
-- pnpm
+- Node.js 26.5.1 (run `nvm use` to select the repository version)
+- pnpm 11.15.1
 
 ## Getting Started
 
@@ -190,3 +190,11 @@ The following read-only endpoints are available without authentication to suppor
 - `GET /v6/reports/statistics/mm/competitions-count` — Marathon Match number of competitions (static JSON)
 
 Static datasets are stored under `data/statistics/srm` and `data/statistics/mm` and are packaged into the ECS image in the Dockerfile.
+
+## Container Runtime
+
+The production image uses Alpine 3.24's dynamically linked Node.js 26.5.1
+package and upgrades Alpine packages during the build so system security fixes,
+including OpenSSL updates, are applied. The runtime runs as the unprivileged
+`app` account (UID 10001) and intentionally excludes npm and pnpm; package
+installation and application compilation happen only in builder stages.
