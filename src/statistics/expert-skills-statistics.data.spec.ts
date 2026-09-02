@@ -32,10 +32,10 @@ describe("expert-skills-statistics.data", () => {
         "unused-id",
         "Software Development Lifecycle (SDLC)",
       ).icon,
-    ).toBe("refresh");
+    ).toBe("cloud_sync");
     expect(
       getCategoryAppearance("unused-id", "DevOps and Automation").icon,
-    ).toBe("sync");
+    ).toBe("rule_settings");
     expect(
       getCategoryAppearance("unused-id", "UX Design and Multimedia").icon,
     ).toBe("design_services");
