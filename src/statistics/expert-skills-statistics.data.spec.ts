@@ -21,26 +21,26 @@ describe("expert-skills-statistics.data", () => {
       ),
     ).toEqual({
       color: "#1B4F72",
-      icon: "TerminalIcon",
+      icon: "terminal",
     });
     expect(getCategoryAppearance("unused-id", "Web Development")).toEqual({
       color: "#7EB8C4",
-      icon: "GlobeAltIcon",
+      icon: "language",
     });
     expect(
       getCategoryAppearance(
         "unused-id",
         "Software Development Lifecycle (SDLC)",
       ).icon,
-    ).toBe("RefreshIcon");
+    ).toBe("refresh");
     expect(
       getCategoryAppearance("unused-id", "DevOps and Automation").icon,
-    ).toBe("CogIcon");
+    ).toBe("sync");
     expect(
       getCategoryAppearance("unused-id", "UX Design and Multimedia").icon,
-    ).toBe("PencilAltIcon");
+    ).toBe("design_services");
     expect(getCategoryAppearance("unused-id", "Project Management").icon).toBe(
-      "ViewBoardsIcon",
+      "assignment",
     );
   });
 
@@ -88,7 +88,7 @@ describe("expert-skills-statistics.data", () => {
 
     expect(first).toEqual(second);
     expect(first.color).toMatch(/^#[0-9A-F]{6}$/i);
-    expect(first.icon).toMatch(/Icon$/);
+    expect(first.icon).toMatch(/^[a-z0-9_]+$/);
   });
 
   it("normalizes sizes on sqrt(wins) into the bubble range", () => {

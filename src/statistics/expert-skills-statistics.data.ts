@@ -1,7 +1,8 @@
 /**
  * Visual tokens for Skill Statistics bubbles.
- * Category names/ids come from standardized-skills. Known catalog names
- * map to Figma icons/colors; unknown entries still hash by id.
+ * Category names/ids come from standardized-skills. Icons are Material Symbols
+ * Rounded ligatures (https://fonts.google.com/icons?icon.style=Rounded).
+ * Known catalog names map to Figma icons/colors; unknown entries still hash by id.
  */
 const CATEGORY_COLORS = [
   "#1B4F72",
@@ -29,30 +30,29 @@ const CATEGORY_COLORS = [
 ];
 
 const CATEGORY_ICONS = [
-  "TerminalIcon",
-  "RssIcon",
-  "GlobeAltIcon",
-  "ShieldCheckIcon",
-  "CloudIcon",
-  "RefreshIcon",
-  "DuplicateIcon",
-  "ChipIcon",
-  "ChartBarIcon",
-  "SparklesIcon",
-  "ServerIcon",
-  "PencilAltIcon",
-  "CalculatorIcon",
-  "CubeTransparentIcon",
-  "MapIcon",
-  "DesktopComputerIcon",
-  "ClipboardCheckIcon",
-  "DatabaseIcon",
-  "DeviceMobileIcon",
-  "ShareIcon",
-  "WifiIcon",
-  "ViewBoardsIcon",
-  "CodeIcon",
-  "CogIcon",
+  "terminal",
+  "cell_tower",
+  "language",
+  "shield_locked",
+  "desktop_cloud",
+  "refresh",
+  "layers",
+  "memory",
+  "bar_chart",
+  "psychology",
+  "dns",
+  "design_services",
+  "calculate",
+  "database",
+  "map",
+  "install_desktop",
+  "fact_check",
+  "settings_cell",
+  "hub",
+  "devices",
+  "assignment",
+  "code",
+  "sync",
 ];
 
 export type CategoryAppearance = {
@@ -69,57 +69,51 @@ export function normalizeCategoryName(value: string): string {
 }
 
 const NAMED_CATEGORY_APPEARANCE: Array<[string[], CategoryAppearance]> = [
-  [["Programming and Development"], { color: "#1B4F72", icon: "TerminalIcon" }],
-  [["Web Development"], { color: "#7EB8C4", icon: "GlobeAltIcon" }],
+  [["Programming and Development"], { color: "#1B4F72", icon: "terminal" }],
+  [["Web Development"], { color: "#7EB8C4", icon: "language" }],
   [
     ["Networking and Telecommunications"],
-    { color: "#5EB3C4", icon: "RssIcon" },
+    { color: "#5EB3C4", icon: "cell_tower" },
   ],
-  [["Cybersecurity"], { color: "#5B9BD5", icon: "ShieldCheckIcon" }],
+  [["Cybersecurity"], { color: "#5B9BD5", icon: "shield_locked" }],
   [
     [
       "Software Development Lifecycle (SDLC)",
       "Software Development Lifecycle",
       "SDLC",
     ],
-    { color: "#1A3D3D", icon: "RefreshIcon" },
+    { color: "#1A3D3D", icon: "refresh" },
   ],
-  [["Cloud Computing"], { color: "#2C4A6E", icon: "CloudIcon" }],
-  [["Operating Systems"], { color: "#3D7EA6", icon: "ChipIcon" }],
-  [["DevOps and Automation"], { color: "#2D4A3E", icon: "CogIcon" }],
-  [["Data Analysis and Big Data"], { color: "#2C5F8A", icon: "ChartBarIcon" }],
-  [["Virtualization"], { color: "#3D7EA6", icon: "DuplicateIcon" }],
-  [
-    ["Databases and Data Warehousing"],
-    { color: "#1B4F72", icon: "ServerIcon" },
-  ],
-  [
-    ["Mathematics and Statistics"],
-    { color: "#6B7C4A", icon: "CalculatorIcon" },
-  ],
-  [["Database Management"], { color: "#7EB8C4", icon: "DatabaseIcon" }],
+  [["Cloud Computing"], { color: "#2C4A6E", icon: "desktop_cloud" }],
+  [["Operating Systems"], { color: "#3D7EA6", icon: "memory" }],
+  [["DevOps and Automation"], { color: "#2D4A3E", icon: "sync" }],
+  [["Data Analysis and Big Data"], { color: "#2C5F8A", icon: "bar_chart" }],
+  [["Virtualization"], { color: "#3D7EA6", icon: "layers" }],
+  [["Databases and Data Warehousing"], { color: "#1B4F72", icon: "dns" }],
+  [["Mathematics and Statistics"], { color: "#6B7C4A", icon: "calculate" }],
+  [["Database Management"], { color: "#7EB8C4", icon: "database" }],
   [
     ["Geospatial Information Systems (GIS)", "Geospatial Information Systems"],
-    { color: "#3D6A8A", icon: "MapIcon" },
+    { color: "#3D6A8A", icon: "map" },
   ],
-  [["Machine Learning and AI"], { color: "#5EB8B0", icon: "SparklesIcon" }],
+  [["Machine Learning and AI"], { color: "#5EB8B0", icon: "psychology" }],
   [
     ["User Experience Design and Multimedia", "UX Design and Multimedia"],
-    { color: "#3D5C5C", icon: "PencilAltIcon" },
+    { color: "#3D5C5C", icon: "design_services" },
   ],
   [
     ["Hardware and Systems Administration"],
-    { color: "#4EC4C4", icon: "DesktopComputerIcon" },
+    { color: "#4EC4C4", icon: "install_desktop" },
   ],
-  [["Mobile App Development"], { color: "#5A8A8A", icon: "DeviceMobileIcon" }],
+  [["Mobile App Development"], { color: "#5A8A8A", icon: "settings_cell" }],
   [
     ["Software Testing and Quality Assurance", "Software Testing and QA"],
-    { color: "#2C5F8A", icon: "ClipboardCheckIcon" },
+    { color: "#2C5F8A", icon: "fact_check" },
   ],
-  [["Blockchain"], { color: "#2C4A6E", icon: "ShareIcon" }],
-  [["IoT (Internet of Things)"], { color: "#3D8B8F", icon: "WifiIcon" }],
-  [["Project Management"], { color: "#3D7EA6", icon: "ViewBoardsIcon" }],
-  [["Scripting and Automation"], { color: "#5B9BD5", icon: "CodeIcon" }],
+  [["Blockchain"], { color: "#2C4A6E", icon: "hub" }],
+  [["IoT (Internet of Things)"], { color: "#3D8B8F", icon: "devices" }],
+  [["Project Management"], { color: "#3D7EA6", icon: "assignment" }],
+  [["Scripting and Automation"], { color: "#5B9BD5", icon: "code" }],
 ];
 
 const CATEGORY_APPEARANCE_BY_NAME: Record<string, CategoryAppearance> =
