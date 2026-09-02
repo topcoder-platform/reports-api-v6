@@ -75,9 +75,9 @@ describe("ExpertSkillsStatisticsService", () => {
       }),
     );
     expect(result[0].color).toBe("#1B4F72");
-    expect(result[0].icon).toBe("TerminalIcon");
+    expect(result[0].icon).toBe("terminal");
     expect(result[1].name).toBe("Scripting and Automation");
-    expect(result[1].icon).toBe("CodeIcon");
+    expect(result[1].icon).toBe("integration_instructions");
     expect(result[1].size).toBe(3);
   });
 
