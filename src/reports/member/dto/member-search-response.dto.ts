@@ -52,6 +52,11 @@ export class MemberResultDto {
   openToWork!: boolean;
 
   @ApiProperty({
+    description: "True when the member has the platform Copilot role.",
+  })
+  isCopilot!: boolean;
+
+  @ApiProperty({
     description: 'Member location in "city country" format.',
     example: "Sydney Australia",
   })

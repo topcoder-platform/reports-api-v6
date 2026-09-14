@@ -1,9 +1,50 @@
 packages:
   - .
 
+overrides:
+  '@hono/node-server': 2.0.10
+  '@isaacs/brace-expansion': 5.0.1
+  '@nestjs/core': 11.1.18
+  'ajv@^6.0.0': 6.14.0
+  'ajv@>=7': 8.18.0
+  axios: 1.18.1
+  body-parser: 2.3.0
+  'brace-expansion@^1.0.0': 1.1.18
+  'brace-expansion@^2.0.0': 2.1.4
+  'brace-expansion@>=3': 5.0.9
+  deepmerge-ts: 8.0.0
+  defu: 6.1.5
+  'effect@^3.0.0': 3.22.0
+  'fast-uri@^3.0.0': 3.1.5
+  'file-type@>=13.0.0 <21.3.2': 21.3.2
+  flatted: 3.4.2
+  follow-redirects: 1.16.0
+  form-data: 4.0.6
+  handlebars: 4.7.9
+  hono: 4.12.34
+  ip-address: 10.3.1
+  'js-yaml@^3': 3.15.1
+  'js-yaml@^4.0.0': 4.3.1
+  'js-yaml@^5.0.0': 5.2.2
+  'jws@^3.0.0': 3.2.3
+  lodash: 4.18.1
+  'minimatch@^3.0.0': 3.1.4
+  'minimatch@^9.0.0': 9.0.7
+  'minimatch@>=10': 10.2.3
+  multer: 2.2.0
+  path-to-regexp: 8.4.0
+  'picomatch@^2.0.0': 2.3.2
+  'picomatch@^4.0.0': 4.0.5
+  qs: 6.15.2
+  serialize-javascript: 7.0.5
+  tar: 7.5.21
+  valibot: 1.4.2
+
 allowBuilds:
-  '@nestjs/core@11.1.9': false
-  '@prisma/engines@7.0.1': true
-  '@scarf/scarf@1.4.0': false
-  dtrace-provider@0.8.8: false
-  prisma@7.0.1: true
+  '@nestjs/core': false
+  '@prisma/client': true
+  '@prisma/engines': true
+  '@scarf/scarf': false
+  dtrace-provider: false
+  prisma: true
+  unrs-resolver: true

@@ -1,7 +1,8 @@
 /**
  * Visual tokens for Skill Statistics bubbles.
- * Category names/ids come from standardized-skills; these palettes are
- * assigned by hashing the category id so new catalog entries still render.
+ * Category names/ids come from standardized-skills. Icons are Material Symbols
+ * Rounded ligatures (https://fonts.google.com/icons?icon.style=Rounded).
+ * Known catalog names map to Figma icons/colors; unknown entries still hash by id.
  */
 const CATEGORY_COLORS = [
   "#1B4F72",
@@ -29,29 +30,29 @@ const CATEGORY_COLORS = [
 ];
 
 const CATEGORY_ICONS = [
-  "TerminalIcon",
-  "RssIcon",
-  "GlobeAltIcon",
-  "ShieldCheckIcon",
-  "CloudIcon",
-  "RefreshIcon",
-  "DuplicateIcon",
-  "ChipIcon",
-  "ChartBarIcon",
-  "SparklesIcon",
-  "ServerIcon",
-  "PencilAltIcon",
-  "CalculatorIcon",
-  "CubeTransparentIcon",
-  "MapIcon",
-  "DesktopComputerIcon",
-  "ClipboardCheckIcon",
-  "DatabaseIcon",
-  "DeviceMobileIcon",
-  "ShareIcon",
-  "WifiIcon",
-  "ClipboardListIcon",
-  "CodeIcon",
+  "terminal",
+  "cell_tower",
+  "language",
+  "shield_lock",
+  "desktop_cloud_stack",
+  "cloud_sync",
+  "layers",
+  "memory",
+  "analytics",
+  "psychology",
+  "data_table",
+  "design_services",
+  "calculate",
+  "database",
+  "map",
+  "install_desktop",
+  "fact_check",
+  "mobile_gear",
+  "hub",
+  "devices_other",
+  "assignment",
+  "integration_instructions",
+  "rule_settings",
 ];
 
 export type CategoryAppearance = {
@@ -59,21 +60,93 @@ export type CategoryAppearance = {
   icon: string;
 };
 
-export function getCategoryAppearance(categoryId: string): CategoryAppearance {
-  const hash = hashString(categoryId);
-
-  return {
-    color: CATEGORY_COLORS[hash % CATEGORY_COLORS.length],
-    icon: CATEGORY_ICONS[hash % CATEGORY_ICONS.length],
-  };
-}
-
 export function normalizeCategoryName(value: string): string {
   return value
     .toLowerCase()
     .replace(/&/g, "and")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+const NAMED_CATEGORY_APPEARANCE: Array<[string[], CategoryAppearance]> = [
+  [["Programming and Development"], { color: "#1B4F72", icon: "terminal" }],
+  [["Web Development"], { color: "#7EB8C4", icon: "language" }],
+  [
+    ["Networking and Telecommunications"],
+    { color: "#5EB3C4", icon: "cell_tower" },
+  ],
+  [["Cybersecurity"], { color: "#5B9BD5", icon: "shield_lock" }],
+  [
+    [
+      "Software Development Lifecycle (SDLC)",
+      "Software Development Lifecycle",
+      "SDLC",
+    ],
+    { color: "#1A3D3D", icon: "cloud_sync" },
+  ],
+  [["Cloud Computing"], { color: "#2C4A6E", icon: "desktop_cloud_stack" }],
+  [["Operating Systems"], { color: "#3D7EA6", icon: "memory" }],
+  [["DevOps and Automation"], { color: "#2D4A3E", icon: "rule_settings" }],
+  [["Data Analysis and Big Data"], { color: "#2C5F8A", icon: "analytics" }],
+  [["Virtualization"], { color: "#3D7EA6", icon: "layers" }],
+  [
+    ["Databases and Data Warehousing"],
+    { color: "#1B4F72", icon: "data_table" },
+  ],
+  [["Mathematics and Statistics"], { color: "#6B7C4A", icon: "calculate" }],
+  [["Database Management"], { color: "#7EB8C4", icon: "database" }],
+  [
+    ["Geospatial Information Systems (GIS)", "Geospatial Information Systems"],
+    { color: "#3D6A8A", icon: "map" },
+  ],
+  [["Machine Learning and AI"], { color: "#5EB8B0", icon: "psychology" }],
+  [
+    ["User Experience Design and Multimedia", "UX Design and Multimedia"],
+    { color: "#3D5C5C", icon: "design_services" },
+  ],
+  [
+    ["Hardware and Systems Administration"],
+    { color: "#4EC4C4", icon: "install_desktop" },
+  ],
+  [["Mobile App Development"], { color: "#5A8A8A", icon: "mobile_gear" }],
+  [
+    ["Software Testing and Quality Assurance", "Software Testing and QA"],
+    { color: "#2C5F8A", icon: "fact_check" },
+  ],
+  [["Blockchain"], { color: "#2C4A6E", icon: "hub" }],
+  [["IoT (Internet of Things)"], { color: "#3D8B8F", icon: "devices_other" }],
+  [["Project Management"], { color: "#3D7EA6", icon: "assignment" }],
+  [
+    ["Scripting and Automation"],
+    { color: "#5B9BD5", icon: "integration_instructions" },
+  ],
+];
+
+const CATEGORY_APPEARANCE_BY_NAME: Record<string, CategoryAppearance> =
+  Object.fromEntries(
+    NAMED_CATEGORY_APPEARANCE.flatMap(([names, appearance]) =>
+      names.map((name) => [normalizeCategoryName(name), appearance]),
+    ),
+  );
+
+export function getCategoryAppearance(
+  categoryId: string,
+  categoryName?: string,
+): CategoryAppearance {
+  const mapped = categoryName
+    ? CATEGORY_APPEARANCE_BY_NAME[normalizeCategoryName(categoryName)]
+    : undefined;
+
+  if (mapped) {
+    return mapped;
+  }
+
+  const hash = hashString(categoryId);
+
+  return {
+    color: CATEGORY_COLORS[hash % CATEGORY_COLORS.length],
+    icon: CATEGORY_ICONS[hash % CATEGORY_ICONS.length],
+  };
 }
 
 export const MIN_CATEGORY_SIZE = 3;

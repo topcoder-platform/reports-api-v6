@@ -22,6 +22,7 @@ type RawMemberRow = {
   isRecentlyActive: boolean;
   isVerified: boolean;
   openToWork: boolean;
+  isCopilot: boolean;
   location: string;
   matchedSkills: MatchedSkillDto[] | null;
   matchIndex: number;
@@ -421,6 +422,7 @@ ORDER BY
       recentlyActive,
       verifiedProfile,
       profileComplete,
+      copilot,
       countries,
       preferredRoles,
       sortBy = "matchIndex",
@@ -555,6 +557,14 @@ verified_via_trolley AS (
   FROM finance.trolley_recipient tr
   INNER JOIN active_members am ON am.user_id = tr.user_id::bigint
 ),
+copilot_members AS (
+  SELECT DISTINCT ra.subject_id::bigint AS user_id
+  FROM identity.role_assignment ra
+  INNER JOIN identity.role r ON r.id = ra.role_id
+  INNER JOIN active_members am ON am.user_id = ra.subject_id::bigint
+  WHERE ra.subject_type = 1
+    AND LOWER(r.name) = 'copilot'
+),
 member_address AS (
   SELECT DISTINCT ON ("userId")
     "userId", city
@@ -581,6 +591,12 @@ member_address AS (
     if (verifiedProfile === true) {
       where.push(
         `(COALESCE(m.verified, false) = true OR EXISTS (SELECT 1 FROM verified_via_trolley vt WHERE vt.user_id = m."userId"))`,
+      );
+    }
+
+    if (copilot === true) {
+      where.push(
+        `EXISTS (SELECT 1 FROM copilot_members cm WHERE cm.user_id = m."userId")`,
       );
     }
 
@@ -746,6 +762,7 @@ SELECT
   EXISTS (SELECT 1 FROM recently_active   ra WHERE ra.user_id = m."userId") AS "isRecentlyActive",
   (COALESCE(m.verified, false) = true OR vt.user_id IS NOT NULL)             AS "isVerified",
   COALESCE(m."availableForGigs", false)                                     AS "openToWork",
+  (cm.user_id IS NOT NULL)                                                   AS "isCopilot",
   TRIM(
     COALESCE(maddr.city || ' ', '') ||
     COALESCE(m."homeCountryCode", COALESCE(m.country, COALESCE(m."competitionCountryCode", '')))
@@ -757,6 +774,7 @@ INNER JOIN filtered_members fm ON fm.user_id = m."userId"
 ${profileCompleteJoin}
 ${deduped.length > 0 ? 'LEFT JOIN user_match_data umd ON umd.user_id = m."userId"' : ""}
 LEFT JOIN verified_via_trolley vt ON vt.user_id = m."userId"
+LEFT JOIN copilot_members      cm ON cm.user_id = m."userId"
 LEFT JOIN member_address    maddr ON maddr."userId" = m."userId"
 ORDER BY ${orderByClause}
 LIMIT ${pLimit} OFFSET ${pOffset}`;
@@ -784,6 +802,7 @@ LIMIT ${pLimit} OFFSET ${pOffset}`;
       isRecentlyActive: row.isRecentlyActive ?? false,
       isVerified: row.isVerified ?? false,
       openToWork: row.openToWork ?? false,
+      isCopilot: row.isCopilot ?? false,
       location: formatLocation(row.location),
       matchedSkills: row.matchedSkills ?? [],
       matchIndex: row.matchIndex ?? 0,

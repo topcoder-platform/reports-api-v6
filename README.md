@@ -69,12 +69,12 @@ Each report will be a separate SQL query, potentially with a few parameters (lik
 - **Language**: TypeScript
 - **Database**: PostgreSQL
 - **ORM**: Prisma
-- **Package Manager**: pnpm
+- **Package Manager**: pnpm 11.15.1
 
 ## Prerequisites
 
-- Node.js (v22 or later recommended)
-- pnpm
+- Node.js 26.5.1 (run `nvm use` to select the repository version)
+- pnpm 11.15.1
 
 ## Getting Started
 
@@ -109,6 +109,18 @@ ENGAGEMENTS_DB_URL="postgresql://user:password@localhost:5432/engagements"
 # The same report also reads member/profile/project data from the main
 # DATABASE_URL connection, including members.member, members.memberAddress,
 # members.memberPhone, identity.country, lookups.Country, and projects.projects.
+
+# ---------------------------------------------------
+# General statistics exclusions
+# ---------------------------------------------------
+
+# Challenge type names excluded from the general statistics win counts.
+# JSON array or comma-separated. Defaults to '["Task","First2Finish"]'.
+REPORTS_EXCLUDED_CHALLENGE_TYPES='["Task","First2Finish"]'
+
+# Member user IDs excluded from the general statistics (country member details
+# and top winners by country). JSON array or comma-separated; defaults to empty.
+REPORTS_EXCLUDED_USER_IDS='["8547899","251280"]'
 
 # Old tc-payments database URL (used by member-tax CSV export script)
 OLD_PAYMENTS_DATABASE_URL="postgresql://user:password@localhost:5432/tc_payments?schema=public"
@@ -178,3 +190,11 @@ The following read-only endpoints are available without authentication to suppor
 - `GET /v6/reports/statistics/mm/competitions-count` — Marathon Match number of competitions (static JSON)
 
 Static datasets are stored under `data/statistics/srm` and `data/statistics/mm` and are packaged into the ECS image in the Dockerfile.
+
+## Container Runtime
+
+The production image uses Alpine 3.24's dynamically linked Node.js 26.5.1
+package and upgrades Alpine packages during the build so system security fixes,
+including OpenSSL updates, are applied. The runtime runs as the unprivileged
+`app` account (UID 10001) and intentionally excludes npm and pnpm; package
+installation and application compilation happen only in builder stages.
