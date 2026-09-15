@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { DbModule } from "./db/db.module";
 import { AuthMiddleware } from "./auth/auth.middleware";
+import { WinReportsModule } from "./reports/win/win-reports.module";
 import { HealthModule } from "./health/health.module";
 
 import { TopgearReportsModule } from "./reports/topgear/topgear-reports.module";
@@ -26,6 +27,7 @@ import { DashboardReportsModule } from "./reports/dashboard/dashboard-reports.mo
     ChallengesReportsModule,
     IdentityReportsModule,
     ReportsModule,
+    WinReportsModule,
     MemberSearchModule,
     PaymentReportsModule,
     DashboardReportsModule,

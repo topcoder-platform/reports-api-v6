@@ -1,4 +1,5 @@
 export const Scopes = {
+  WIN: "reports:win",
   TopgearHourly: "reports:topgear-hourly",
   TopgearHandles: "reports:topgear-handles",
   TopgearPayments: "reports:topgear-payments",
@@ -60,6 +61,7 @@ const challengeReportAccessRoles = [
 const sfdcReportsTalentManagerRoles = [UserRoles.TalentManager] as const;
 
 export const ScopeRoleAccess: Record<string, readonly string[]> = {
+  [Scopes.WIN]: [UserRoles.TalentManager],
   [Scopes.Challenge.History]: challengeReportAccessRoles,
   [Scopes.Challenge.Registrants]: challengeReportAccessRoles,
   [Scopes.Challenge.SubmissionLinks]: challengeReportAccessRoles,

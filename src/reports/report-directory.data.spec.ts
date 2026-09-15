@@ -71,6 +71,7 @@ describe("getAccessibleReportsDirectory", () => {
       "member",
       "sfdc",
       "statistics",
+      "win",
     ]);
     expect(directory.identity?.reports.map((report) => report.path)).toEqual([
       "/identity/users-by-handles",
@@ -148,4 +149,9 @@ describe("getAccessibleReportsDirectory", () => {
   it("returns an empty directory when no JWT user is present", () => {
     expect(getAccessibleReportsDirectory()).toEqual({});
   });
+  it("lists the WIN route only for its dedicated scope or allowed roles", () => {
+    expect(getAccessibleReportsDirectory({ scopes: ["reports:win"], isMachine: true }).win?.reports[0].path).toBe("/WIN");
+    expect(getAccessibleReportsDirectory({ scopes: ["reports:all"], isMachine: true }).win).toBeUndefined();
+  });
+
 });
