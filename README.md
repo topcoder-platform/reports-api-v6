@@ -198,3 +198,8 @@ package and upgrades Alpine packages during the build so system security fixes,
 including OpenSSL updates, are applied. The runtime runs as the unprivileged
 `app` account (UID 10001) and intentionally excludes npm and pnpm; package
 installation and application compilation happen only in builder stages.
+
+## WIN showcase integration
+
+See [WIN showcase export](./WIN.md) for `GET /v6/reports/WIN`, its `reports:win`
+scope and role checks, payload fields, pagination, and database requirements.
