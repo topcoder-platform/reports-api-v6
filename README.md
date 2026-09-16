@@ -53,6 +53,13 @@ Dashboard figures use these shared definitions:
 Human access is limited to Administrator and Talent Manager roles. Machine
 tokens require the `reports:all` scope.
 
+## Salesforce Sales report
+
+The read-only Sales UI and machine-only WIN sales integration dynamically run a
+saved Salesforce report. See [SALES.md](SALES.md) for the two endpoints, dedicated
+`reports:sales` scope, server credentials, response schema, refresh behavior,
+and Salesforce completeness limits.
+
 ## Security
 
 Currently, an M2M token is required to pull any report, and each report has its own scope associated with it that must be applied to the M2M token client ID

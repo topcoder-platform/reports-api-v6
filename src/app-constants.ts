@@ -1,4 +1,5 @@
 export const Scopes = {
+  Sales: "reports:sales",
   WIN: "reports:win",
   TopgearHourly: "reports:topgear-hourly",
   TopgearHandles: "reports:topgear-handles",

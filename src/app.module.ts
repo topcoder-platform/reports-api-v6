@@ -15,6 +15,7 @@ import { ReportsModule } from "./reports/reports.module";
 import { MemberSearchModule } from "./reports/member/member-search.module";
 import { PaymentReportsModule } from "./reports/payment/payment-reports.module";
 import { DashboardReportsModule } from "./reports/dashboard/dashboard-reports.module";
+import { SalesReportsModule } from "./reports/sales/sales-reports.module";
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { DashboardReportsModule } from "./reports/dashboard/dashboard-reports.mo
     MemberSearchModule,
     PaymentReportsModule,
     DashboardReportsModule,
+    SalesReportsModule,
     HealthModule,
   ],
 })
