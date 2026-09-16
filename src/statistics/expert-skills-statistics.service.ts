@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import {
   alpha3ToCountryName,
   toAlpha2CountryCode,
@@ -76,10 +77,45 @@ function formatMemberName(
 
 @Injectable()
 export class ExpertSkillsStatisticsService {
+  private readonly excludedUserIds: string[];
+
   constructor(
     private readonly db: DbService,
     private readonly sql: SqlLoaderService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    this.excludedUserIds = this.parseListConfig(
+      "REPORTS_EXCLUDED_USER_IDS",
+      "[]",
+    );
+  }
+
+  // Accepts either a JSON array string ('["1","2"]') or a comma-separated list.
+  private parseListConfig(key: string, defaultValue: string): string[] {
+    const raw = (this.config.get<string>(key, defaultValue) ?? "").trim();
+
+    if (!raw) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) =>
+            typeof item === "number" ? String(item) : String(item ?? "").trim(),
+          )
+          .filter(Boolean);
+      }
+    } catch {
+      // ignore JSON parse failure and fall back to comma-separated values
+    }
+
+    return raw
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
 
   async getCategories() {
     const categories = await this.loadCategories();
@@ -122,6 +158,7 @@ export class ExpertSkillsStatisticsService {
     const rows = await this.db.query<MemberRow>(q, [
       category.id,
       MEMBERS_LIMIT,
+      this.excludedUserIds,
     ]);
 
     return rows.map((row) => {
@@ -180,7 +217,10 @@ export class ExpertSkillsStatisticsService {
     const q = this.sql.load(
       "reports/statistics/expert-skills/category-stats.sql",
     );
-    const rows = await this.db.query<CategoryStatsRow>(q, [categoryIds]);
+    const rows = await this.db.query<CategoryStatsRow>(q, [
+      categoryIds,
+      this.excludedUserIds,
+    ]);
 
     return new Map(rows.map((row) => [row.id, row]));
   }

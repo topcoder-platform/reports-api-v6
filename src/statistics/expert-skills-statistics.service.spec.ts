@@ -1,4 +1,5 @@
 import { NotFoundException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { DbService } from "../db/db.service";
 import { SqlLoaderService } from "../common/sql-loader.service";
 import { ExpertSkillsStatisticsService } from "./expert-skills-statistics.service";
@@ -10,9 +11,18 @@ describe("ExpertSkillsStatisticsService", () => {
   const sql = {
     load: jest.fn().mockReturnValue("SELECT expert skills"),
   };
+  const config = {
+    get: jest.fn((key: string, defaultValue?: string) => {
+      if (key === "REPORTS_EXCLUDED_USER_IDS") {
+        return '["22838965", "8547899"]';
+      }
+      return defaultValue;
+    }),
+  };
   const service = new ExpertSkillsStatisticsService(
     db as unknown as DbService,
     sql as unknown as SqlLoaderService,
+    config as unknown as ConfigService,
   );
 
   beforeEach(() => {
@@ -63,6 +73,7 @@ describe("ExpertSkillsStatisticsService", () => {
         "481b5ebc-2fe6-45ed-a90c-736936d458d7",
         "1f5ed3e8-8d22-44ea-b75d-ea85147a04da",
       ],
+      ["22838965", "8547899"],
     ]);
     expect(result[0]).toEqual(
       expect.objectContaining({
@@ -126,6 +137,7 @@ describe("ExpertSkillsStatisticsService", () => {
     expect(db.query).toHaveBeenNthCalledWith(2, "SELECT expert skills", [
       "481b5ebc-2fe6-45ed-a90c-736936d458d7",
       100,
+      ["22838965", "8547899"],
     ]);
     expect(result).toEqual([
       {

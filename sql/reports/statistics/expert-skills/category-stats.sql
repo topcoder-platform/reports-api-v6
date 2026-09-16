@@ -20,6 +20,7 @@ member_counts AS (
     ON sk.id = us.skill_id
    AND sk.deleted_at IS NULL
   WHERE sk.category_id = ANY($1::uuid[])
+    AND NOT (us.user_id::text = ANY($2))
   GROUP BY sk.category_id
 ),
 win_events AS (
@@ -37,6 +38,7 @@ win_events AS (
   JOIN skills.source_type sest
     ON sest.id = se.source_type_id
   WHERE sk.category_id = ANY($1::uuid[])
+    AND NOT (se.user_id::text = ANY($2))
     AND (
       LOWER(set_t.name) IN (
         'challenge_win',
