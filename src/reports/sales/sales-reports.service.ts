@@ -4,6 +4,7 @@ import {
   Injectable,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { compile } from "html-to-text";
 import {
   SalesCellDto,
   SalesReportDto,
@@ -18,6 +19,19 @@ import {
 
 const CACHE_MS = 60000;
 const REFRESH_COOLDOWN_MS = 5000;
+const htmlToPlainText = compile({
+  wordwrap: false,
+  selectors: [
+    {
+      selector: "img",
+      options: {
+        /** Omits image source paths, keeping only parsed alt text. Returns an empty path; does not throw. */
+        pathRewrite: () => "",
+      },
+    },
+    { selector: "a", options: { ignoreHref: true } },
+  ],
+});
 
 /**
  * Normalizes live Salesforce report data for both Sales and WIN. Maintains one
@@ -82,35 +96,10 @@ export class SalesReportsService {
    * This is a text projection, not an HTML sanitizer: clients must render the result as text.
    * @param html Formula label, such as the Forecast Alert image.
    * @returns Readable text without fetching protected images or executing markup.
-   * @throws Does not throw for unknown entities; they remain literal text.
+   * @throws Does not throw for malformed markup; the parser handles incomplete HTML.
    */
   private htmlLabel(html: string): string {
-    const entities: Record<string, string> = {
-      amp: "&",
-      lt: "<",
-      gt: ">",
-      quot: '"',
-      apos: "'",
-      nbsp: " ",
-    };
-    return html
-      .replace(/<img\b[^>]*\balt\s*=\s*["']([^"']*)["'][^>]*>/gi, "$1")
-      .replace(/<[^>]*>/g, "")
-      .replace(
-        /&(#x[\da-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi,
-        (entity: string, name: string) => {
-          if (!name.startsWith("#"))
-            return entities[name.toLowerCase()] ?? entity;
-          const code =
-            name.slice(0, 2).toLowerCase() === "#x"
-              ? parseInt(name.slice(2), 16)
-              : Number(name.slice(1));
-          return code > 0 && code <= 0x10ffff
-            ? String.fromCodePoint(code)
-            : entity;
-        },
-      )
-      .trim();
+    return htmlToPlainText(html).trim();
   }
 
   /**

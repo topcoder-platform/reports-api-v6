@@ -62,7 +62,7 @@ and Salesforce completeness limits.
 
 ## Security
 
-Currently, an M2M token is required to pull any report, and each report has its own scope associated with it that must be applied to the M2M token client ID
+Report endpoints enforce their documented roles and scopes. Machine clients require the scopes granted to their client ID. The Sales UI endpoint is limited to Administrator/Talent Manager users, while the WIN Sales endpoint requires an M2M token with `reports:sales`.
 
 The report directory (list of endpoints and parameters) is available at `GET /v6/reports/directory` and uses the same authorization rules as other endpoints. The service accepts bearer tokens from the standard `Authorization` header, and also from proxies that forward the token in `X-Authorization`/`X-Forwarded-Authorization`.
 
