@@ -65,7 +65,6 @@ workflows:
             only:
               - develop
               - PM-4931
-              - skill-statistics
           tags:
               only: /^dev-.*/
 

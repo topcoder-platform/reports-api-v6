@@ -25,6 +25,8 @@ describe("Expert skills statistics SQL", () => {
     expect(sql).toContain("challenge_win");
     expect(sql).toContain("gig_completion");
     expect(sql).toContain("ts.rn <= 3");
+    expect(sql).toContain("NOT (us.user_id::text = ANY($2))");
+    expect(sql).toContain("NOT (se.user_id::text = ANY($2))");
     expect(sql).not.toContain("NOT ILIKE 'Test Cat%'");
   });
 
@@ -37,6 +39,7 @@ describe("Expert skills statistics SQL", () => {
     expect(sql).toContain("JOIN members.member m");
     expect(sql).toContain('members."memberMaxRating"');
     expect(sql).toContain("ORDER BY cw.wins DESC, m.handle ASC");
+    expect(sql).toContain("NOT (se.user_id::text = ANY($3))");
     expect(sql).toContain("LIMIT $2");
   });
 });
