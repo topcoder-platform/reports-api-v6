@@ -45,11 +45,14 @@ Both endpoints accept the same query parameters:
 | `search` | Case-insensitive substring across all displayed cells, up to 200 characters |
 | `filterColumn`, `filterValue` | Column ID and case-insensitive displayed-value substring; supply both |
 | `sortBy`, `sortOrder` | Column ID and `asc`/`desc`; numeric and ISO date values sort before pagination |
+| `dateColumn` | Column ID of a `date`/`datetime` column, such as Created Date or Close Date |
+| `dateFrom`, `dateTo` | Inclusive `YYYY-MM-DD` bounds; either or both, and both require `dateColumn` |
 | `refresh` | `true` to refresh, subject to the five-second minimum interval; default `false` |
 
 Response fields: `reportId`, `reportName`, `columns[{id,label,dataType}]`,
 `rows[{id,cells:[{label,value,currencyCode?}]}]`, `allData`, `sourceRowCount`,
-`total`, `page`, `perPage`, `totalPages`, `refreshedAt`, `refreshAfterSeconds`.
+`total`, `page`, `perPage`, `totalPages`, `refreshedAt`, `refreshAfterSeconds`,
+`summary`.
 Cells follow column order. Labels are plain text, never HTML. Currency values
 retain their amount and currency code. Null values are preserved. Row IDs are
 snapshot-local fact-map keys, not durable Salesforce record identifiers.
@@ -63,6 +66,41 @@ Filtering and sorting operate over the complete **received snapshot**, before
 pagination. `total` is the matching received-row count; `sourceRowCount` is its
 unfiltered count. Out-of-range pages clamp to the final available page. Empty
 reports return zero rows and `totalPages: 0`, `page: 1`.
+
+### Date range filtering (PM-6364)
+
+`dateColumn` selects which date the range applies to, so the same report answers
+both pipeline generation (Created Date) and revenue realization (Close Date)
+questions. Bounds are inclusive and combine with `search` and
+`filterColumn`/`filterValue`. Selecting a `dateColumn` with no bound is a no-op,
+which lets a client keep the field selected while the range is empty.
+
+Comparison uses each cell's **underlying** Salesforce value, never its localized
+label: date and datetime values arrive as ISO 8601, and a datetime keeps the
+report's own offset, so its day matches the day the report displays. A row whose
+date cell is null or unparseable cannot satisfy a range and is excluded rather
+than counted. `400` responses cover a bound without `dateColumn`, `dateFrom`
+after `dateTo`, a `dateColumn` that is not a `date`/`datetime` column, and any
+bound that is not a real `YYYY-MM-DD` calendar day (`2026-02-30` and non-leap
+`2027-02-29` are rejected; datetimes and offsets are not accepted as bounds).
+
+### Summary aggregates (PM-6364)
+
+`summary` describes **every matching row in the snapshot**, not the returned
+page, so counts and totals stay correct under pagination:
+
+| Field | Meaning |
+| --- | --- |
+| `recordCount` | Matching rows; always equal to `total` |
+| `amounts[]` | One entry per `currency`/`double` column: `columnId`, `label`, `total`, contributing `count`, and `currencyCode` when the contributing rows agree |
+| `groups[]` | Up to three `picklist`/`multipicklist`/`combobox`/`boolean` columns broken into `buckets[{label,count,total}]`, ordered by total then count, capped at 25 with the remainder in `otherBuckets` |
+
+Bucket totals use the report's first amount column, named in `amountColumnId`.
+Totals round to cents so repeated floating-point addition cannot leak artifacts
+into displayed currency. A `currencyCode` is omitted when contributing rows
+declare different currencies; rows that declare none cannot contradict the rest.
+Because aggregates cover received rows only, `allData: false` limits them
+exactly as it limits `total`.
 
 Salesforce Analytics limits detail responses to 2,000 rows. `allData: false`
 explicitly flags an incomplete upstream snapshot; the UI warns that search,

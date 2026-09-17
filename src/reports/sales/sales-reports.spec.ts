@@ -269,6 +269,181 @@ describe("SalesReportsService", () => {
     expect(runReport).toHaveBeenCalledTimes(2);
   });
 
+  it("filters an inclusive date range on the selected column before counting", async () => {
+    const september = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), {
+        dateColumn: "CLOSE_DATE",
+        dateFrom: "2026-09-01",
+        dateTo: "2026-09-30",
+      }),
+    );
+    expect(september.total).toBe(1);
+    expect(september.rows[0].cells[0].label).toBe("Alpha");
+    expect(september.sourceRowCount).toBe(3);
+    const openEnded = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), {
+        dateColumn: "CLOSE_DATE",
+        dateFrom: "2026-09-01",
+      }),
+    );
+    expect(openEnded.rows.map((row) => row.cells[0].label)).toEqual([
+      "Alpha",
+      "Beta",
+    ]);
+    const upToOnly = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), {
+        dateColumn: "CLOSE_DATE",
+        dateTo: "2026-08-31",
+      }),
+    );
+    expect(upToOnly.rows.map((row) => row.cells[0].label)).toEqual(["Gamma"]);
+  });
+
+  it("selecting a date column without a bound leaves the result set untouched", async () => {
+    const result = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), { dateColumn: "CLOSE_DATE" }),
+    );
+    expect(result.total).toBe(3);
+  });
+
+  it("uses the underlying date value and drops rows the range cannot place", async () => {
+    const fixture = reportFixture();
+    // A localized label with no usable underlying value must not be guessed at.
+    fixture.factMap["0!T"].rows![1].dataCells[2] = {
+      label: "10/1/2026",
+      value: null,
+    };
+    // A datetime keeps the report's own offset; the displayed day is what counts.
+    fixture.factMap["0!T"].rows![0].dataCells[2] = {
+      label: "9/30/2026",
+      value: "2026-09-30T22:00:00-07:00",
+    };
+    runReport.mockResolvedValue(fixture);
+    const result = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), {
+        dateColumn: "CLOSE_DATE",
+        dateFrom: "2026-09-01",
+        dateTo: "2026-09-30",
+      }),
+    );
+    expect(result.rows.map((row) => row.cells[0].label)).toEqual(["Alpha"]);
+    expect(result.total).toBe(1);
+  });
+
+  it("combines the date range with search and column filters", async () => {
+    const result = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), {
+        dateColumn: "CLOSE_DATE",
+        dateFrom: "2026-08-01",
+        dateTo: "2026-10-31",
+        search: "a",
+        filterColumn: "NAME",
+        filterValue: "alpha",
+      }),
+    );
+    expect(result.rows.map((row) => row.cells[0].label)).toEqual(["Alpha"]);
+  });
+
+  it("rejects incomplete, inverted and non-date range requests", async () => {
+    for (const query of [
+      { dateFrom: "2026-09-01" },
+      { dateTo: "2026-09-30" },
+      {
+        dateColumn: "CLOSE_DATE",
+        dateFrom: "2026-09-30",
+        dateTo: "2026-09-01",
+      },
+      { dateColumn: "AMOUNT", dateFrom: "2026-09-01" },
+      { dateColumn: "missing", dateFrom: "2026-09-01" },
+    ]) {
+      await expect(
+        service.getReport(Object.assign(new SalesReportQueryDto(), query)),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    }
+  });
+
+  it("summarizes every matching row rather than the returned page", async () => {
+    const unfiltered = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), { perPage: 1 }),
+    );
+    expect(unfiltered.rows).toHaveLength(1);
+    expect(unfiltered.summary).toMatchObject({ recordCount: 3 });
+    // Beta's plain 20 declares no currency, so it cannot contradict Alpha's USD.
+    expect(unfiltered.summary.amounts).toEqual([
+      {
+        columnId: "AMOUNT",
+        label: "Amount",
+        total: 1020,
+        count: 2,
+        currencyCode: "USD",
+      },
+    ]);
+    const september = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), {
+        dateColumn: "CLOSE_DATE",
+        dateFrom: "2026-09-01",
+        dateTo: "2026-09-30",
+      }),
+    );
+    expect(september.summary).toMatchObject({ recordCount: 1 });
+    expect(september.summary.amounts[0]).toEqual({
+      columnId: "AMOUNT",
+      label: "Amount",
+      total: 1000,
+      count: 1,
+      currencyCode: "USD",
+    });
+  });
+
+  it("breaks stage groupings down by count and amount, largest total first", async () => {
+    const fixture = reportFixture();
+    fixture.reportMetadata.groupingsDown = [{ name: "STAGE_NAME" }];
+    fixture.reportExtendedMetadata.groupingColumnInfo = {
+      STAGE_NAME: { label: "Stage", dataType: "picklist" },
+    };
+    fixture.groupingsDown = {
+      groupings: [
+        { key: "0", label: "Proposal", value: "Proposal", groupings: [] },
+        { key: "1", label: "Closed Won", value: "Closed Won", groupings: [] },
+      ],
+    };
+    fixture.factMap["0!T"].rows![1].dataCells[1] = {
+      label: "$20",
+      value: { amount: 20, currencyCode: "USD" },
+    };
+    runReport.mockResolvedValue(fixture);
+    const result = await service.getReport(new SalesReportQueryDto());
+    expect(result.summary.groups).toEqual([
+      {
+        columnId: "STAGE_NAME",
+        label: "Stage",
+        amountColumnId: "AMOUNT",
+        currencyCode: "USD",
+        otherBuckets: 0,
+        buckets: [
+          { label: "Proposal", count: 2, total: 1020 },
+          { label: "Closed Won", count: 1, total: 0 },
+        ],
+      },
+    ]);
+  });
+
+  it("does not label a total with a currency the matching rows do not share", async () => {
+    const fixture = reportFixture();
+    fixture.factMap["0!T"].rows![1].dataCells[1] = {
+      label: "\u20ac20",
+      value: { amount: 20, currencyCode: "EUR" },
+    };
+    runReport.mockResolvedValue(fixture);
+    const result = await service.getReport(new SalesReportQueryDto());
+    expect(result.summary.amounts[0]).toEqual({
+      columnId: "AMOUNT",
+      label: "Amount",
+      total: 1020,
+      count: 2,
+    });
+  });
+
   it("distinguishes an empty report, truncated data and an invalid detail-disabled report", async () => {
     const fixture = reportFixture();
     fixture.factMap = { "T!T": { rows: [] } };
@@ -352,12 +527,33 @@ describe("Sales query validation", () => {
       ),
     ).toMatchObject({ refresh: false, page: 2, perPage: 50 });
   });
+  it("accepts a well-formed calendar range", async () => {
+    expect(
+      await pipe.transform(
+        {
+          dateColumn: "CLOSE_DATE",
+          dateFrom: "2028-02-29",
+          dateTo: "2026-09-30",
+        },
+        metadata,
+      ),
+    ).toMatchObject({
+      dateColumn: "CLOSE_DATE",
+      dateFrom: "2028-02-29",
+      dateTo: "2026-09-30",
+    });
+  });
   it.each([
     { page: "0" },
     { perPage: "201" },
     { refresh: "1" },
     { sortOrder: "invalid" },
     { search: ["a", "b"] },
+    { dateFrom: "09/01/2026" },
+    { dateFrom: "2026-09-01T00:00:00Z" },
+    { dateFrom: "2026-02-30" },
+    { dateTo: "2027-02-29" },
+    { dateTo: "2026-13-01" },
   ])("rejects invalid input %j", async (query) => {
     await expect(pipe.transform(query, metadata)).rejects.toBeInstanceOf(
       BadRequestException,
