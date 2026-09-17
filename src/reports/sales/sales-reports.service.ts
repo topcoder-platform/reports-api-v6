@@ -7,9 +7,12 @@ import { ConfigService } from "@nestjs/config";
 import { compile } from "html-to-text";
 import {
   SalesCellDto,
+  SalesColumnDto,
   SalesReportDto,
   SalesReportQueryDto,
   SalesRowDto,
+  SalesSummaryDto,
+  SalesSummaryGroupDto,
 } from "./sales-reports.dto";
 import {
   SalesforceGrouping,
@@ -19,6 +22,15 @@ import {
 
 const CACHE_MS = 60000;
 const REFRESH_COOLDOWN_MS = 5000;
+/** Column types that can carry a pipeline or revenue amount worth totalling. */
+const AMOUNT_TYPES = ["currency", "double"];
+/** Column types that a date range can be applied to. */
+const DATE_TYPES = ["date", "datetime"];
+/** Column types that describe a category, such as a pipeline stage. */
+const CATEGORY_TYPES = ["picklist", "multipicklist", "combobox", "boolean"];
+/** Keeps a breakdown readable and the response bounded for very wide reports. */
+const MAX_SUMMARY_GROUPS = 3;
+const MAX_SUMMARY_BUCKETS = 25;
 const htmlToPlainText = compile({
   wordwrap: false,
   selectors: [
@@ -223,6 +235,158 @@ export class SalesReportsService {
       totalPages: Math.ceil(rows.length / 25),
       refreshedAt: new Date().toISOString(),
       refreshAfterSeconds: CACHE_MS / 1000,
+      summary: this.summarize(rows, columns),
+    };
+  }
+
+  /**
+   * Reads the calendar day a date cell falls on, using the underlying Salesforce
+   * value rather than its locale-formatted label.
+   * @param cell Cell taken from a column whose dataType is date or datetime.
+   * @returns The YYYY-MM-DD day, or undefined when the cell holds no usable date.
+   * @throws Does not throw for null, blank or unparseable values.
+   */
+  private day(cell: SalesCellDto | undefined): string | undefined {
+    const raw = cell?.value;
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+      return new Date(raw).toISOString().slice(0, 10);
+    }
+    // Salesforce emits date and datetime values as ISO 8601; a datetime keeps
+    // the report's own offset, so slicing matches the day the report displays.
+    return typeof raw === "string" && /^\d{4}-\d{2}-\d{2}/.test(raw)
+      ? raw.slice(0, 10)
+      : undefined;
+  }
+
+  /**
+   * Totals one numeric column across matching rows, tracking currency agreement.
+   * @param rows Matching rows, before pagination.
+   * @param column The numeric column being totalled.
+   * @param index The column's position in every row's cells.
+   * @returns The total, the number of contributing rows and a shared currency code when unanimous.
+   * @throws Does not throw for null or non-numeric cells, which are skipped.
+   */
+  private amount(
+    rows: SalesRowDto[],
+    column: SalesColumnDto,
+    index: number,
+  ): SalesSummaryDto["amounts"][number] {
+    let total = 0;
+    let count = 0;
+    let currencyCode: string | undefined;
+    let mixed = false;
+    for (const row of rows) {
+      const cell = row.cells[index];
+      if (typeof cell?.value !== "number" || !Number.isFinite(cell.value))
+        continue;
+      total += cell.value;
+      count += 1;
+      if (cell.currencyCode === undefined) continue;
+      if (currencyCode === undefined) currencyCode = cell.currencyCode;
+      else if (currencyCode !== cell.currencyCode) mixed = true;
+    }
+    return {
+      columnId: column.id,
+      label: column.label,
+      // Rounded to cents: repeated float addition otherwise leaks artifacts
+      // such as 0.30000000000000004 into displayed currency totals.
+      total: Math.round(total * 100) / 100,
+      count,
+      // A mixed-currency total is still the report's own sum, but it must not
+      // be labelled with a currency the amounts do not share.
+      ...(currencyCode !== undefined && !mixed ? { currencyCode } : {}),
+    };
+  }
+
+  /**
+   * Breaks a category column into its distinct values with counts and amounts.
+   * @param rows Matching rows, before pagination.
+   * @param column The category column being broken down.
+   * @param index The column's position in every row's cells.
+   * @param amount The primary amount column to total per bucket, when the report has one.
+   * @returns Buckets ordered by total then count, capped with an explicit remainder.
+   * @throws Does not throw for blank category labels, which form their own bucket.
+   */
+  private group(
+    rows: SalesRowDto[],
+    column: SalesColumnDto,
+    index: number,
+    amount?: { id: string; index: number },
+  ): SalesSummaryGroupDto {
+    const buckets = new Map<string, { count: number; total: number }>();
+    let currencyCode: string | undefined;
+    let mixed = false;
+    for (const row of rows) {
+      const label = row.cells[index]?.label ?? "";
+      const bucket = buckets.get(label) ?? { count: 0, total: 0 };
+      bucket.count += 1;
+      const cell = amount ? row.cells[amount.index] : undefined;
+      if (typeof cell?.value === "number" && Number.isFinite(cell.value)) {
+        bucket.total += cell.value;
+        if (cell.currencyCode !== undefined) {
+          if (currencyCode === undefined) currencyCode = cell.currencyCode;
+          else if (currencyCode !== cell.currencyCode) mixed = true;
+        }
+      }
+      buckets.set(label, bucket);
+    }
+    const ordered = [...buckets.entries()]
+      .map(([label, bucket]) => ({
+        label,
+        count: bucket.count,
+        total: Math.round(bucket.total * 100) / 100,
+      }))
+      .sort(
+        (left, right) =>
+          right.total - left.total ||
+          right.count - left.count ||
+          left.label.localeCompare(right.label, "en", { sensitivity: "base" }),
+      );
+    return {
+      columnId: column.id,
+      label: column.label,
+      ...(amount ? { amountColumnId: amount.id } : {}),
+      ...(currencyCode !== undefined && !mixed ? { currencyCode } : {}),
+      buckets: ordered.slice(0, MAX_SUMMARY_BUCKETS),
+      otherBuckets: Math.max(0, ordered.length - MAX_SUMMARY_BUCKETS),
+    };
+  }
+
+  /**
+   * Aggregates every matching row so counts and totals describe the filtered
+   * result rather than the page currently being displayed.
+   * @param rows Matching rows, before pagination.
+   * @param columns The snapshot's column schema, in cell order.
+   * @returns Record count, per-column amount totals and category breakdowns.
+   * @throws Does not throw for reports without numeric or category columns.
+   */
+  private summarize(
+    rows: SalesRowDto[],
+    columns: SalesColumnDto[],
+  ): SalesSummaryDto {
+    const amountIndexes = columns
+      .map((column, index) => ({ column, index }))
+      .filter(({ column }) => AMOUNT_TYPES.includes(column.dataType));
+    const primary = amountIndexes[0];
+    return {
+      recordCount: rows.length,
+      amounts: amountIndexes.map(({ column, index }) =>
+        this.amount(rows, column, index),
+      ),
+      groups: columns
+        .map((column, index) => ({ column, index }))
+        .filter(({ column }) => CATEGORY_TYPES.includes(column.dataType))
+        .slice(0, MAX_SUMMARY_GROUPS)
+        .map(({ column, index }) =>
+          this.group(
+            rows,
+            column,
+            index,
+            primary
+              ? { id: primary.column.id, index: primary.index }
+              : undefined,
+          ),
+        ),
     };
   }
 
@@ -269,15 +433,23 @@ export class SalesReportsService {
 
   /**
    * Filters, stably sorts and paginates a live report snapshot for UI or WIN callers.
-   * @param query Validated page, search, column filter, sorting and refresh options.
-   * @returns Metadata and one page; total is explicitly the matched received-row count.
-   * @throws BadRequestException for unknown columns or incomplete filters; upstream exceptions propagate.
+   * @param query Validated page, search, column filter, date range, sorting and refresh options.
+   * @returns Metadata, snapshot-wide aggregates and one page; total is explicitly the matched received-row count.
+   * @throws BadRequestException for unknown columns, incomplete filters or an inverted date range; upstream exceptions propagate.
    */
   async getReport(query: SalesReportQueryDto): Promise<SalesReportDto> {
     if (!!query.filterColumn !== !!query.filterValue) {
       throw new BadRequestException(
         "filterColumn and filterValue must be supplied together.",
       );
+    }
+    if ((query.dateFrom || query.dateTo) && !query.dateColumn) {
+      throw new BadRequestException(
+        "dateColumn must be supplied with dateFrom or dateTo.",
+      );
+    }
+    if (query.dateFrom && query.dateTo && query.dateFrom > query.dateTo) {
+      throw new BadRequestException("dateFrom must not be after dateTo.");
     }
     const report = await this.getSnapshot(query.refresh);
     const sortIndex = report.columns.findIndex(
@@ -286,25 +458,52 @@ export class SalesReportsService {
     const filterIndex = report.columns.findIndex(
       (column) => column.id === query.filterColumn,
     );
+    const dateIndex = report.columns.findIndex(
+      (column) => column.id === query.dateColumn,
+    );
     if (
       (query.sortBy && sortIndex < 0) ||
-      (query.filterColumn && filterIndex < 0)
+      (query.filterColumn && filterIndex < 0) ||
+      (query.dateColumn && dateIndex < 0)
     ) {
       throw new BadRequestException(
         "Unknown report column. Use a column ID from the report response.",
       );
     }
+    if (
+      dateIndex >= 0 &&
+      !DATE_TYPES.includes(report.columns[dateIndex].dataType)
+    ) {
+      throw new BadRequestException(
+        "dateColumn must reference a date or datetime column.",
+      );
+    }
     const search = query.search?.trim().toLowerCase();
     const filter = query.filterValue?.trim().toLowerCase();
-    const rows = report.rows.filter(
-      (row) =>
+    // A range only applies once a bound is given, so selecting a date field
+    // alone leaves the result set untouched.
+    const ranged = dateIndex >= 0 && !!(query.dateFrom || query.dateTo);
+    const rows = report.rows.filter((row) => {
+      if (ranged) {
+        // Rows without a usable date cannot satisfy a range, so they drop out
+        // rather than silently inflating counts and totals.
+        const day = this.day(row.cells[dateIndex]);
+        if (
+          !day ||
+          (query.dateFrom && day < query.dateFrom) ||
+          (query.dateTo && day > query.dateTo)
+        ) {
+          return false;
+        }
+      }
+      return (
         (!search ||
           row.cells.some((cell) =>
             cell.label.toLowerCase().includes(search),
           )) &&
-        (!filter ||
-          row.cells[filterIndex].label.toLowerCase().includes(filter)),
-    );
+        (!filter || row.cells[filterIndex].label.toLowerCase().includes(filter))
+      );
+    });
     if (sortIndex >= 0) {
       rows.sort((left, right) => {
         const a = left.cells[sortIndex];
@@ -338,6 +537,7 @@ export class SalesReportsService {
       totalPages,
       page,
       perPage: query.perPage,
+      summary: this.summarize(rows, report.columns),
     };
   }
 }
