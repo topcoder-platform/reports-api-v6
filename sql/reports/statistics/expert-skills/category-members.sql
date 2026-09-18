@@ -11,6 +11,7 @@ WITH category_wins AS (
   JOIN skills.source_type sest
     ON sest.id = se.source_type_id
   WHERE sk.category_id = $1::uuid
+    AND NOT (se.user_id::text = ANY($3))
     AND (
       LOWER(set_t.name) IN (
         'challenge_win',

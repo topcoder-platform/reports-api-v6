@@ -14,7 +14,8 @@ export type ReportGroupKey =
   | "topcoder"
   | "member"
   | "payment"
-  | "identity";
+  | "identity"
+  | "win";
 
 type HttpMethod = "GET" | "POST";
 
@@ -414,6 +415,21 @@ const groupNameParam: ReportParameter = {
 };
 
 const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
+  win: {
+    label: "WIN",
+    basePath: "/WIN",
+    reports: [report(
+      "WIN showcases",
+      "/WIN",
+      "Showcase posts explicitly shared with WIN and their current project metadata.",
+      [AppScopes.WIN],
+      [
+        { name: "projectId", type: "string", description: "Optional project ID." },
+        { name: "page", type: "number", description: "Page number, starting at 1." },
+        { name: "perPage", type: "number", description: "Page size, from 1 to 100." },
+      ],
+    )],
+  },
   challenges: {
     label: "Challenges Reports",
     basePath: "/challenges",

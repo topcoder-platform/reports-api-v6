@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { DbModule } from "./db/db.module";
 import { AuthMiddleware } from "./auth/auth.middleware";
+import { WinReportsModule } from "./reports/win/win-reports.module";
 import { HealthModule } from "./health/health.module";
 
 import { TopgearReportsModule } from "./reports/topgear/topgear-reports.module";
@@ -14,6 +15,7 @@ import { ReportsModule } from "./reports/reports.module";
 import { MemberSearchModule } from "./reports/member/member-search.module";
 import { PaymentReportsModule } from "./reports/payment/payment-reports.module";
 import { DashboardReportsModule } from "./reports/dashboard/dashboard-reports.module";
+import { SalesReportsModule } from "./reports/sales/sales-reports.module";
 
 @Module({
   imports: [
@@ -26,9 +28,11 @@ import { DashboardReportsModule } from "./reports/dashboard/dashboard-reports.mo
     ChallengesReportsModule,
     IdentityReportsModule,
     ReportsModule,
+    WinReportsModule,
     MemberSearchModule,
     PaymentReportsModule,
     DashboardReportsModule,
+    SalesReportsModule,
     HealthModule,
   ],
 })
