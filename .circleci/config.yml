@@ -64,7 +64,7 @@ workflows:
           branches:
             only:
               - develop
-              - PM-4931
+              - PM-6332
           tags:
               only: /^dev-.*/
 

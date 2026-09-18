@@ -14,7 +14,7 @@ describe("ExpertSkillsStatisticsService", () => {
   const config = {
     get: jest.fn((key: string, defaultValue?: string) => {
       if (key === "REPORTS_EXCLUDED_USER_IDS") {
-        return '["22838965", "8547899"]';
+        return '["22838965", "88774588"]';
       }
       return defaultValue;
     }),
@@ -73,7 +73,7 @@ describe("ExpertSkillsStatisticsService", () => {
         "481b5ebc-2fe6-45ed-a90c-736936d458d7",
         "1f5ed3e8-8d22-44ea-b75d-ea85147a04da",
       ],
-      ["22838965", "8547899"],
+      ["22838965", "88774588"],
     ]);
     expect(result[0]).toEqual(
       expect.objectContaining({
@@ -137,7 +137,7 @@ describe("ExpertSkillsStatisticsService", () => {
     expect(db.query).toHaveBeenNthCalledWith(2, "SELECT expert skills", [
       "481b5ebc-2fe6-45ed-a90c-736936d458d7",
       100,
-      ["22838965", "8547899"],
+      ["22838965", "88774588"],
     ]);
     expect(result).toEqual([
       {
@@ -164,5 +164,45 @@ describe("ExpertSkillsStatisticsService", () => {
       service.getCategoryMembers("Test Cat QA 1"),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(db.query).toHaveBeenCalledTimes(1);
+  });
+
+  it("always excludes tcwebservice and the configured member from skill statistics", async () => {
+    const emptyConfig = {
+      get: jest.fn((_key: string, defaultValue?: string) => defaultValue),
+    };
+    const isolatedService = new ExpertSkillsStatisticsService(
+      db as unknown as DbService,
+      sql as unknown as SqlLoaderService,
+      emptyConfig as unknown as ConfigService,
+    );
+
+    db.query
+      .mockResolvedValueOnce([
+        {
+          id: "481b5ebc-2fe6-45ed-a90c-736936d458d7",
+          name: "Programming and Development",
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "481b5ebc-2fe6-45ed-a90c-736936d458d7",
+          name: "Programming and Development",
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    await isolatedService.getCategories();
+    await isolatedService.getCategoryMembers("Programming and Development");
+
+    expect(db.query).toHaveBeenNthCalledWith(2, "SELECT expert skills", [
+      ["481b5ebc-2fe6-45ed-a90c-736936d458d7"],
+      ["22838965", "88774588"],
+    ]);
+    expect(db.query).toHaveBeenNthCalledWith(4, "SELECT expert skills", [
+      "481b5ebc-2fe6-45ed-a90c-736936d458d7",
+      100,
+      ["22838965", "88774588"],
+    ]);
   });
 });
