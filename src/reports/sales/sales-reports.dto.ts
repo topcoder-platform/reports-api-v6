@@ -90,6 +90,26 @@ export class SalesReportQueryDto {
 
   @ApiPropertyOptional({
     description:
+      "Column ID the returned page drills into; requires drilldownValue.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  drilldownColumn?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Exact, case-insensitive displayed value of drilldownColumn. Narrows rows, " +
+      "total and totalPages only; summary still describes the whole filtered set, " +
+      "so a dashboard can drill into one bucket while still showing every bucket.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  drilldownValue?: string;
+
+  @ApiPropertyOptional({
+    description:
       "Date or datetime column ID to range-filter; required with dateFrom/dateTo.",
   })
   @IsOptional()
@@ -172,6 +192,13 @@ export class SalesSummaryBucketDto {
     description: "Sum of the primary amount column within this bucket.",
   })
   total: number;
+  @ApiProperty({
+    description:
+      "Every amount column totalled within this bucket, in the same order as " +
+      "summary.amounts, so a breakdown can show more than the primary amount.",
+    type: [SalesSummaryAmountDto],
+  })
+  amounts: SalesSummaryAmountDto[];
 }
 
 /** A category column broken down into its distinct values, largest total first. */
@@ -191,7 +218,10 @@ export class SalesSummaryGroupDto {
 
 /** Aggregates over every matching row in the snapshot, recomputed for each query. */
 export class SalesSummaryDto {
-  @ApiProperty({ description: "Matching rows; equal to total." })
+  @ApiProperty({
+    description:
+      "Matching rows; equal to total unless a drilldown narrows the page.",
+  })
   recordCount: number;
   @ApiProperty({ type: [SalesSummaryAmountDto] })
   amounts: SalesSummaryAmountDto[];
@@ -215,7 +245,10 @@ export class SalesReportDto {
       "Number of detail rows received from Salesforce before local filtering.",
   })
   sourceRowCount: number;
-  @ApiProperty({ description: "Number of matching rows in this snapshot." })
+  @ApiProperty({
+    description:
+      "Number of returned rows in this snapshot, after any drilldown.",
+  })
   total: number;
   @ApiProperty() page: number;
   @ApiProperty() perPage: number;

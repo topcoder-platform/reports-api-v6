@@ -44,6 +44,7 @@ Both endpoints accept the same query parameters:
 | `page`, `perPage` | One-based page (default 1); page size 1–200 (default 25) |
 | `search` | Case-insensitive substring across all displayed cells, up to 200 characters |
 | `filterColumn`, `filterValue` | Column ID and case-insensitive displayed-value substring; supply both |
+| `drilldownColumn`, `drilldownValue` | Column ID and exact, case-insensitive displayed value; narrows the returned page only, never `summary`; supply both |
 | `sortBy`, `sortOrder` | Column ID and `asc`/`desc`; numeric and ISO date values sort before pagination |
 | `dateColumn` | Column ID of a `date`/`datetime` column, such as Created Date or Close Date |
 | `dateFrom`, `dateTo` | Inclusive `YYYY-MM-DD` bounds; either or both, and both require `dateColumn` |
@@ -63,9 +64,20 @@ HTML formulas are projected to text; Forecast Alert uses its image's alt label
 without fetching a protected Salesforce image.
 
 Filtering and sorting operate over the complete **received snapshot**, before
-pagination. `total` is the matching received-row count; `sourceRowCount` is its
-unfiltered count. Out-of-range pages clamp to the final available page. Empty
-reports return zero rows and `totalPages: 0`, `page: 1`.
+pagination. `total` is the returned received-row count, after any drilldown;
+`sourceRowCount` is its unfiltered count. Out-of-range pages clamp to the final
+available page. Empty reports return zero rows and `totalPages: 0`, `page: 1`.
+
+### Drilldown (PM-6392)
+
+`drilldownColumn`/`drilldownValue` narrow `rows`, `total` and `totalPages` to the
+rows whose displayed value in that column equals `drilldownValue` exactly, ignoring
+case and surrounding whitespace. Unlike `filterColumn`/`filterValue` it is applied
+**after** aggregation, so `summary` continues to describe the whole filtered set.
+That lets a dashboard drill into one `summary.groups[].buckets[]` entry — a pipeline
+stage, say — while every bucket stays on screen to be clicked next. A drilldown
+therefore makes `summary.recordCount` larger than `total`. Supplying one half of the
+pair, or a column ID the report does not define, returns `400`.
 
 ### Date range filtering (PM-6364)
 
@@ -91,11 +103,14 @@ page, so counts and totals stay correct under pagination:
 
 | Field | Meaning |
 | --- | --- |
-| `recordCount` | Matching rows; always equal to `total` |
+| `recordCount` | Matching rows; equal to `total` unless a drilldown narrows the page |
 | `amounts[]` | One entry per `currency`/`double` column: `columnId`, `label`, `total`, contributing `count`, and `currencyCode` when the contributing rows agree |
-| `groups[]` | Up to three `picklist`/`multipicklist`/`combobox`/`boolean` columns broken into `buckets[{label,count,total}]`, ordered by total then count, capped at 25 with the remainder in `otherBuckets` |
+| `groups[]` | Up to three `picklist`/`multipicklist`/`combobox`/`boolean` columns broken into `buckets[{label,count,total,amounts[]}]`, ordered by total then count, capped at 25 with the remainder in `otherBuckets` |
 
-Bucket totals use the report's first amount column, named in `amountColumnId`.
+Bucket `total` uses the report's first amount column, named in `amountColumnId`,
+while `buckets[].amounts[]` repeats every amount column inside the bucket using the
+same entry shape and order as `summary.amounts`, so a breakdown can show a stage's
+Amount beside its Expected Revenue.
 Totals round to cents so repeated floating-point addition cannot leak artifacts
 into displayed currency. A `currencyCode` is omitted when contributing rows
 declare different currencies; rows that declare none cannot contradict the rest.
