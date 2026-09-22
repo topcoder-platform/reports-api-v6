@@ -300,53 +300,57 @@ export class SalesReportsService {
 
   /**
    * Breaks a category column into its distinct values with counts and amounts.
+   * Every amount column is totalled inside each bucket, not only the primary one,
+   * so a dashboard can show a stage's Amount beside its Expected Revenue.
    * @param rows Matching rows, before pagination.
    * @param column The category column being broken down.
    * @param index The column's position in every row's cells.
-   * @param amount The primary amount column to total per bucket, when the report has one.
-   * @returns Buckets ordered by total then count, capped with an explicit remainder.
+   * @param amounts Every numeric column and its position; the first one is the primary total.
+   * @returns Buckets ordered by primary total then count, capped with an explicit remainder.
    * @throws Does not throw for blank category labels, which form their own bucket.
    */
   private group(
     rows: SalesRowDto[],
     column: SalesColumnDto,
     index: number,
-    amount?: { id: string; index: number },
+    amounts: Array<{ column: SalesColumnDto; index: number }>,
   ): SalesSummaryGroupDto {
-    const buckets = new Map<string, { count: number; total: number }>();
-    let currencyCode: string | undefined;
-    let mixed = false;
+    const buckets = new Map<string, SalesRowDto[]>();
     for (const row of rows) {
       const label = row.cells[index]?.label ?? "";
-      const bucket = buckets.get(label) ?? { count: 0, total: 0 };
-      bucket.count += 1;
-      const cell = amount ? row.cells[amount.index] : undefined;
-      if (typeof cell?.value === "number" && Number.isFinite(cell.value)) {
-        bucket.total += cell.value;
-        if (cell.currencyCode !== undefined) {
-          if (currencyCode === undefined) currencyCode = cell.currencyCode;
-          else if (currencyCode !== cell.currencyCode) mixed = true;
-        }
-      }
+      const bucket = buckets.get(label) ?? [];
+      bucket.push(row);
       buckets.set(label, bucket);
     }
+    const primary = amounts[0];
     const ordered = [...buckets.entries()]
-      .map(([label, bucket]) => ({
-        label,
-        count: bucket.count,
-        total: Math.round(bucket.total * 100) / 100,
-      }))
+      .map(([label, bucketRows]) => {
+        const totals = amounts.map((amount) =>
+          this.amount(bucketRows, amount.column, amount.index),
+        );
+        return {
+          label,
+          count: bucketRows.length,
+          total: totals[0]?.total ?? 0,
+          amounts: totals,
+        };
+      })
       .sort(
         (left, right) =>
           right.total - left.total ||
           right.count - left.count ||
           left.label.localeCompare(right.label, "en", { sensitivity: "base" }),
       );
+    // The group currency describes the primary total across every bucket, so it
+    // is omitted as soon as any contributing row declares a different currency.
+    const currencyCode = primary
+      ? this.amount(rows, primary.column, primary.index).currencyCode
+      : undefined;
     return {
       columnId: column.id,
       label: column.label,
-      ...(amount ? { amountColumnId: amount.id } : {}),
-      ...(currencyCode !== undefined && !mixed ? { currencyCode } : {}),
+      ...(primary ? { amountColumnId: primary.column.id } : {}),
+      ...(currencyCode !== undefined ? { currencyCode } : {}),
       buckets: ordered.slice(0, MAX_SUMMARY_BUCKETS),
       otherBuckets: Math.max(0, ordered.length - MAX_SUMMARY_BUCKETS),
     };
@@ -367,7 +371,6 @@ export class SalesReportsService {
     const amountIndexes = columns
       .map((column, index) => ({ column, index }))
       .filter(({ column }) => AMOUNT_TYPES.includes(column.dataType));
-    const primary = amountIndexes[0];
     return {
       recordCount: rows.length,
       amounts: amountIndexes.map(({ column, index }) =>
@@ -378,14 +381,7 @@ export class SalesReportsService {
         .filter(({ column }) => CATEGORY_TYPES.includes(column.dataType))
         .slice(0, MAX_SUMMARY_GROUPS)
         .map(({ column, index }) =>
-          this.group(
-            rows,
-            column,
-            index,
-            primary
-              ? { id: primary.column.id, index: primary.index }
-              : undefined,
-          ),
+          this.group(rows, column, index, amountIndexes),
         ),
     };
   }
@@ -433,14 +429,19 @@ export class SalesReportsService {
 
   /**
    * Filters, stably sorts and paginates a live report snapshot for UI or WIN callers.
-   * @param query Validated page, search, column filter, date range, sorting and refresh options.
-   * @returns Metadata, snapshot-wide aggregates and one page; total is explicitly the matched received-row count.
+   * @param query Validated page, search, column filter, drilldown, date range, sorting and refresh options.
+   * @returns Metadata, aggregates over the filtered set and one page; total is the returned-row count after any drilldown.
    * @throws BadRequestException for unknown columns, incomplete filters or an inverted date range; upstream exceptions propagate.
    */
   async getReport(query: SalesReportQueryDto): Promise<SalesReportDto> {
     if (!!query.filterColumn !== !!query.filterValue) {
       throw new BadRequestException(
         "filterColumn and filterValue must be supplied together.",
+      );
+    }
+    if (!!query.drilldownColumn !== !!query.drilldownValue) {
+      throw new BadRequestException(
+        "drilldownColumn and drilldownValue must be supplied together.",
       );
     }
     if ((query.dateFrom || query.dateTo) && !query.dateColumn) {
@@ -461,9 +462,13 @@ export class SalesReportsService {
     const dateIndex = report.columns.findIndex(
       (column) => column.id === query.dateColumn,
     );
+    const drilldownIndex = report.columns.findIndex(
+      (column) => column.id === query.drilldownColumn,
+    );
     if (
       (query.sortBy && sortIndex < 0) ||
       (query.filterColumn && filterIndex < 0) ||
+      (query.drilldownColumn && drilldownIndex < 0) ||
       (query.dateColumn && dateIndex < 0)
     ) {
       throw new BadRequestException(
@@ -480,10 +485,11 @@ export class SalesReportsService {
     }
     const search = query.search?.trim().toLowerCase();
     const filter = query.filterValue?.trim().toLowerCase();
+    const drilldown = query.drilldownValue?.trim().toLowerCase();
     // A range only applies once a bound is given, so selecting a date field
     // alone leaves the result set untouched.
     const ranged = dateIndex >= 0 && !!(query.dateFrom || query.dateTo);
-    const rows = report.rows.filter((row) => {
+    const matched = report.rows.filter((row) => {
       if (ranged) {
         // Rows without a usable date cannot satisfy a range, so they drop out
         // rather than silently inflating counts and totals.
@@ -504,6 +510,15 @@ export class SalesReportsService {
         (!filter || row.cells[filterIndex].label.toLowerCase().includes(filter))
       );
     });
+    // The summary covers every matching row, so a drilldown can narrow the page
+    // to one bucket while the breakdown it was clicked in stays on screen.
+    const summary = this.summarize(matched, report.columns);
+    const rows = drilldown
+      ? matched.filter(
+          (row) =>
+            row.cells[drilldownIndex].label.trim().toLowerCase() === drilldown,
+        )
+      : matched;
     if (sortIndex >= 0) {
       rows.sort((left, right) => {
         const a = left.cells[sortIndex];
@@ -537,7 +552,7 @@ export class SalesReportsService {
       totalPages,
       page,
       perPage: query.perPage,
-      summary: this.summarize(rows, report.columns),
+      summary,
     };
   }
 }

@@ -421,11 +421,131 @@ describe("SalesReportsService", () => {
         currencyCode: "USD",
         otherBuckets: 0,
         buckets: [
-          { label: "Proposal", count: 2, total: 1020 },
-          { label: "Closed Won", count: 1, total: 0 },
+          {
+            label: "Proposal",
+            count: 2,
+            total: 1020,
+            amounts: [
+              {
+                columnId: "AMOUNT",
+                label: "Amount",
+                total: 1020,
+                count: 2,
+                currencyCode: "USD",
+              },
+            ],
+          },
+          {
+            label: "Closed Won",
+            count: 1,
+            total: 0,
+            amounts: [
+              { columnId: "AMOUNT", label: "Amount", total: 0, count: 0 },
+            ],
+          },
         ],
       },
     ]);
+  });
+
+  it("totals every amount column inside each bucket, not only the primary one", async () => {
+    const fixture = reportFixture();
+    fixture.reportMetadata.groupingsDown = [{ name: "STAGE_NAME" }];
+    fixture.reportExtendedMetadata.groupingColumnInfo = {
+      STAGE_NAME: { label: "Stage", dataType: "picklist" },
+    };
+    fixture.groupingsDown = {
+      groupings: [
+        { key: "0", label: "Proposal", value: "Proposal", groupings: [] },
+        {
+          key: "1",
+          label: "Won - SOW Signed",
+          value: "Won - SOW Signed",
+          groupings: [],
+        },
+      ],
+    };
+    fixture.reportMetadata.detailColumns.push("EXP_AMOUNT");
+    fixture.reportExtendedMetadata.detailColumnInfo.EXP_AMOUNT = {
+      label: "Expected Revenue",
+      dataType: "currency",
+    };
+    Object.values(fixture.factMap).forEach((bucket) =>
+      bucket.rows?.forEach((row) =>
+        row.dataCells.push({
+          label: "$100",
+          value: { amount: 100, currencyCode: "USD" },
+        }),
+      ),
+    );
+    runReport.mockResolvedValue(fixture);
+    const result = await service.getReport(new SalesReportQueryDto());
+    const won = result.summary.groups[0].buckets.find(
+      (bucket) => bucket.label === "Won - SOW Signed",
+    );
+    expect(won).toEqual({
+      label: "Won - SOW Signed",
+      count: 1,
+      total: 0,
+      amounts: [
+        { columnId: "AMOUNT", label: "Amount", total: 0, count: 0 },
+        {
+          columnId: "EXP_AMOUNT",
+          label: "Expected Revenue",
+          total: 100,
+          count: 1,
+          currencyCode: "USD",
+        },
+      ],
+    });
+  });
+
+  it("narrows rows to a drilldown bucket while the summary still covers every bucket", async () => {
+    const fixture = reportFixture();
+    fixture.reportMetadata.groupingsDown = [{ name: "STAGE_NAME" }];
+    fixture.reportExtendedMetadata.groupingColumnInfo = {
+      STAGE_NAME: { label: "Stage", dataType: "picklist" },
+    };
+    fixture.groupingsDown = {
+      groupings: [
+        { key: "0", label: "Proposal", value: "Proposal", groupings: [] },
+        { key: "1", label: "Closing", value: "Closing", groupings: [] },
+      ],
+    };
+    runReport.mockResolvedValue(fixture);
+    const result = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), {
+        drilldownColumn: "STAGE_NAME",
+        // An exact match ignores case and surrounding whitespace.
+        drilldownValue: "  closing  ",
+      }),
+    );
+    expect(result.rows.map((row) => row.cells[1].label)).toEqual(["Gamma"]);
+    expect(result.total).toBe(1);
+    expect(result.totalPages).toBe(1);
+    expect(result.summary.recordCount).toBe(3);
+    expect(result.summary.groups[0].buckets.map((b) => b.label)).toEqual([
+      "Proposal",
+      "Closing",
+    ]);
+  });
+
+  it("rejects a half-supplied or unknown drilldown", async () => {
+    await expect(
+      service.getReport(
+        Object.assign(new SalesReportQueryDto(), {
+          drilldownColumn: "NAME",
+        }),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.getReport(
+        Object.assign(new SalesReportQueryDto(), {
+          drilldownColumn: "MISSING",
+          drilldownValue: "Alpha",
+        }),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it("does not label a total with a currency the matching rows do not share", async () => {
