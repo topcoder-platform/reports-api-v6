@@ -135,7 +135,7 @@ export class SalesReportQueryDto {
 
   @ApiPropertyOptional({
     default: false,
-    description: "Refresh Salesforce data (minimum five-second interval).",
+    description: "Refresh Salesforce data (minimum one-minute interval).",
   })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>

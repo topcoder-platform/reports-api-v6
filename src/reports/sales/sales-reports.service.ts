@@ -21,7 +21,7 @@ import {
 } from "./salesforce-reports.client";
 
 const CACHE_MS = 60000;
-const REFRESH_COOLDOWN_MS = 5000;
+const REFRESH_COOLDOWN_MS = CACHE_MS;
 /** Column types that can carry a pipeline or revenue amount worth totalling. */
 const AMOUNT_TYPES = ["currency", "double"];
 /** Column types that a date range can be applied to. */
@@ -388,9 +388,9 @@ export class SalesReportsService {
 
   /**
    * Loads or reuses the current snapshot. Failed refreshes never relabel stale data as fresh.
-   * @param refresh Whether to bypass the regular TTL, subject to a five-second cooldown.
+   * @param refresh Whether to request a refresh, subject to the one-minute cache interval.
    * @returns A report fetched within the cache interval.
-   * @throws The sanitized client/normalization error; failures are throttled for five seconds.
+   * @throws The sanitized client/normalization error; failures are throttled for one minute.
    */
   private async getSnapshot(refresh: boolean): Promise<SalesReportDto> {
     if (this.loading) return this.loading;

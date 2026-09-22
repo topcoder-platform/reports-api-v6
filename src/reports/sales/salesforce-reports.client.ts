@@ -51,6 +51,7 @@ export class SalesforceReportsClient {
   private readonly logger = new Logger(SalesforceReportsClient.name);
   private session?: SalesforceSession;
   private authenticating?: Promise<SalesforceSession>;
+  private quotaRetryAt = 0;
 
   /** @param config Server environment configuration. Creates a lazy client; does not authenticate or throw. */
   constructor(private readonly config: ConfigService) {}
@@ -131,6 +132,74 @@ export class SalesforceReportsClient {
   }
 
   /**
+   * Logs bounded Salesforce error details without logging the full response or credentials.
+   * @param response Failed OAuth or report response.
+   * @param operation Safe operation name and, for reports, the configured report ID.
+   * @returns True when Salesforce says the synchronous report quota is exhausted.
+   * @throws Does not throw for missing, malformed, or unreadable error bodies.
+   */
+  private async logRejection(
+    response: Response,
+    operation: string,
+  ): Promise<boolean> {
+    let details = "";
+    let quotaExceeded = false;
+    try {
+      const body: unknown = await response.json();
+      const errors = Array.isArray(body) ? body : [body];
+      details = errors
+        .slice(0, 3)
+        .map((error: unknown) => {
+          if (!error || typeof error !== "object") return "";
+          const item = error as Record<string, unknown>;
+          const code =
+            typeof item.errorCode === "string"
+              ? item.errorCode
+              : typeof item.error === "string"
+                ? item.error
+                : "";
+          const message =
+            typeof item.message === "string"
+              ? item.message
+              : typeof item.error_description === "string"
+                ? item.error_description
+                : "";
+          if (
+            response.status === 403 &&
+            /more than 500 reports synchronously every 60 minutes/i.test(
+              message,
+            )
+          )
+            quotaExceeded = true;
+          const safeCode = code.replace(/[^a-zA-Z0-9_]/g, "").slice(0, 64);
+          let safeMessage = message
+            .replace(/[\r\n\t\x00-\x1f\x7f]/g, " ")
+            .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
+            .slice(0, 240);
+          for (const secret of [
+            this.config.get<string>("SALESFORCE_API_CONSUMER_SECRET"),
+            this.session?.access_token,
+          ]) {
+            if (secret) safeMessage = safeMessage.split(secret).join("[redacted]");
+          }
+          return [safeCode, safeMessage].filter(Boolean).join(": ");
+        })
+        .filter(Boolean)
+        .join("; ");
+    } catch {
+      // JSON parsing may already have consumed or locked the response stream.
+    }
+    const requestId = response.headers
+      .get("sforce-request-id")
+      ?.replace(/[^a-zA-Z0-9-]/g, "")
+      .slice(0, 80);
+    this.logger.warn(
+      `Salesforce ${operation} rejected (HTTP ${response.status})${details ? `: ${details}` : ""}${requestId ? `; requestId=${requestId}` : ""}.`,
+    );
+    return quotaExceeded;
+  }
+
+  /**
    * Obtains a client-credentials session, coalescing concurrent token requests.
    * @returns A trusted instance URL and an access token kept only in server memory.
    * @throws ServiceUnavailableException for missing credentials; BadGatewayException on OAuth failure.
@@ -164,10 +233,7 @@ export class SalesforceReportsClient {
         }),
       });
       if (!response.ok) {
-        await response.body?.cancel();
-        this.logger.warn(
-          `Salesforce authentication rejected (HTTP ${response.status}).`,
-        );
+        await this.logRejection(response, "authentication");
         throw new BadGatewayException(
           "Salesforce authentication failed. Contact your administrator.",
         );
@@ -220,6 +286,11 @@ export class SalesforceReportsClient {
         "Salesforce API version is not configured correctly.",
       );
     }
+    if (Date.now() < this.quotaRetryAt) {
+      throw new BadGatewayException(
+        "Salesforce report quota is temporarily exhausted. Please try again later.",
+      );
+    }
     for (let attempt = 0; attempt < 2; attempt++) {
       const session = await this.authenticate();
       const response = await this.request(
@@ -237,10 +308,9 @@ export class SalesforceReportsClient {
         continue;
       }
       if (!response.ok) {
-        await response.body?.cancel();
-        this.logger.warn(
-          `Salesforce report request rejected (HTTP ${response.status}).`,
-        );
+        if (await this.logRejection(response, `report ${reportId}`)) {
+          this.quotaRetryAt = Date.now() + 5 * 60 * 1000;
+        }
         throw new BadGatewayException(
           "Salesforce report could not be loaded. Please try again.",
         );

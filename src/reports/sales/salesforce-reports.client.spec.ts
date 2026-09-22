@@ -76,6 +76,34 @@ describe("SalesforceReportsClient", () => {
     );
     expect(request).toHaveBeenCalledTimes(5);
   });
+  it("logs the Salesforce quota reason and pauses further report calls", async () => {
+    const warn = jest.spyOn(client["logger"], "warn").mockImplementation();
+    request
+      .mockResolvedValueOnce(oauth())
+      .mockResolvedValueOnce(
+        Response.json(
+          [
+            {
+              errorCode: "FORBIDDEN",
+              message:
+                "You can't run more than 500 reports synchronously every 60 minutes. Try again later. test-secret",
+            },
+          ],
+          { status: 403 },
+        ),
+      );
+    await expect(client.runReport(reportId)).rejects.toBeInstanceOf(
+      BadGatewayException,
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("FORBIDDEN: You can't run more than 500 reports"),
+    );
+    expect(warn.mock.calls[0][0]).not.toContain("test-secret");
+    await expect(client.runReport(reportId)).rejects.toThrow(
+      "quota is temporarily exhausted",
+    );
+    expect(request).toHaveBeenCalledTimes(2);
+  });
   it("bounds network retries and sanitizes errors", async () => {
     request.mockRejectedValue(new Error("secret network details"));
     await expect(client.runReport(reportId)).rejects.toBeInstanceOf(
