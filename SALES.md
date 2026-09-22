@@ -48,7 +48,7 @@ Both endpoints accept the same query parameters:
 | `sortBy`, `sortOrder` | Column ID and `asc`/`desc`; numeric and ISO date values sort before pagination |
 | `dateColumn` | Column ID of a `date`/`datetime` column, such as Created Date or Close Date |
 | `dateFrom`, `dateTo` | Inclusive `YYYY-MM-DD` bounds; either or both, and both require `dateColumn` |
-| `refresh` | `true` to refresh, subject to the five-second minimum interval; default `false` |
+| `refresh` | `true` to refresh, subject to the one-minute minimum interval; default `false` |
 
 Response fields: `reportId`, `reportName`, `columns[{id,label,dataType}]`,
 `rows[{id,cells:[{label,value,currencyCode?}]}]`, `allData`, `sourceRowCount`,
@@ -129,16 +129,19 @@ and [report execution contract](https://developer.salesforce.com/docs/analytics/
 ## Freshness, failures and extension
 
 One in-memory snapshot per service instance lasts 60 seconds. Concurrent reads
-share an in-flight request; manual refresh has a five-second cooldown. No report
-data is persisted. A failed refresh returns an error, with a five-second retry
+share an in-flight request; manual refresh uses the same one-minute interval. No report
+data is persisted. A failed refresh returns an error, with a one-minute retry
 cooldown, and never changes the last successful timestamp. The UI refreshes
 visible pages every minute and on return to a visible tab; hidden tabs do not
 poll. It displays stale-data status when a refresh fails.
 
 OAuth and report requests time out after 15 seconds per attempt. Network
 failures, HTTP 429 and 5xx retry up to three attempts with bounded backoff;
-401 report responses renew OAuth once. Errors and logs omit tokens and upstream
-response bodies. Validation returns 400, missing configuration 503, and upstream
+401 report responses renew OAuth once. A Salesforce synchronous report quota error
+pauses report calls from that instance for five minutes. Warnings include the HTTP
+status, bounded Salesforce error code/message, configured report ID, and Salesforce
+request ID when present; tokens and full upstream response bodies are omitted.
+Validation returns 400, missing configuration 503, and upstream
 failures 502. Authorization returns 401/403 before Salesforce is contacted.
 
 Future reports can reuse `SalesforceReportsClient.runReport(reportId)` and the
