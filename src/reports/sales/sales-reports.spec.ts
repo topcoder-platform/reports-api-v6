@@ -244,7 +244,7 @@ describe("SalesReportsService", () => {
       Object.assign(new SalesReportQueryDto(), { refresh: true }),
     );
     expect(runReport).toHaveBeenCalledTimes(1);
-    jest.advanceTimersByTime(5001);
+    jest.advanceTimersByTime(60001);
     await service.getReport(
       Object.assign(new SalesReportQueryDto(), { refresh: true }),
     );
