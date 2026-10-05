@@ -2,7 +2,8 @@
 -- members with no challenge activity at all) with one row per challenge they
 -- registered for, submitted to, or won. Tasks and First2Finish challenges are
 -- excluded. Members without activity come back as a single row with a NULL
--- "challengeId".
+-- "challengeId". Challenges restricted to the group or its parent group(s) are
+-- flagged as campus challenges.
 -- $1 = group name (case insensitive, also accepts the group id / legacy id)
 WITH RECURSIVE params AS (
   SELECT LOWER(BTRIM($1)) AS group_key
@@ -20,23 +21,48 @@ root_group AS (
   ORDER BY (LOWER(g.name) = p.group_key) DESC, g."createdAt" ASC
   LIMIT 1
 ),
+-- Parent/sub group links. They are recorded both as "group" memberships and in
+-- the Prisma join table ("A" = sub group, "B" = parent group); either source
+-- can be missing a link, so both are read.
+group_links AS (
+  SELECT gm."groupId" AS parent_id, gm."memberId" AS child_id
+  FROM groups."GroupMember" AS gm
+  WHERE LOWER(gm."membershipType") = 'group'
+  UNION
+  SELECT psg."B" AS parent_id, psg."A" AS child_id
+  FROM groups."_ParentSubGroups" AS psg
+),
 group_tree AS (
   SELECT rg.id
   FROM root_group AS rg
   UNION
-  SELECT gm."memberId"
-  FROM groups."GroupMember" AS gm
+  SELECT gl.child_id
+  FROM group_links AS gl
   JOIN group_tree AS gt
-    ON gt.id = gm."groupId"
-  WHERE LOWER(gm."membershipType") = 'group'
+    ON gt.id = gl.parent_id
+),
+-- Members of the campus group can also register for challenges restricted to
+-- its parent group(s), so those count as campus challenges too.
+parent_groups AS (
+  SELECT g.id, g."oldId"
+  FROM group_links AS gl
+  JOIN root_group AS rg
+    ON rg.id = gl.child_id
+  JOIN groups."Group" AS g
+    ON g.id = gl.parent_id
+),
+campus_groups AS (
+  SELECT rg.id, rg."oldId" FROM root_group AS rg
+  UNION
+  SELECT pg.id, pg."oldId" FROM parent_groups AS pg
 ),
 group_identifiers AS (
   SELECT ARRAY(
     SELECT DISTINCT identifier
     FROM (
-      SELECT rg.id AS identifier FROM root_group AS rg
+      SELECT cg.id AS identifier FROM campus_groups AS cg
       UNION ALL
-      SELECT rg."oldId" FROM root_group AS rg WHERE NULLIF(BTRIM(rg."oldId"), '') IS NOT NULL
+      SELECT cg."oldId" FROM campus_groups AS cg WHERE NULLIF(BTRIM(cg."oldId"), '') IS NOT NULL
     ) AS identifiers
   ) AS identifiers
 ),
