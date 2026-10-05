@@ -2,7 +2,8 @@
 -- members with no challenge activity at all) with one row per challenge they
 -- registered for, submitted to, or won. Tasks and First2Finish challenges are
 -- excluded. Members without activity come back as a single row with a NULL
--- "challengeId".
+-- "challengeId". Challenges restricted to the group or its parent group(s) are
+-- flagged as campus challenges.
 -- $1 = group name (case insensitive, also accepts the group id / legacy id)
 WITH RECURSIVE params AS (
   SELECT LOWER(BTRIM($1)) AS group_key
@@ -30,13 +31,29 @@ group_tree AS (
     ON gt.id = gm."groupId"
   WHERE LOWER(gm."membershipType") = 'group'
 ),
+-- Members of the campus group can also register for challenges restricted to
+-- its parent group(s), so those count as campus challenges too.
+parent_groups AS (
+  SELECT g.id, g."oldId"
+  FROM groups."GroupMember" AS gm
+  JOIN root_group AS rg
+    ON rg.id = gm."memberId"
+  JOIN groups."Group" AS g
+    ON g.id = gm."groupId"
+  WHERE LOWER(gm."membershipType") = 'group'
+),
+campus_groups AS (
+  SELECT rg.id, rg."oldId" FROM root_group AS rg
+  UNION
+  SELECT pg.id, pg."oldId" FROM parent_groups AS pg
+),
 group_identifiers AS (
   SELECT ARRAY(
     SELECT DISTINCT identifier
     FROM (
-      SELECT rg.id AS identifier FROM root_group AS rg
+      SELECT cg.id AS identifier FROM campus_groups AS cg
       UNION ALL
-      SELECT rg."oldId" FROM root_group AS rg WHERE NULLIF(BTRIM(rg."oldId"), '') IS NOT NULL
+      SELECT cg."oldId" FROM campus_groups AS cg WHERE NULLIF(BTRIM(cg."oldId"), '') IS NOT NULL
     ) AS identifiers
   ) AS identifiers
 ),
