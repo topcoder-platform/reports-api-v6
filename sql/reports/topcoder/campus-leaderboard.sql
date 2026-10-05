@@ -21,26 +21,35 @@ root_group AS (
   ORDER BY (LOWER(g.name) = p.group_key) DESC, g."createdAt" ASC
   LIMIT 1
 ),
+-- Parent/sub group links. They are recorded both as "group" memberships and in
+-- the Prisma join table ("A" = sub group, "B" = parent group); either source
+-- can be missing a link, so both are read.
+group_links AS (
+  SELECT gm."groupId" AS parent_id, gm."memberId" AS child_id
+  FROM groups."GroupMember" AS gm
+  WHERE LOWER(gm."membershipType") = 'group'
+  UNION
+  SELECT psg."B" AS parent_id, psg."A" AS child_id
+  FROM groups."_ParentSubGroups" AS psg
+),
 group_tree AS (
   SELECT rg.id
   FROM root_group AS rg
   UNION
-  SELECT gm."memberId"
-  FROM groups."GroupMember" AS gm
+  SELECT gl.child_id
+  FROM group_links AS gl
   JOIN group_tree AS gt
-    ON gt.id = gm."groupId"
-  WHERE LOWER(gm."membershipType") = 'group'
+    ON gt.id = gl.parent_id
 ),
 -- Members of the campus group can also register for challenges restricted to
 -- its parent group(s), so those count as campus challenges too.
 parent_groups AS (
   SELECT g.id, g."oldId"
-  FROM groups."GroupMember" AS gm
+  FROM group_links AS gl
   JOIN root_group AS rg
-    ON rg.id = gm."memberId"
+    ON rg.id = gl.child_id
   JOIN groups."Group" AS g
-    ON g.id = gm."groupId"
-  WHERE LOWER(gm."membershipType") = 'group'
+    ON g.id = gl.parent_id
 ),
 campus_groups AS (
   SELECT rg.id, rg."oldId" FROM root_group AS rg
