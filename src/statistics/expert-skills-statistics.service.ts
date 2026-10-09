@@ -13,6 +13,10 @@ import {
 } from "./expert-skills-statistics.data";
 
 const MEMBERS_LIMIT = 100;
+// tcwebservice (22838965) is a Topcoder system account credited with challenge
+// wins. It is always left out of skill statistics, whatever
+// REPORTS_EXCLUDED_USER_IDS is set to in the environment.
+const ALWAYS_EXCLUDED_USER_IDS = ["22838965"];
 const COUNTRY_DISPLAY_NAMES: Record<string, string> = {
   US: "USA",
   GB: "UK",
@@ -84,9 +88,11 @@ export class ExpertSkillsStatisticsService {
     private readonly sql: SqlLoaderService,
     private readonly config: ConfigService,
   ) {
-    this.excludedUserIds = this.parseListConfig(
-      "REPORTS_EXCLUDED_USER_IDS",
-      "[]",
+    this.excludedUserIds = Array.from(
+      new Set([
+        ...ALWAYS_EXCLUDED_USER_IDS,
+        ...this.parseListConfig("REPORTS_EXCLUDED_USER_IDS", "[]"),
+      ]),
     );
   }
 
