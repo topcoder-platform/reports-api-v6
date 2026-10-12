@@ -165,4 +165,68 @@ describe("ExpertSkillsStatisticsService", () => {
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(db.query).toHaveBeenCalledTimes(1);
   });
+
+  it("excludes tcwebservice even when REPORTS_EXCLUDED_USER_IDS omits it", async () => {
+    const prodLikeConfig = {
+      get: jest.fn((key: string, defaultValue?: string) =>
+        key === "REPORTS_EXCLUDED_USER_IDS" ? '["22770213"]' : defaultValue,
+      ),
+    };
+    const prodLikeService = new ExpertSkillsStatisticsService(
+      db as unknown as DbService,
+      sql as unknown as SqlLoaderService,
+      prodLikeConfig as unknown as ConfigService,
+    );
+    const category = {
+      id: "481b5ebc-2fe6-45ed-a90c-736936d458d7",
+      name: "Programming and Development",
+    };
+
+    db.query
+      .mockResolvedValueOnce([category])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([category])
+      .mockResolvedValueOnce([]);
+
+    await prodLikeService.getCategories();
+    await prodLikeService.getCategoryMembers("Programming and Development");
+
+    expect(db.query).toHaveBeenNthCalledWith(2, "SELECT expert skills", [
+      [category.id],
+      ["22838965", "22770213"],
+    ]);
+    expect(db.query).toHaveBeenNthCalledWith(4, "SELECT expert skills", [
+      category.id,
+      100,
+      ["22838965", "22770213"],
+    ]);
+  });
+
+  it("excludes tcwebservice when REPORTS_EXCLUDED_USER_IDS is unset", async () => {
+    const emptyConfig = {
+      get: jest.fn((_key: string, defaultValue?: string) => defaultValue),
+    };
+    const unconfiguredService = new ExpertSkillsStatisticsService(
+      db as unknown as DbService,
+      sql as unknown as SqlLoaderService,
+      emptyConfig as unknown as ConfigService,
+    );
+
+    db.query
+      .mockResolvedValueOnce([
+        {
+          id: "481b5ebc-2fe6-45ed-a90c-736936d458d7",
+          name: "Programming and Development",
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    await unconfiguredService.getCategoryMembers("Programming and Development");
+
+    expect(db.query).toHaveBeenNthCalledWith(2, "SELECT expert skills", [
+      "481b5ebc-2fe6-45ed-a90c-736936d458d7",
+      100,
+      ["22838965"],
+    ]);
+  });
 });
