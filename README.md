@@ -126,7 +126,9 @@ ENGAGEMENTS_DB_URL="postgresql://user:password@localhost:5432/engagements"
 REPORTS_EXCLUDED_CHALLENGE_TYPES='["Task","First2Finish"]'
 
 # Member user IDs excluded from the general statistics (country member details
-# and top winners by country). JSON array or comma-separated; defaults to empty.
+# and top winners by country) and the expert skills statistics. JSON array or
+# comma-separated; defaults to empty. The expert skills statistics always
+# exclude tcwebservice (22838965), even if it is not listed here.
 REPORTS_EXCLUDED_USER_IDS='["8547899","251280"]'
 
 # Old tc-payments database URL (used by member-tax CSV export script)
