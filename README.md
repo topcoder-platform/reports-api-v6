@@ -6,6 +6,14 @@ Reports return JSON data by default. Endpoints that support CSV can also return
 CSV when the request sets `Accept: text/csv` (including the Challenges,
 Topcoder, Member, and Admin report groups).
 
+## Leaderboard handle colors
+
+The generic (`/v6/reports/topcoder/leaderboard/generic`) and Marathon Match
+(`/v6/reports/topcoder/leaderboard/mm`) reports return `ratingColor: "#555555"`
+for members with a rating below 900, overriding any stored legacy gray color.
+Ratings of 900 or higher and missing or nonnumeric ratings retain the stored
+color. Website leaderboards use this response field to style member handles.
+
 ## Reports Portal Dashboards
 
 The Reports Portal dashboard API is available under

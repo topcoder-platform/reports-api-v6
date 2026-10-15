@@ -179,6 +179,58 @@ describe("TopcoderReportsService", () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 
+  describe.each(["generic", "mm"])("%s leaderboard handle colors", (leaderboard) => {
+    it.each([
+      [0, "#9D9FA0", "#555555"],
+      [899, "#9D9FA0", "#555555"],
+      ["899", "#9D9FA0", "#555555"],
+      [899, null, "#555555"],
+      [900, "#69C329", "#69C329"],
+      ["900", "#69C329", "#69C329"],
+      [1199, "#69C329", "#69C329"],
+      [1200, "#616BD5", "#616BD5"],
+      [1499, "#616BD5", "#616BD5"],
+      [1500, "#F2C900", "#F2C900"],
+      [2199, "#F2C900", "#F2C900"],
+      [2200, "#EF3A3A", "#EF3A3A"],
+      [null, "#9D9FA0", "#9D9FA0"],
+      [null, null, null],
+      ["invalid", "#9D9FA0", "#9D9FA0"],
+    ])("returns %s / %s as %s", async (rating, ratingColor, expectedColor) => {
+      db.query.mockResolvedValueOnce([{
+        challengeId: "ch1",
+        challengeName: "Challenge One",
+        userId: "u1",
+        handle: "user1",
+        name: "User One",
+        country: "USA",
+        countryCode: "US",
+        photoURL: null,
+        rating,
+        ratingColor,
+        placement: 1,
+        durationDays: 1,
+        prizePool: 1000,
+        submissionsCount: 1,
+        placementPrizes: null,
+        score: 123,
+        provisionalRank: 1,
+        provisionalScore: 123,
+        finalScore: 123,
+        challengeStatus: "COMPLETED",
+      }]);
+
+      const filters = { challengeIds: ["ch1"] };
+      if (leaderboard === "generic") {
+        const result = await service.getLeaderboardGeneric(filters);
+        expect(result.placementData[0].ratingColor).toBe(expectedColor);
+      } else {
+        const result = await service.getLeaderboardMm(filters);
+        expect(result.membersDetails.user1.ratingColor).toBe(expectedColor ?? undefined);
+      }
+    });
+  });
+
   it("passes showRealtimeScore to the generic leaderboard query and marks active AI-only rows as provisional when enabled", async () => {
     const genericRow = {
       challengeId: "ch1",
