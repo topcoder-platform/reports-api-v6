@@ -14,6 +14,32 @@ export interface SalesforceGrouping {
   groupings: SalesforceGrouping[];
 }
 
+/** Runtime-only report filters; never saved back to Salesforce. */
+export interface SalesforceReportFilter {
+  column: string;
+  operator: string;
+  value: string;
+}
+
+/** Execution overrides shared by pipeline and historical summary reports. */
+export interface SalesforceReportOverrides {
+  detailColumns?: string[];
+  aggregates?: string[];
+  groupingsDown?: Array<{ name: string; sortOrder?: string }>;
+  groupingsAcross?: Array<{ name: string }>;
+  reportFormat?: string;
+  reportFilters?: SalesforceReportFilter[];
+  reportBooleanFilter?: string | null;
+  standardDateFilter?: {
+    column: string;
+    durationValue: string;
+    startDate: string;
+    endDate: string;
+  };
+  showGrandTotal?: boolean;
+  showSubtotals?: boolean;
+}
+
 export interface SalesforceReport {
   allData?: boolean;
   hasDetailRows?: boolean;
@@ -24,6 +50,9 @@ export interface SalesforceReport {
     reportFormat?: string;
     groupingsDown?: Array<{ name: string }>;
     groupingsAcross?: Array<{ name: string }>;
+    aggregates?: string[];
+    reportFilters?: SalesforceReportFilter[];
+    reportBooleanFilter?: string | null;
   };
   reportExtendedMetadata: {
     detailColumnInfo: Record<string, { label: string; dataType: string }>;
@@ -33,7 +62,10 @@ export interface SalesforceReport {
   groupingsAcross?: { groupings: SalesforceGrouping[] };
   factMap: Record<
     string,
-    { rows?: Array<{ dataCells: Array<{ label?: string; value?: unknown }> }> }
+    {
+      rows?: Array<{ dataCells: Array<{ label?: string; value?: unknown }> }>;
+      aggregates?: Array<{ value: number | null; label?: string }>;
+    }
   >;
 }
 
@@ -173,6 +205,7 @@ export class SalesforceReportsClient {
             quotaExceeded = true;
           const safeCode = code.replace(/[^a-zA-Z0-9_]/g, "").slice(0, 64);
           let safeMessage = message
+            // eslint-disable-next-line no-control-regex -- Intentionally remove control characters from log messages.
             .replace(/[\r\n\t\x00-\x1f\x7f]/g, " ")
             .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
             .slice(0, 240);
@@ -180,7 +213,8 @@ export class SalesforceReportsClient {
             this.config.get<string>("SALESFORCE_API_CONSUMER_SECRET"),
             this.session?.access_token,
           ]) {
-            if (secret) safeMessage = safeMessage.split(secret).join("[redacted]");
+            if (secret)
+              safeMessage = safeMessage.split(secret).join("[redacted]");
           }
           return [safeCode, safeMessage].filter(Boolean).join(": ");
         })
@@ -269,12 +303,54 @@ export class SalesforceReportsClient {
   }
 
   /**
-   * Runs a saved report using GET with includeDetails=true; renews expired OAuth once.
+   * Runs a report with optional execution-only filters/groupings; never saves it.
    * @param reportId Server-selected 15/18-character Salesforce report ID.
-   * @returns Unmodified Analytics report JSON for metadata-driven normalization.
+   * @param metadata Optional server-generated execution overrides.
+   * @param includeDetails Whether to download detail rows (existing pipeline default).
+   * @returns Unmodified Analytics report JSON for normalization.
    * @throws ServiceUnavailableException for invalid configuration; BadGatewayException on upstream failure.
    */
-  async runReport(reportId: string): Promise<SalesforceReport> {
+  async runReport(
+    reportId: string,
+    metadata?: SalesforceReportOverrides,
+    includeDetails = true,
+  ): Promise<SalesforceReport> {
+    return this.reportRequest(
+      reportId,
+      `?includeDetails=${includeDetails}`,
+      metadata
+        ? {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reportMetadata: metadata }),
+          }
+        : {},
+    );
+  }
+
+  /**
+   * Reads a saved report's metadata before adding execution filters.
+   * @param reportId Server-selected report ID.
+   * @returns Saved metadata, including its filters and Boolean logic.
+   * @throws Sanitized configuration or upstream errors.
+   */
+  async describeReport(
+    reportId: string,
+  ): Promise<Pick<SalesforceReport, "reportMetadata">> {
+    return this.reportRequest(reportId, "/describe");
+  }
+
+  /**
+   * Executes a trusted report request with shared validation, retries and OAuth renewal.
+   * @param reportId Configured report ID. @param suffix Internal resource suffix.
+   * @param init Optional POST execution body. @returns Parsed report response.
+   * @throws ServiceUnavailableException for configuration; BadGatewayException for upstream failures.
+   */
+  private async reportRequest(
+    reportId: string,
+    suffix: string,
+    init: RequestInit = {},
+  ): Promise<SalesforceReport> {
     if (!/^00O[a-zA-Z0-9]{12}(?:[a-zA-Z0-9]{3})?$/.test(reportId)) {
       throw new ServiceUnavailableException(
         "Salesforce report ID is not configured correctly.",
@@ -294,9 +370,11 @@ export class SalesforceReportsClient {
     for (let attempt = 0; attempt < 2; attempt++) {
       const session = await this.authenticate();
       const response = await this.request(
-        `${session.instance_url}/services/data/v${version}/analytics/reports/${reportId}?includeDetails=true`,
+        `${session.instance_url}/services/data/v${version}/analytics/reports/${reportId}${suffix}`,
         {
+          ...init,
           headers: {
+            ...init.headers,
             Authorization: `Bearer ${session.access_token}`,
             Accept: "application/json",
           },

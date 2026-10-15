@@ -45,6 +45,44 @@ describe("SalesforceReportsClient", () => {
     });
     expect(request.mock.calls[1][1].method).toBeUndefined();
   });
+  it("describes a report and executes summary overrides without saving them", async () => {
+    const metadata = {
+      aggregates: ["RowCount", "u!OPPORTUNITY_ID"],
+      standardDateFilter: {
+        column: "HISTORY_DATE",
+        durationValue: "CUSTOM",
+        startDate: "2026-10-01",
+        endDate: "2026-10-31",
+      },
+      reportFilters: [
+        { column: "FROM_STAGE", operator: "equals", value: "Proposal" },
+      ],
+    };
+    request
+      .mockResolvedValueOnce(oauth())
+      .mockResolvedValueOnce(
+        Response.json({ reportMetadata: { reportFilters: [] } }),
+      )
+      .mockResolvedValueOnce(new Response("", { status: 401 }))
+      .mockResolvedValueOnce(oauth("renewed"))
+      .mockResolvedValueOnce(
+        Response.json({ allData: true, hasDetailRows: false }),
+      );
+    await client.describeReport(reportId);
+    await client.runReport(reportId, metadata, false);
+    expect(request.mock.calls[1][0]).toContain(`${reportId}/describe`);
+    expect(request.mock.calls[1][1].method).toBeUndefined();
+    for (const index of [2, 4]) {
+      expect(request.mock.calls[index][0]).toContain(
+        `${reportId}?includeDetails=false`,
+      );
+      expect(request.mock.calls[index][1]).toMatchObject({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportMetadata: metadata }),
+      });
+    }
+  });
   it("renews expired sessions once", async () => {
     request
       .mockResolvedValueOnce(oauth())
@@ -78,20 +116,18 @@ describe("SalesforceReportsClient", () => {
   });
   it("logs the Salesforce quota reason and pauses further report calls", async () => {
     const warn = jest.spyOn(client["logger"], "warn").mockImplementation();
-    request
-      .mockResolvedValueOnce(oauth())
-      .mockResolvedValueOnce(
-        Response.json(
-          [
-            {
-              errorCode: "FORBIDDEN",
-              message:
-                "You can't run more than 500 reports synchronously every 60 minutes. Try again later. test-secret",
-            },
-          ],
-          { status: 403 },
-        ),
-      );
+    request.mockResolvedValueOnce(oauth()).mockResolvedValueOnce(
+      Response.json(
+        [
+          {
+            errorCode: "FORBIDDEN",
+            message:
+              "You can't run more than 500 reports synchronously every 60 minutes. Try again later. test-secret",
+          },
+        ],
+        { status: 403 },
+      ),
+    );
     await expect(client.runReport(reportId)).rejects.toBeInstanceOf(
       BadGatewayException,
     );
