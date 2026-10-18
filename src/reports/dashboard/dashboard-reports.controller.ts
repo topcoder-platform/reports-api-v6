@@ -22,6 +22,7 @@ import {
 } from "@nestjs/swagger";
 import { CsvSerializer } from "../../common/csv/csv-serializer";
 import {
+  ActiveMembersDashboardDto,
   AllDashboardsDto,
   ChallengeParticipationDashboardDto,
   DashboardQueryDto,
@@ -41,6 +42,7 @@ import { DashboardReportsGuard } from "./guards/dashboard-reports.guard";
 @ApiTags("Dashboards")
 @ApiBearerAuth()
 @ApiExtraModels(
+  ActiveMembersDashboardDto,
   NewSignupsDashboardDto,
   MembersPaidDashboardDto,
   ChallengeParticipationDashboardDto,
@@ -70,7 +72,7 @@ export class DashboardReportsController {
    * Retrieves all dashboards for the landing page.
    *
    * @param query Optional half-open reporting range.
-   * @returns All five complete dashboard responses.
+   * @returns All complete dashboard responses.
    * @throws BadRequestException when the range is invalid.
    */
   @Get()
@@ -98,7 +100,7 @@ export class DashboardReportsController {
   @ApiOperation({ summary: "Export all dashboard month data as CSV" })
   @ApiProduces("text/csv")
   @ApiOkResponse({
-    description: "Flat CSV rows for all five dashboards.",
+    description: "Flat CSV rows for all dashboards, including active-member activity detail.",
     type: String,
   })
   @ApiBadRequestResponse({ description: "Invalid reporting date range." })
@@ -155,6 +157,7 @@ export class DashboardReportsController {
   @ApiOkResponse({
     schema: {
       oneOf: [
+        { $ref: getSchemaPath(ActiveMembersDashboardDto) },
         { $ref: getSchemaPath(NewSignupsDashboardDto) },
         { $ref: getSchemaPath(MembersPaidDashboardDto) },
         { $ref: getSchemaPath(ChallengeParticipationDashboardDto) },

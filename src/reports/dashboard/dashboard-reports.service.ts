@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { SqlLoaderService } from "../../common/sql-loader.service";
 import { DbService } from "../../db/db.service";
+import { ActiveMembersReportsService } from "./active-members-reports.service";
 import {
   AllDashboardsDto,
   ChallengeParticipationDashboardDto,
@@ -196,14 +197,16 @@ export class DashboardReportsService {
    *
    * @param db Shared PostgreSQL query service.
    * @param sql SQL file loader.
+   * @param activeMembers Cross-database active-member activity report.
    */
   constructor(
     private readonly db: DbService,
     private readonly sql: SqlLoaderService,
+    private readonly activeMembers: ActiveMembersReportsService,
   ) {}
 
   /**
-   * Loads all five dashboards for one shared reporting range.
+   * Loads all dashboards for one shared reporting range.
    *
    * @param query Optional date range.
    * @returns Full dashboard objects keyed for the landing page.
@@ -217,12 +220,14 @@ export class DashboardReportsService {
       challengeParticipation,
       memberPaymentByMonth,
       memberPaymentByCustomer,
+      activeMembers,
     ] = await Promise.all([
       this.loadNewSignups(range),
       this.loadMembersPaid(range),
       this.loadChallengeParticipation(range),
       this.loadMemberPaymentByMonth(range),
       this.loadMemberPaymentByCustomer(range),
+      this.activeMembers.load(range),
     ]);
 
     return {
@@ -231,6 +236,7 @@ export class DashboardReportsService {
       challengeParticipation,
       memberPaymentByMonth,
       memberPaymentByCustomer,
+      activeMembers,
     };
   }
 
@@ -249,6 +255,8 @@ export class DashboardReportsService {
     const range = resolveDashboardDateRange(query);
 
     switch (dashboard) {
+      case DashboardSlug.ActiveMembers:
+        return this.activeMembers.load(range);
       case DashboardSlug.NewSignups:
         return this.loadNewSignups(range);
       case DashboardSlug.MembersPaid:
@@ -281,6 +289,7 @@ export class DashboardReportsService {
       ...this.toExportRows(dashboards.challengeParticipation),
       ...this.toExportRows(dashboards.memberPaymentByMonth),
       ...this.toExportRows(dashboards.memberPaymentByCustomer),
+      ...this.toExportRows(dashboards.activeMembers),
     ];
   }
 
@@ -491,13 +500,31 @@ export class DashboardReportsService {
   }
 
   /**
-   * Flattens a dashboard response into monthly CSV rows.
+   * Flattens monthly metrics and active-member activity detail into CSV rows.
    *
    * @param dashboard Full dashboard response.
-   * @returns Metric-specific flat rows with a dashboard discriminator.
+   * @returns Metric-specific rows, including dated member activities for active members.
    */
   private toExportRows(dashboard: DashboardResponse): DashboardExportRowDto[] {
     switch (dashboard.dashboard) {
+      case DashboardSlug.ActiveMembers:
+        return [...dashboard.months].reverse().flatMap((month) => {
+          const summary = {
+            dashboard: dashboard.dashboard,
+            month: month.month,
+            totalUniqueMembers: month.totalUniqueMembers,
+          };
+          return month.activities.length
+            ? month.activities.map((activity) => ({
+                ...summary,
+                memberId: activity.memberId,
+                handle: activity.handle,
+                activity: activity.activity,
+                date: activity.date,
+                description: activity.description,
+              }))
+            : [summary];
+        });
       case DashboardSlug.NewSignups:
         return dashboard.months.map((month) => ({
           dashboard: dashboard.dashboard,

@@ -87,3 +87,13 @@ it('passes all filters in correct order', async () => {
 ```
 
 Refer to `sfdc-reports.controller.spec.ts`, `sfdc-reports.service.spec.ts`, and `sfdc-reports.dto.spec.ts` for complete patterns.
+
+## Active member dashboard SQL integration
+
+Set `REPORTS_TEST_DATABASE_URL` to an empty disposable PostgreSQL database and run
+`pnpm test --runInBand`. The active-members integration spec creates fixture schemas
+inside a transaction and rolls them back. It covers UTC month boundaries under a
+non-UTC database timezone, latest payment versions, paid versus projected/cancelled
+payments, all payment categories, registration roles, applications after rejection,
+stable acceptance dates, and rolling deployment before the acceptance migration.
+Without this explicit database URL, only these integration tests are skipped.

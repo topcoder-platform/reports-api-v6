@@ -1,7 +1,9 @@
 import { BadRequestException } from "@nestjs/common";
 import { SqlLoaderService } from "../../common/sql-loader.service";
 import { DbService } from "../../db/db.service";
+import { ActiveMembersReportsService } from "./active-members-reports.service";
 import {
+  ActiveMembersDashboardDto,
   ChallengeParticipationDashboardDto,
   DashboardSlug,
   MemberPaymentByCustomerDashboardDto,
@@ -17,6 +19,13 @@ import {
 const rangeQuery = {
   startDate: "2026-02-01T00:00:00.000Z",
   endDate: "2026-04-01T00:00:00.000Z",
+};
+
+const activeMembersDashboard: ActiveMembersDashboardDto = {
+  dashboard: DashboardSlug.ActiveMembers,
+  ...rangeQuery,
+  months: [],
+  summary: { totalUniqueMembers: 0 },
 };
 
 const newSignupsRows = [
@@ -200,11 +209,13 @@ describe("DashboardReportsService", () => {
     service = new DashboardReportsService(
       db as unknown as DbService,
       sql as unknown as SqlLoaderService,
+      { load: jest.fn().mockResolvedValue(activeMembersDashboard) } as unknown as ActiveMembersReportsService,
     );
   });
 
   it("loads and maps all dashboard responses with one shared range", async () => {
     await expect(service.getAllDashboards(rangeQuery)).resolves.toEqual({
+      activeMembers: activeMembersDashboard,
       newSignups: {
         dashboard: DashboardSlug.NewSignups,
         ...rangeQuery,
@@ -378,6 +389,7 @@ describe("DashboardReportsService", () => {
 
   it("flattens all dashboard month data for CSV serialization", async () => {
     const dashboards = {
+      activeMembers: activeMembersDashboard,
       newSignups: {
         dashboard: DashboardSlug.NewSignups,
         ...rangeQuery,

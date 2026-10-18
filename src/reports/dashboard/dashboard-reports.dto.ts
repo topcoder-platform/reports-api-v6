@@ -5,6 +5,7 @@ import { IsDateString, IsOptional } from "class-validator";
  * Public identifiers used to select a dashboard report.
  */
 export enum DashboardSlug {
+  ActiveMembers = "active-members",
   NewSignups = "new-signups",
   MembersPaid = "members-paid",
   ChallengeParticipation = "challenge-participation",
@@ -352,10 +353,83 @@ export class MemberPaymentByCustomerDashboardDto {
   months: MemberPaymentByCustomerMonthDto[];
 }
 
+/** A dated activity displayed in the active-members monthly drill-down. */
+export class ActiveMemberActivityDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  memberId: string;
+
+  @ApiProperty()
+  handle: string;
+
+  @ApiProperty({
+    enum: [
+      "payment",
+      "challenge-registration",
+      "engagement-application",
+      "engagement-acceptance",
+    ],
+  })
+  activity:
+    | "payment"
+    | "challenge-registration"
+    | "engagement-application"
+    | "engagement-acceptance";
+
+  @ApiProperty({ description: "UTC timestamp of the activity." })
+  date: string;
+
+  @ApiProperty({
+    description: "Payment title, challenge name, or engagement title.",
+  })
+  description: string;
+}
+
+/** Monthly unique member count and newest-first activity detail for the dashboard. */
+export class ActiveMembersMonthDto {
+  @ApiProperty({ example: "2026-02-01" })
+  month: string;
+
+  @ApiProperty()
+  totalUniqueMembers: number;
+
+  @ApiProperty({ type: [ActiveMemberActivityDto] })
+  activities: ActiveMemberActivityDto[];
+}
+
+/** Unique members across the selected reporting range, deduplicated across activities. */
+export class ActiveMembersSummaryDto {
+  @ApiProperty()
+  totalUniqueMembers: number;
+}
+
+/** Active-members chart, range summary, and monthly detail used by the Reports Portal. */
+export class ActiveMembersDashboardDto {
+  @ApiProperty({ enum: [DashboardSlug.ActiveMembers] })
+  dashboard: DashboardSlug.ActiveMembers;
+
+  @ApiProperty()
+  startDate: string;
+
+  @ApiProperty({ description: "Exclusive reporting range end." })
+  endDate: string;
+
+  @ApiProperty({ type: [ActiveMembersMonthDto] })
+  months: ActiveMembersMonthDto[];
+
+  @ApiProperty({ type: ActiveMembersSummaryDto })
+  summary: ActiveMembersSummaryDto;
+}
+
 /**
- * Aggregate landing-page response containing all five full dashboards.
+ * Aggregate landing-page response containing all full dashboards.
  */
 export class AllDashboardsDto {
+  @ApiProperty({ type: ActiveMembersDashboardDto })
+  activeMembers: ActiveMembersDashboardDto;
+
   @ApiProperty({ type: NewSignupsDashboardDto })
   newSignups: NewSignupsDashboardDto;
 
@@ -379,6 +453,24 @@ export class AllDashboardsDto {
  * CSV serialization.
  */
 export class DashboardExportRowDto {
+  @ApiPropertyOptional()
+  totalUniqueMembers?: number;
+
+  @ApiPropertyOptional()
+  memberId?: string;
+
+  @ApiPropertyOptional()
+  handle?: string;
+
+  @ApiPropertyOptional()
+  activity?: string;
+
+  @ApiPropertyOptional()
+  date?: string;
+
+  @ApiPropertyOptional()
+  description?: string;
+
   @ApiProperty({ enum: DashboardSlug })
   dashboard: DashboardSlug;
 
@@ -420,6 +512,7 @@ export class DashboardExportRowDto {
  * Full response returned by a dashboard detail endpoint.
  */
 export type DashboardResponse =
+  | ActiveMembersDashboardDto
   | NewSignupsDashboardDto
   | MembersPaidDashboardDto
   | ChallengeParticipationDashboardDto
