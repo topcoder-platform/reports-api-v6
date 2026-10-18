@@ -48,8 +48,14 @@ Dashboard figures use these shared definitions:
   within each payment bucket and month.
 - Member-payment values use the latest non-cancelled finance payment and group
   `gross_amount` by payment creation month, falling back to `total_amount`.
-  The payment-by-customer dashboard ranks the top five billing-account clients
-  across the selected range and groups all unnamed or remaining clients under
+  The payment-by-customer dashboard uses the billing account's
+  `subcontractingEndCustomer` (`reportingAccountName`) as the customer label,
+  except TaaS payments for `Wipro Limited (NA subcontracting)` use `TaaS` and
+  non-TaaS payments for `Topcoder` use `Topcoder`. The payment billing account
+  takes precedence over the challenge billing account, including when its
+  reporting account name is blank. The dashboard ranks the top five client/label
+  pairs across the selected range, with distinct stable series keys for different
+  labels under the same client. Unnamed or remaining customers are grouped under
   `Other Customers`.
 - Challenge participation uses the latest actual phase completion month for
   Challenge, Marathon Match, and First2Finish cohorts. Registrants are
@@ -75,6 +81,13 @@ Dashboard figures use these shared definitions:
 
 Human access is limited to Administrator and Talent Manager roles. Machine
 tokens require the `reports:all` scope.
+
+The customer-payment SQL regression tests use an empty, disposable PostgreSQL
+database and roll back all fixtures. After `nvm use`, run:
+
+```sh
+DASHBOARD_TEST_DATABASE_URL=postgresql://localhost/reports_test pnpm test --runInBand member-payment-by-customer.integration.spec.ts
+```
 
 ## Salesforce Sales report
 

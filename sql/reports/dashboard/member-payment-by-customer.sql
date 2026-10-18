@@ -1,4 +1,4 @@
--- Monthly member-payment values split by the selected range's top five clients.
+-- Monthly member-payment values split by the selected range's top five customers.
 --
 -- Parameters:
 --   $1 timestamptz - inclusive reporting range start
@@ -6,8 +6,11 @@
 --
 -- The same ranked customer series is used for every month. The latest
 -- non-cancelled payment record is counted in its creation month so projected
--- payments remain visible. Payments for unranked or unnamed clients are
+-- payments remain visible. Payments for unranked or unnamed customers are
 -- grouped under Other Customers.
+-- Customer labels use the billing account's subcontractingEndCustomer, except
+-- TaaS payments for Wipro Limited (NA subcontracting) use TaaS and non-TaaS
+-- payments for Topcoder use Topcoder. Each client/label pair is a distinct series.
 -- Billing-account ids are normalized and compared as text so the historical
 -- zero sentinel falls back to challenge billing without unsafe integer casts.
 WITH bounds AS (
@@ -35,7 +38,14 @@ payment_events AS MATERIALIZED (
     p.created_at AS activity_at,
     COALESCE(p.gross_amount, p.total_amount, 0) AS amount,
     NULLIF(TRIM(cl.id), '') AS customer_id,
-    NULLIF(TRIM(cl.name), '') AS customer_label
+    NULLIF(TRIM(CASE
+      WHEN w.category::text = 'TAAS_PAYMENT'
+        AND TRIM(cl.name) = 'Wipro Limited (NA subcontracting)' THEN 'TaaS'
+      WHEN w.category::text IS DISTINCT FROM 'TAAS_PAYMENT'
+        AND TRIM(cl.name) = 'Topcoder' THEN 'Topcoder'
+      WHEN payment_ba.id IS NOT NULL THEN payment_ba."subcontractingEndCustomer"
+      ELSE challenge_ba."subcontractingEndCustomer"
+    END), '') AS customer_label
   FROM finance.payment p
   JOIN latest_payment_versions lpv
     ON lpv.winnings_id = p.winnings_id
@@ -96,6 +106,7 @@ ranked_customers AS (
 ),
 top_customers AS (
   SELECT
+    'customer-' || rc.customer_id || '-' || MD5(rc.customer_label) AS series_key,
     rc.customer_id,
     rc.customer_label,
     rc.series_order
@@ -104,7 +115,7 @@ top_customers AS (
 ),
 series AS (
   SELECT
-    'customer-' || tc.customer_id AS series_key,
+    tc.series_key,
     tc.customer_id,
     tc.customer_label,
     tc.series_order
@@ -122,7 +133,7 @@ monthly_amounts AS (
   SELECT
     DATE_TRUNC('month', se.activity_at) AS month_start,
     COALESCE(
-      'customer-' || tc.customer_id,
+      tc.series_key,
       'other-customers'
     ) AS series_key,
     SUM(se.amount) AS amount
@@ -132,7 +143,7 @@ monthly_amounts AS (
    AND tc.customer_label = se.customer_label
   GROUP BY
     DATE_TRUNC('month', se.activity_at),
-    COALESCE('customer-' || tc.customer_id, 'other-customers')
+    COALESCE(tc.series_key, 'other-customers')
 )
 SELECT
   TO_CHAR(m.month_start, 'YYYY-MM-01') AS month,
