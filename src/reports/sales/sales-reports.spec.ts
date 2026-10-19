@@ -87,6 +87,22 @@ describe("SalesReportsService", () => {
     jest.restoreAllMocks();
   });
 
+  it("keeps monthly pipeline and revenue snapshots separate and coalesces each source", async () => {
+    service = new SalesReportsService(
+      { runReport } as unknown as SalesforceReportsClient,
+      new ConfigService({ SALESFORCE_REVENUE_REPORT_ID: "00O1K00000A7UGEUA3" }),
+    );
+    await Promise.all([
+      service.getDashboardSnapshot("pipeline"),
+      service.getDashboardSnapshot("revenue"),
+      service.getDashboardSnapshot("revenue"),
+    ]);
+    await service.getDashboardSnapshot("pipeline");
+    expect(runReport).toHaveBeenCalledTimes(2);
+    expect(runReport).toHaveBeenCalledWith("00O1K00000A7UGDUA3");
+    expect(runReport).toHaveBeenCalledWith("00O1K00000A7UGEUA3");
+  });
+
   it("preserves stage groupings and readable image formulas from Bookings By Stage", async () => {
     const fixture = reportFixture();
     fixture.reportMetadata.groupingsDown = [{ name: "STAGE_NAME" }];
