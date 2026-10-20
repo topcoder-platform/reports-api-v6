@@ -1,0 +1,163 @@
+import { Pool } from "pg";
+import { SqlLoaderService } from "../../common/sql-loader.service";
+
+// Opt-in integration test: point only at a disposable database named sales_dashboard_test.
+const connectionString = process.env.SALES_DASHBOARD_TEST_DB_URL;
+const integration = connectionString ? describe : describe.skip;
+
+integration("Monthly sales SQL (PostgreSQL)", () => {
+  const pool = new Pool({ connectionString });
+  const sql = new SqlLoaderService();
+  const bounds = ["2026-08-01T00:00:00Z", "2026-11-01T00:00:00Z"];
+  beforeAll(async () => {
+    if (
+      !connectionString ||
+      new URL(connectionString).pathname !== "/sales_dashboard_test"
+    )
+      throw new Error("Use a disposable sales_dashboard_test database.");
+    await pool.query(`
+      CREATE SCHEMA finance;
+      CREATE SCHEMA challenges;
+      CREATE SCHEMA "billing-accounts";
+      CREATE SCHEMA engagements;
+      CREATE TABLE finance.payment (winnings_id text, version int, created_at timestamp, gross_amount numeric, total_amount numeric, billing_account text, payment_status text, challenge_markup numeric);
+      CREATE TABLE finance.winnings (winning_id text, winner_id text, category text, type text, external_id text);
+      CREATE TABLE challenges."Challenge" (id text);
+      CREATE TABLE challenges."ChallengeBilling" ("challengeId" text, "billingAccountId" text);
+      CREATE TABLE "billing-accounts"."BillingAccount" (id int, "clientId" text, "subcontractingEndCustomer" text);
+      CREATE TABLE "billing-accounts"."Client" (id text, name text);
+      CREATE TABLE engagements."EngagementAssignment" ("memberId" text, status text, "acceptedAt" timestamp, "startDate" timestamp, "endDate" timestamp);
+      INSERT INTO "billing-accounts"."Client" VALUES ('customer', 'Customer'), ('internal', 'Topcoder'), ('wipro', 'Wipro Limited (NA subcontracting)');
+      INSERT INTO "billing-accounts"."BillingAccount" VALUES (1, 'customer', 'Customer'), (2, 'internal', 'Some internal work'), (3, 'wipro', 'Customer B');
+      INSERT INTO challenges."Challenge" VALUES ('challenge');
+      INSERT INTO challenges."ChallengeBilling" VALUES ('challenge', '1');
+      INSERT INTO finance.winnings VALUES
+        ('a', 'member1', 'CHALLENGE_PAYMENT', 'PAYMENT', 'challenge'),
+        ('b', 'member1', 'CHALLENGE_PAYMENT', 'PAYMENT', 'challenge'),
+        ('c', 'member2', 'TAAS_PAYMENT', 'PAYMENT', null),
+        ('d', 'member3', 'CHALLENGE_PAYMENT', 'PAYMENT', null),
+        ('e', 'member4', 'ENGAGEMENT_PAYMENT', 'PAYMENT', null),
+        ('f', 'member5', 'CHALLENGE_PAYMENT', 'PAYMENT', null),
+        ('g', 'member6', 'CHALLENGE_PAYMENT', 'PAYMENT', null),
+        ('h', 'member7', 'CHALLENGE_PAYMENT', 'PAYMENT', null),
+        ('i', 'member8', 'CHALLENGE_PAYMENT', 'PAYMENT', null);
+      INSERT INTO finance.payment VALUES
+        ('a', 1, '2026-08-01', 999, 999, '1', 'PAID', 9),
+        ('a', 2, '2026-08-01', 100, 100, '0001', 'PAID', .10),
+        ('b', 1, '2026-08-20', 900, 900, '0', 'OWED', .30),
+        ('c', 1, '2026-08-20', 5000, 5000, '3', 'PAID', .40),
+        ('d', 1, '2026-08-20', 6000, 6000, '2', 'PAID', .50),
+        ('e', 1, '2026-08-20', 50, 50, '3', 'PAID', .20),
+        ('f', 1, '2026-09-01', 100, 100, '1', 'CANCELLED', .50),
+        ('g', 1, '2026-09-02', 200, 200, '1', 'FAILED', .10),
+        ('h', 1, '2026-10-01', 300, 300, 'missing', 'PAID', null),
+        ('i', 1, '2026-11-01', 888, 888, '1', 'PAID', .99);
+      INSERT INTO engagements."EngagementAssignment" VALUES
+        ('alice', 'COMPLETED', '2026-08-05', '2026-08-10', '2026-09-15'),
+        ('alice', 'ASSIGNED', '2026-08-20', null, null),
+        ('bob', 'ASSIGNED', null, '2026-07-01', null),
+        ('carol', 'TERMINATED', '2026-08-01', null, '2026-08-31'),
+        ('dave', 'SELECTED', null, '2026-08-01', null),
+        ('eve', 'COMPLETED', null, null, '2026-09-20'),
+        ('frank', 'ASSIGNED', '2026-11-01', null, null);
+    `);
+  });
+  afterAll(async () => {
+    if (
+      connectionString &&
+      new URL(connectionString).pathname === "/sales_dashboard_test"
+    ) {
+      await pool.query(
+        'DROP SCHEMA IF EXISTS finance, challenges, "billing-accounts", engagements CASCADE',
+      );
+    }
+    await pool.end();
+  });
+
+  it("filters customer work before type totals, distinct-member counts and customer ranking", async () => {
+    const sales = await pool.query(
+      sql.load("reports/dashboard/sales-payments.sql"),
+      [...bounds, true],
+    );
+    const reports = await pool.query(
+      sql.load("reports/dashboard/sales-payments.sql"),
+      [...bounds, false],
+    );
+    const august = sales.rows.filter((r) => r.month === "2026-08-01");
+    expect(
+      august.find((r) => r.kind === "type" && r.payment_type === "challenge"),
+    ).toMatchObject({ amount: "1000", members: "1" });
+    expect(
+      august.find((r) => r.kind === "type" && r.payment_type === "engagement")
+        .amount,
+    ).toBe("50");
+    expect(
+      sales.rows.some(
+        (r) =>
+          r.payment_type === "taas" ||
+          r.customer_label === "Topcoder" ||
+          r.customer_label === "TaaS",
+      ),
+    ).toBe(false);
+    expect(
+      sales.rows
+        .filter((r) => r.kind === "customer")
+        .reduce((sum, r) => sum + Number(r.amount), 0),
+    ).toBe(1250);
+    expect(
+      reports.rows.some(
+        (r) => r.customer_label === "Topcoder" && Number(r.amount) === 6000,
+      ),
+    ).toBe(true);
+    expect(
+      reports.rows.some(
+        (r) => r.customer_label === "TaaS" && Number(r.amount) === 5000,
+      ),
+    ).toBe(true);
+    expect(
+      sales.rows.some(
+        (r) => r.month === "2026-11-01" || r.month === "2026-10-01",
+      ),
+    ).toBe(false);
+  });
+
+  it("averages latest payment markup equally across all statuses, retaining null for unknown markup", async () => {
+    const result = await pool.query(
+      sql.load("reports/dashboard/sales-gross-margin.sql"),
+      bounds,
+    );
+    expect(Number(result.rows[0].markup)).toBe(30);
+    // September includes cancelled and failed payments: (.50 + .10) / 2 * 100.
+    expect(Number(result.rows[1].markup)).toBe(30);
+    expect(result.rows[2]).toMatchObject({
+      month: "2026-10-01",
+      markup: null,
+      missing: "1",
+    });
+  });
+
+  it("counts distinct assigned/completed/ongoing members using durable event dates and legacy starts", async () => {
+    const result = await pool.query(
+      sql.load("reports/dashboard/sales-talent.sql"),
+      bounds,
+    );
+    expect(result.rows[0]).toMatchObject({
+      month: "2026-08-01",
+      newly_assigned: "2",
+      completed: "0",
+      ongoing: "2",
+    });
+    expect(result.rows[1]).toMatchObject({
+      month: "2026-09-01",
+      newly_assigned: "0",
+      completed: "2",
+      ongoing: "2",
+    });
+    expect(result.rows[2]).toMatchObject({
+      month: "2026-10-01",
+      newly_assigned: "0",
+      completed: "0",
+      ongoing: "2",
+    });
+  });
+});
