@@ -87,6 +87,15 @@ describe("SalesReportsService", () => {
     jest.restoreAllMocks();
   });
 
+  it("uses the confirmed revenue report by default without changing the pipeline source", async () => {
+    await service.getDashboardSnapshot("revenue");
+    await service.getDashboardSnapshot("pipeline");
+    expect(runReport.mock.calls).toEqual([
+      ["00O1K000009GxBtUAK"],
+      ["00O1K00000A7UGDUA3"],
+    ]);
+  });
+
   it("keeps monthly pipeline and revenue snapshots separate and coalesces each source", async () => {
     service = new SalesReportsService(
       { runReport } as unknown as SalesforceReportsClient,

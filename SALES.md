@@ -282,10 +282,14 @@ Revenue falls back to Amount × Probability / 100. Closed Won includes `Won - Cl
 (or `Closed Won`), not `Won - SOW Signed`. Incomplete reports, missing values and
 non-USD/mixed currencies are surfaced as notices. No currency conversion is added.
 
-Revenue has no guessed report ID. Until the SFDC report is confirmed and all three
-settings are configured, its section returns an explicit pending notice:
+The revenue report confirmed in the October 20 PM-6632 comment is
+[Salesforce report `00O1K000009GxBtUAK`](https://topcoder.lightning.force.com/lightning/r/Report/00O1K000009GxBtUAK/view).
+It is the default source. Its exact monthly date and revenue amount column IDs
+still need verification against that report's metadata; they are not inferred
+from pipeline columns or labels. Until both column settings are configured, the
+section returns an explicit pending notice:
 
-- `SALESFORCE_REVENUE_REPORT_ID`: confirmed Salesforce Analytics report ID.
+- `SALESFORCE_REVENUE_REPORT_ID`: optional override; defaults to `00O1K000009GxBtUAK`.
 - `SALESFORCE_REVENUE_DATE_COLUMN`: exact date/datetime column ID from that report.
 - `SALESFORCE_REVENUE_AMOUNT_COLUMN`: exact currency/double revenue column ID.
 
@@ -300,7 +304,9 @@ month). Completed and terminated history contributes to earlier ongoing months.
 Selected/rejected offers do not count. Unknown assignment dates are not inferred
 from mutable `updatedAt`.
 
-Gross margin follows this ticket's definition: the arithmetic mean of stored
+Gross margin is **on hold** per the October 20 PM-6632 clarification. Neither
+portal renders or requests it. The existing API endpoint remains available for
+backward compatibility; its calculation is the arithmetic mean of stored
 `payment.challenge_markup` × 100, grouped by payment creation month. All payment
 categories/statuses participate in both portals. The latest payment version is
 used, consistently with existing payment dashboards. Null markup is excluded
