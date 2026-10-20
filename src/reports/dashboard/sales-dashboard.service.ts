@@ -9,7 +9,10 @@ import { ConfigService } from "@nestjs/config";
 import { Pool } from "pg";
 import { SqlLoaderService } from "../../common/sql-loader.service";
 import { DbService } from "../../db/db.service";
-import { SalesReportsService } from "../sales/sales-reports.service";
+import {
+  DEFAULT_REVENUE_REPORT_ID,
+  SalesReportsService,
+} from "../sales/sales-reports.service";
 import {
   DashboardDateRange,
   resolveDashboardDateRange,
@@ -102,7 +105,7 @@ export class SalesDashboardService implements OnModuleDestroy {
   }
 
   /**
-   * Groups the configured Salesforce revenue report by its explicitly selected date and amount fields.
+   * Groups the confirmed (or overridden) Salesforce revenue report by its explicitly selected date and amount fields.
    * @param range Half-open UTC range.
    * @returns A monthly revenue chart, or a pending-configuration notice; incomplete sources are labelled.
    * @throws BadGatewayException for invalid source fields; sanitized upstream errors propagate.
@@ -115,14 +118,17 @@ export class SalesDashboardService implements OnModuleDestroy {
       "SALESFORCE_REVENUE_AMOUNT_COLUMN",
     );
     if (
-      !this.config.get<string>("SALESFORCE_REVENUE_REPORT_ID") ||
+      !this.config.get<string>(
+        "SALESFORCE_REVENUE_REPORT_ID",
+        DEFAULT_REVENUE_REPORT_ID,
+      ) ||
       !dateColumn ||
       !amountColumn
     ) {
       return {
         charts: [],
         notices: [
-          "Revenue report pending: the Salesforce report and its monthly date and revenue columns have not been configured.",
+          "Revenue report pending: the Salesforce revenue source is not fully configured.",
         ],
       };
     }

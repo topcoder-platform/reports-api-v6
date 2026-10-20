@@ -23,6 +23,8 @@ import {
 
 const CACHE_MS = 60000;
 const REFRESH_COOLDOWN_MS = CACHE_MS;
+/** Revenue report confirmed in PM-6632; deployments may override it for another Salesforce org. */
+export const DEFAULT_REVENUE_REPORT_ID = "00O1K000009GxBtUAK";
 /** Column types that can carry a pipeline or revenue amount worth totalling. */
 const AMOUNT_TYPES = ["currency", "double"];
 /** Column types that a date range can be applied to. */
@@ -421,7 +423,7 @@ export class SalesReportsService {
       source === "pipeline"
         ? "SALESFORCE_SALES_REPORT_ID"
         : "SALESFORCE_REVENUE_REPORT_ID",
-      source === "pipeline" ? "00O1K00000A7UGDUA3" : "",
+      source === "pipeline" ? "00O1K00000A7UGDUA3" : DEFAULT_REVENUE_REPORT_ID,
     );
     if (!reportId)
       throw new ServiceUnavailableException(
@@ -447,7 +449,7 @@ export class SalesReportsService {
 
   /**
    * Supplies all snapshot rows to the monthly dashboards before UI pagination.
-   * @param source Server-selected pipeline or revenue report.
+   * @param source Server-selected pipeline or revenue report, using the confirmed report IDs unless overridden.
    * @returns Cached normalized report including completeness metadata.
    * @throws Sanitized configuration or Salesforce errors, with the existing retry cooldown.
    */

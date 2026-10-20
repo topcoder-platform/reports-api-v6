@@ -114,7 +114,7 @@ describe("Monthly sales dashboards", () => {
     jest.clearAllMocks();
   });
 
-  it("keeps revenue pending without guessing a report and bounds expensive monthly queries", async () => {
+  it("keeps revenue pending without guessing column mappings and bounds expensive monthly queries", async () => {
     expect(await service().load(SalesDashboardSection.Revenue, range)).toEqual({
       charts: [],
       notices: [expect.stringContaining("pending")],
@@ -129,27 +129,56 @@ describe("Monthly sales dashboards", () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("uses explicit SFDC revenue mappings and reports partial data", async () => {
-    getDashboardSnapshot.mockResolvedValue({
-      ...pipeline(),
-      allData: false,
-      reportName: "Recognized revenue",
-      columns: [
-        { id: "date", dataType: "date" },
-        { id: "recognized", dataType: "currency" },
-      ],
-      rows: [{ cells: [{ value: "2026-09-01" }, { value: 123.45 }] }],
-    });
-    const result = await service({
-      SALESFORCE_REVENUE_REPORT_ID: "report",
-      SALESFORCE_REVENUE_DATE_COLUMN: "date",
-      SALESFORCE_REVENUE_AMOUNT_COLUMN: "recognized",
-    }).load(SalesDashboardSection.Revenue, range);
-    expect(getDashboardSnapshot).toHaveBeenCalledWith("revenue");
-    expect(result.charts[0].months.map((m) => m.values.revenue)).toEqual([
-      0, 123.45, 0,
-    ]);
-    expect(result.notices[0]).toMatch(/incomplete/);
+  it.each([undefined, "00O1K00000A7UGEUA3"])(
+    "uses explicit SFDC revenue mappings and reports partial data with report override %s",
+    async (reportId) => {
+      getDashboardSnapshot.mockResolvedValue({
+        ...pipeline(),
+        allData: false,
+        reportName: "Recognized revenue",
+        columns: [
+          { id: "date", dataType: "date" },
+          { id: "recognized", dataType: "currency" },
+        ],
+        rows: [{ cells: [{ value: "2026-09-01" }, { value: 123.45 }] }],
+      });
+      const result = await service({
+        ...(reportId ? { SALESFORCE_REVENUE_REPORT_ID: reportId } : {}),
+        SALESFORCE_REVENUE_DATE_COLUMN: "date",
+        SALESFORCE_REVENUE_AMOUNT_COLUMN: "recognized",
+      }).load(SalesDashboardSection.Revenue, range);
+      expect(getDashboardSnapshot).toHaveBeenCalledWith("revenue");
+      expect(result.charts[0].months.map((m) => m.values.revenue)).toEqual([
+        0, 123.45, 0,
+      ]);
+      expect(result.notices[0]).toMatch(/incomplete/);
+    },
+  );
+
+  it.each<Record<string, string>>([
+    { SALESFORCE_REVENUE_DATE_COLUMN: "date" },
+    { SALESFORCE_REVENUE_AMOUNT_COLUMN: "recognized" },
+  ])(
+    "keeps revenue pending when only one column is configured: %j",
+    async (settings) => {
+      const result = await service(settings).load(
+        SalesDashboardSection.Revenue,
+        range,
+      );
+      expect(result.charts).toEqual([]);
+      expect(result.notices[0]).toMatch(/pending/);
+      expect(getDashboardSnapshot).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects incompatible revenue column mappings instead of producing misleading totals", async () => {
+    getDashboardSnapshot.mockResolvedValue(pipeline());
+    await expect(
+      service({
+        SALESFORCE_REVENUE_DATE_COLUMN: "5",
+        SALESFORCE_REVENUE_AMOUNT_COLUMN: "0",
+      }).load(SalesDashboardSection.Revenue, range),
+    ).rejects.toThrow(BadGatewayException);
   });
 
   it("passes Sales scope to SQL, omits TaaS series, and ranks customers before Other", async () => {
