@@ -87,29 +87,64 @@ describe("SalesReportsService", () => {
     jest.restoreAllMocks();
   });
 
+  const window = {
+    column: "CLOSE_DATE",
+    startDate: "2026-04-30",
+    endDate: "2026-11-01",
+  };
+  const run = (filter: typeof window) => ({
+    standardDateFilter: { ...filter, durationValue: "CUSTOM" },
+  });
+
   it("uses the confirmed revenue report by default without changing the pipeline source", async () => {
-    await service.getDashboardSnapshot("revenue");
-    await service.getDashboardSnapshot("pipeline");
+    await service.getDashboardSnapshot("revenue", window);
+    await service.getDashboardSnapshot("pipeline", window);
     expect(runReport.mock.calls).toEqual([
-      ["00O1K000009GxBtUAK"],
-      ["00O1K00000A7UGDUA3"],
+      ["00O1K000009GxBtUAK", run(window)],
+      ["00O1K00000A7UGDUA3", run(window)],
     ]);
   });
 
-  it("keeps monthly pipeline and revenue snapshots separate and coalesces each source", async () => {
+  it("keeps monthly pipeline, revenue and Sales page snapshots separate and coalesces each", async () => {
     service = new SalesReportsService(
       { runReport } as unknown as SalesforceReportsClient,
       new ConfigService({ SALESFORCE_REVENUE_REPORT_ID: "00O1K00000A7UGEUA3" }),
     );
     await Promise.all([
-      service.getDashboardSnapshot("pipeline"),
-      service.getDashboardSnapshot("revenue"),
-      service.getDashboardSnapshot("revenue"),
+      service.getDashboardSnapshot("pipeline", window),
+      service.getDashboardSnapshot("revenue", window),
+      service.getDashboardSnapshot("revenue", window),
     ]);
-    await service.getDashboardSnapshot("pipeline");
+    await service.getDashboardSnapshot("pipeline", window);
     expect(runReport).toHaveBeenCalledTimes(2);
-    expect(runReport).toHaveBeenCalledWith("00O1K00000A7UGDUA3");
-    expect(runReport).toHaveBeenCalledWith("00O1K00000A7UGEUA3");
+    expect(runReport).toHaveBeenCalledWith("00O1K00000A7UGDUA3", run(window));
+    expect(runReport).toHaveBeenCalledWith("00O1K00000A7UGEUA3", run(window));
+    await service.getReport(new SalesReportQueryDto());
+    expect(runReport).toHaveBeenLastCalledWith("00O1K00000A7UGDUA3");
+  });
+
+  it("replaces the saved date filter per dashboard window and bounds the window cache", async () => {
+    const created = { ...window, column: "CREATED_DATE" };
+    await service.getDashboardSnapshot("pipeline", window);
+    await service.getDashboardSnapshot("pipeline", created);
+    expect(runReport.mock.calls.slice(-1)).toEqual([
+      ["00O1K00000A7UGDUA3", run(created)],
+    ]);
+    await service.getReport(new SalesReportQueryDto());
+    for (let day = 10; day < 30; day++)
+      await service.getDashboardSnapshot("revenue", {
+        ...window,
+        endDate: `2026-11-${day}`,
+      });
+    const calls = runReport.mock.calls.length;
+    await service.getReport(new SalesReportQueryDto());
+    await service.getDashboardSnapshot("revenue", {
+      ...window,
+      endDate: "2026-11-29",
+    });
+    expect(runReport).toHaveBeenCalledTimes(calls);
+    await service.getDashboardSnapshot("pipeline", window);
+    expect(runReport).toHaveBeenCalledTimes(calls + 1);
   });
 
   it("preserves stage groupings and readable image formulas from Bookings By Stage", async () => {

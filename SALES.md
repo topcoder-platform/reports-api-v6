@@ -301,26 +301,53 @@ Optional query parameters:
   Without explicit dates, opportunity size, expected revenue and pipeline by
   stage instead span three months back through six months ahead.
 
-Pipeline uses the existing cached Salesforce snapshot before pagination. Amount
-and Expected Revenue prefer converted columns where available. Missing Expected
-Revenue falls back to Amount × Probability / 100. Closed Won includes `Won - Closed`
-(or `Closed Won`), not `Won - SOW Signed`. Incomplete reports, missing values and
-non-USD/mixed currencies are surfaced as notices. No currency conversion is added.
+Both saved Salesforce reports filter to `THIS_FISCAL_YEAR`, which would silently
+empty charted months on the far side of a fiscal-year boundary. Each dashboard run
+therefore replaces the saved standard date filter with a `CUSTOM` range covering
+every charted month, padded by one day for the Run As user's timezone. Rows are
+still bounded exactly to UTC months. The override applies to that execution only;
+saved reports are never edited, and their other filters still apply (for example,
+Bookings By Stage keeps excluding Lost and TaaS opportunities). Dashboard snapshots
+are separate from the Sales page snapshot, cached for one minute per report and
+window (at most 20 windows per instance), with the same coalescing and failure
+cooldown.
+
+Pipeline aggregates every row of its dashboard snapshot. The date filter uses
+`CLOSE_DATE` or `CREATED_DATE`, matching `dateBasis`, so an overriding
+`SALESFORCE_SALES_REPORT_ID` must be an Opportunity report that has both columns.
+Amount and Expected Revenue prefer converted columns where available. Missing
+Expected Revenue falls back to Amount × Probability / 100. Closed Won counts
+`Won - SOW Signed`, the only won stage in Topcoder's org and the stage behind the
+Sales page's Total WON SOW Signed card. `Won - Closed` and `Closed Won` also match,
+for orgs that use them. Incomplete reports, missing values and non-USD/mixed
+currencies are surfaced as notices. No currency conversion is added.
 
 The revenue report confirmed in the October 20 PM-6632 comment is
-[Salesforce report `00O1K000009GxBtUAK`](https://topcoder.lightning.force.com/lightning/r/Report/00O1K000009GxBtUAK/view).
-It is the default source. Its exact monthly date and revenue amount column IDs
-still need verification against that report's metadata; they are not inferred
-from pipeline columns or labels. Until both column settings are configured, the
-section returns an explicit pending notice:
+[Salesforce report `00O1K000009GxBtUAK`](https://topcoder.lightning.force.com/lightning/r/Report/00O1K000009GxBtUAK/view)
+("Accounts Monthly revenue File"), and it is the default source. Its column IDs were
+read from the report's `describe` metadata, and the defaults below apply only while
+that report is used:
 
-- `SALESFORCE_REVENUE_REPORT_ID`: optional override; defaults to `00O1K000009GxBtUAK`.
-- `SALESFORCE_REVENUE_DATE_COLUMN`: exact date/datetime column ID from that report.
-- `SALESFORCE_REVENUE_AMOUNT_COLUMN`: exact currency/double revenue column ID.
+| Setting | Default for the confirmed report | Meaning |
+| --- | --- | --- |
+| `SALESFORCE_REVENUE_REPORT_ID` | `00O1K000009GxBtUAK` | Optional report override |
+| `SALESFORCE_REVENUE_DATE_COLUMN` | `PSA_Revenue_Recognition__c.Date__c` (Date) | Date/datetime column that assigns the month |
+| `SALESFORCE_REVENUE_AMOUNT_COLUMN` | `PSA_Revenue_Recognition__c.Amount__c` (Gross Amount) | Currency/double revenue column |
+| `SALESFORCE_REVENUE_OFFERING_COLUMN` | `PSA_Revenue_Recognition__c.Type__c` (Type) | Optional "Revenue by offering" breakdown |
+| `SALESFORCE_REVENUE_CATEGORY_COLUMN` | `FK_Opportunity_Project_in_Appirio__c.Account_Category__c` | Optional "Revenue by account category" breakdown |
 
-Revenue uses the existing report normalization and an independent one-minute
-cache, including request coalescing and failure cooldown. The report must expose
-detail rows, as the pipeline report does.
+An overridden report must set its own date and amount columns. Until it does, the
+section returns an explicit pending notice; column IDs are never inferred from
+labels. Configured date or amount columns that are missing, or have the wrong
+type, return 502. A configured breakdown column the report lacks omits that chart
+with a notice.
+
+The section returns monthly totals, plus stacked breakdowns by offering and by
+account category. Each breakdown keeps its five largest categories, merges the rest
+into Other, and shows blank values as Unknown. Every row the report returns counts,
+including the `Wipro Internal - Ignore` account category, so totals match the
+Salesforce report and the breakdown shows that category separately. Amounts round
+to cents. The report must expose detail rows, as the pipeline report does.
 
 Flexible talent uses `ENGAGEMENTS_DB_URL`. It counts distinct members newly
 assigned (durable `acceptedAt`, falling back to legacy `startDate`), completed

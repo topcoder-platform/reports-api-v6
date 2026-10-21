@@ -25,6 +25,20 @@ const CACHE_MS = 60000;
 const REFRESH_COOLDOWN_MS = CACHE_MS;
 /** Revenue report confirmed in PM-6632; deployments may override it for another Salesforce org. */
 export const DEFAULT_REVENUE_REPORT_ID = "00O1K000009GxBtUAK";
+/**
+ * Column IDs of the confirmed revenue report ("Accounts Monthly revenue File"), read from its
+ * describe metadata. They apply only while that report is used; an overridden report needs
+ * explicit column settings.
+ */
+export const DEFAULT_REVENUE_COLUMNS = {
+  date: "PSA_Revenue_Recognition__c.Date__c",
+  amount: "PSA_Revenue_Recognition__c.Amount__c",
+  offering: "PSA_Revenue_Recognition__c.Type__c",
+  category: "FK_Opportunity_Project_in_Appirio__c.Account_Category__c",
+};
+/** Most cached dashboard snapshots, so arbitrary API date ranges cannot grow memory without bound. */
+const MAX_SNAPSHOTS = 20;
+
 /** Column types that can carry a pipeline or revenue amount worth totalling. */
 const AMOUNT_TYPES = ["currency", "double"];
 /** Column types that a date range can be applied to. */
@@ -49,20 +63,30 @@ const htmlToPlainText = compile({
 });
 
 /**
+ * Execution-only standard date filter for a dashboard run. It replaces the saved report's
+ * fiscal-year filter for that run only; bounds are inclusive `YYYY-MM-DD` Salesforce days.
+ */
+export interface DashboardDateFilter {
+  column: string;
+  startDate: string;
+  endDate: string;
+}
+
+/** One cached report source: its last snapshot, any in-flight load and the last failure. */
+type SnapshotState = {
+  snapshot?: SalesReportDto;
+  loading?: Promise<SalesReportDto>;
+  lastFailure?: { error: unknown; time: number };
+};
+
+/**
  * Normalizes live Salesforce report data for Sales, WIN and monthly dashboards.
- * Maintains independent short-lived pipeline/revenue snapshots, never database
- * copies, and coalesces refreshes per source.
+ * Maintains independent short-lived snapshots per report and dashboard date window,
+ * never database copies, and coalesces refreshes per snapshot.
  */
 @Injectable()
 export class SalesReportsService {
-  private readonly sources: Record<
-    string,
-    {
-      snapshot?: SalesReportDto;
-      loading?: Promise<SalesReportDto>;
-      lastFailure?: { error: unknown; time: number };
-    }
-  > = { pipeline: {}, revenue: {} };
+  private readonly sources = new Map<string, SnapshotState>();
 
   /** @param client Reusable Analytics client. @param config Server report selection. Does not throw. */
   constructor(
@@ -396,17 +420,47 @@ export class SalesReportsService {
   }
 
   /**
+   * Finds or creates the cache entry for a report and optional date window, evicting the
+   * oldest idle dashboard windows first. The unfiltered Sales pipeline entry is never evicted.
+   * @param key Source name, followed by the date filter when one applies.
+   * @returns The mutable cache entry.
+   * @throws Does not throw.
+   */
+  private snapshotState(key: string): SnapshotState {
+    let state = this.sources.get(key);
+    if (state) return state;
+    for (const [cached, entry] of this.sources) {
+      if (this.sources.size < MAX_SNAPSHOTS) break;
+      if (cached !== "pipeline" && !entry.loading) this.sources.delete(cached);
+    }
+    state = {};
+    this.sources.set(key, state);
+    return state;
+  }
+
+  /**
    * Loads or reuses the current snapshot. Failed refreshes never relabel stale data as fresh.
    * @param refresh Whether to request a refresh, subject to the one-minute cache interval.
    * @param source Pipeline or separately configured revenue report; caches stay independent.
+   * @param dateFilter Optional execution-only date filter replacing the saved report's; each window is cached separately.
    * @returns A report fetched within the cache interval.
    * @throws The sanitized client/normalization error; failures are throttled for one minute.
    */
   private async getSnapshot(
     refresh: boolean,
     source: "pipeline" | "revenue" = "pipeline",
+    dateFilter?: DashboardDateFilter,
   ): Promise<SalesReportDto> {
-    const state = this.sources[source];
+    const state = this.snapshotState(
+      dateFilter
+        ? [
+            source,
+            dateFilter.column,
+            dateFilter.startDate,
+            dateFilter.endDate,
+          ].join("|")
+        : source,
+    );
     if (state.loading) return state.loading;
     if (
       state.lastFailure &&
@@ -429,8 +483,13 @@ export class SalesReportsService {
       throw new ServiceUnavailableException(
         "The Salesforce revenue report has not been configured.",
       );
-    state.loading = this.client
-      .runReport(reportId)
+    state.loading = (
+      dateFilter
+        ? this.client.runReport(reportId, {
+            standardDateFilter: { ...dateFilter, durationValue: "CUSTOM" },
+          })
+        : this.client.runReport(reportId)
+    )
       .then((report) => {
         state.snapshot = this.normalize(report);
         state.lastFailure = undefined;
@@ -449,14 +508,18 @@ export class SalesReportsService {
 
   /**
    * Supplies all snapshot rows to the monthly dashboards before UI pagination.
+   * The saved reports only cover the current fiscal year, so each dashboard run replaces
+   * that filter with its own window. This snapshot is separate from the Sales page snapshot.
    * @param source Server-selected pipeline or revenue report, using the confirmed report IDs unless overridden.
+   * @param dateFilter Server-generated date column and inclusive day bounds that cover the charted months.
    * @returns Cached normalized report including completeness metadata.
    * @throws Sanitized configuration or Salesforce errors, with the existing retry cooldown.
    */
   getDashboardSnapshot(
     source: "pipeline" | "revenue",
+    dateFilter: DashboardDateFilter,
   ): Promise<SalesReportDto> {
-    return this.getSnapshot(false, source);
+    return this.getSnapshot(false, source, dateFilter);
   }
 
   /**
