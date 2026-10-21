@@ -7,7 +7,7 @@ import { UserRoles } from "src/app-constants";
 import { ExpertSkillsGuard } from "./expert-skills.guard";
 
 type AuthUserFixture = {
-  isMachine?: boolean;
+  kind?: 'user' | 'service'; isMachine?: boolean;
   roles?: string[];
   role?: string | string[];
   scopes?: string[];
@@ -66,7 +66,7 @@ describe("ExpertSkillsGuard", () => {
     expect(() =>
       guard.canActivate(
         createExecutionContext({
-          isMachine: true,
+          kind: 'service' as const, isMachine: true,
           scopes: ["reports:all"],
         }),
       ),

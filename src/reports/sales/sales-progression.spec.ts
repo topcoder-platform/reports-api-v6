@@ -417,7 +417,7 @@ describe("Sales progression", () => {
     );
     expect(() =>
       guard.canActivate(
-        context({ isMachine: true, scopes: ["reports:sales"] }),
+        context({ kind: 'service' as const, isMachine: true, scopes: ["reports:sales"] }),
       ),
     ).toThrow(ForbiddenException);
   });

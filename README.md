@@ -248,3 +248,8 @@ installation and application compilation happen only in builder stages.
 
 See [WIN showcase export](./WIN.md) for `GET /v6/reports/WIN`, its `reports:win`
 scope and role checks, payload fields, pagination, and database requirements.
+
+## Keycloak migration branch
+
+On `keycloak_m2M`, follow [Keycloak configuration and rollout](docs/keycloak-m2m.md).
+Legacy Auth0 M2M settings below do not configure token issuance on this branch.

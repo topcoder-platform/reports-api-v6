@@ -101,7 +101,7 @@ describe("getAccessibleReportsDirectory", () => {
 
   it("returns only scope-matched reports plus public reports for machine tokens", () => {
     const directory = getAccessibleReportsDirectory({
-      isMachine: true,
+      kind: 'service' as const, isMachine: true,
       scopes: [Scopes.Challenge.SubmissionLinks],
     });
 
@@ -122,7 +122,7 @@ describe("getAccessibleReportsDirectory", () => {
 
   it("returns all topcoder-scoped report categories for machine tokens", () => {
     const directory = getAccessibleReportsDirectory({
-      isMachine: true,
+      kind: 'service' as const, isMachine: true,
       scopes: [Scopes.TopcoderReports],
     });
 
@@ -150,8 +150,8 @@ describe("getAccessibleReportsDirectory", () => {
     expect(getAccessibleReportsDirectory()).toEqual({});
   });
   it("lists the WIN route only for its dedicated scope or allowed roles", () => {
-    expect(getAccessibleReportsDirectory({ scopes: ["reports:win"], isMachine: true }).win?.reports[0].path).toBe("/WIN");
-    expect(getAccessibleReportsDirectory({ scopes: ["reports:all"], isMachine: true }).win).toBeUndefined();
+    expect(getAccessibleReportsDirectory({ scopes: ["reports:win"], kind: 'service' as const, isMachine: true }).win?.reports[0].path).toBe("/WIN");
+    expect(getAccessibleReportsDirectory({ scopes: ["reports:all"], kind: 'service' as const, isMachine: true }).win).toBeUndefined();
   });
 
 });

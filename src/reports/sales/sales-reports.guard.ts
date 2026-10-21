@@ -1,3 +1,4 @@
+import { auth, Principal } from 'tc-core-library-js';
 import {
   CanActivate,
   ExecutionContext,
@@ -12,7 +13,6 @@ import {
   AuthUserLike,
   getNormalizedRoles,
   hasAdminRole,
-  hasRequiredScope,
 } from "../../auth/permissions.util";
 
 /** Separates human Sales access from the machine-only WIN endpoint; neither grants a role/scope bypass. */
@@ -39,7 +39,7 @@ export class SalesReportsGuard implements CanActivate {
     if (scopes) {
       if (
         user.isMachine === true &&
-        hasRequiredScope(user.scopes, [Scopes.Sales])
+        auth.hasScopes(user as Principal, [Scopes.Sales], 'any')
       )
         return true;
     } else if (!user.isMachine) {

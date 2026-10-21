@@ -1,6 +1,8 @@
+import { auth, Principal } from 'tc-core-library-js';
 import { AdminRoles, ScopeRoleAccess } from "../app-constants";
 
 export type AuthUserLike = {
+  kind?: 'user' | 'service';
   isMachine?: boolean;
   roles?: string[] | string;
   role?: string[] | string;
@@ -43,12 +45,6 @@ function normalizeRoles(
   );
 }
 
-function normalizeScopes(
-  values: readonly string[] | string | undefined,
-): string[] {
-  return normalizeClaims(values, /\s+/);
-}
-
 /**
  * Returns normalized role claims from either `roles` or `role`.
  */
@@ -57,25 +53,6 @@ export function getNormalizedRoles(authUser?: AuthUserLike): string[] {
     ...normalizeRoles(authUser?.roles),
     ...normalizeRoles(authUser?.role),
   ];
-}
-
-/**
- * Returns true when the caller has any of the required scopes.
- * Scope comparisons are case-insensitive.
- */
-export function hasRequiredScope(
-  scopes: readonly string[] | string | undefined,
-  requiredScopes: readonly string[] = [],
-): boolean {
-  const normalizedScopes = new Set(normalizeScopes(scopes));
-
-  if (!normalizedScopes.size || !requiredScopes.length) {
-    return false;
-  }
-
-  return requiredScopes.some((scope) =>
-    normalizedScopes.has(scope?.toLowerCase()),
-  );
 }
 
 /**
@@ -111,7 +88,10 @@ export function hasRequiredRoleAccess(
 /**
  * Evaluates report access using the same rules as the request guards:
  * machines need scopes, admins get full access, and human users can also
- * inherit access from role-to-scope mappings.
+ * inherit access from explicit role-to-scope mappings. Member OAuth scopes are ignored.
+ * @param authUser Verified principal provided by the shared middleware.
+ * @param requiredScopes Route permissions, matched exactly for machines.
+ * @returns Access decision. Throws only for malformed scope policy.
  */
 export function hasAccessToScopes(
   authUser: AuthUserLike | undefined,
@@ -126,7 +106,7 @@ export function hasAccessToScopes(
   }
 
   if (authUser.isMachine) {
-    return hasRequiredScope(authUser.scopes, requiredScopes);
+    return auth.hasScopes(authUser as Principal, [...requiredScopes], 'any');
   }
 
   const roles = getNormalizedRoles(authUser);
@@ -139,5 +119,5 @@ export function hasAccessToScopes(
     return true;
   }
 
-  return hasRequiredScope(authUser.scopes, requiredScopes);
+  return false;
 }

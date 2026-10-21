@@ -639,20 +639,20 @@ describe("Sales authorization", () => {
     ).toThrow(ForbiddenException);
     expect(() =>
       guard.canActivate(
-        context({ isMachine: true, scopes: ["reports:sales"] }),
+        context({ kind: 'service' as const, isMachine: true, scopes: ["reports:sales"] }),
       ),
     ).toThrow(ForbiddenException);
   });
   it("requires exactly the dedicated machine scope for WIN, including for admins", () => {
     expect(
       guard.canActivate(
-        context({ isMachine: true, scopes: "openid reports:sales" }, true),
+        context({ kind: 'service' as const, isMachine: true, scopes: ["openid", "reports:sales"] }, true),
       ),
     ).toBe(true);
     for (const user of [
       { roles: ["Administrator"], scopes: ["reports:sales"] },
-      { isMachine: true, scopes: ["reports:all"] },
-      { isMachine: true, roles: ["Administrator"] },
+      { kind: 'service' as const, isMachine: true, scopes: ["reports:all"] },
+      { kind: 'service' as const, isMachine: true, roles: ["Administrator"] },
     ]) {
       expect(() => guard.canActivate(context(user, true))).toThrow(
         ForbiddenException,

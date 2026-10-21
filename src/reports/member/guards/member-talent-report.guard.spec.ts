@@ -7,7 +7,7 @@ import { Scopes, UserRoles } from "src/app-constants";
 import { MemberTalentReportGuard } from "./member-talent-report.guard";
 
 type AuthUserFixture = {
-  isMachine?: boolean;
+  kind?: 'user' | 'service'; isMachine?: boolean;
   roles?: string[];
   role?: string | string[];
   scopes?: string[];
@@ -61,7 +61,7 @@ describe("MemberTalentReportGuard", () => {
     expect(
       guard.canActivate(
         createExecutionContext({
-          isMachine: true,
+          kind: 'service' as const, isMachine: true,
           scopes: [Scopes.AllReports],
         }),
       ),
@@ -92,7 +92,7 @@ describe("MemberTalentReportGuard", () => {
     expect(() =>
       guard.canActivate(
         createExecutionContext({
-          isMachine: true,
+          kind: 'service' as const, isMachine: true,
           scopes: [Scopes.Member.MemberSearch],
         }),
       ),

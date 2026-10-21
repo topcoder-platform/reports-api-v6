@@ -7,7 +7,7 @@ import { Scopes, UserRoles } from "src/app-constants";
 import { MemberSearchGuard } from "./member-search.guard";
 
 type AuthUserFixture = {
-  isMachine?: boolean;
+  kind?: 'user' | 'service'; isMachine?: boolean;
   roles?: string[];
   role?: string | string[];
   scopes?: string[];
@@ -56,7 +56,7 @@ describe("MemberSearchGuard", () => {
     expect(
       guard.canActivate(
         createExecutionContext({
-          isMachine: true,
+          kind: 'service' as const, isMachine: true,
           scopes: [Scopes.Member.MemberSearch],
         }),
       ),
@@ -67,7 +67,7 @@ describe("MemberSearchGuard", () => {
     expect(
       guard.canActivate(
         createExecutionContext({
-          isMachine: true,
+          kind: 'service' as const, isMachine: true,
           scopes: [Scopes.AllReports],
         }),
       ),
@@ -78,7 +78,7 @@ describe("MemberSearchGuard", () => {
     expect(
       guard.canActivate(
         createExecutionContext({
-          isMachine: true,
+          kind: 'service' as const, isMachine: true,
           scopes: [Scopes.TopcoderReports],
         }),
       ),
@@ -99,7 +99,7 @@ describe("MemberSearchGuard", () => {
     expect(() =>
       guard.canActivate(
         createExecutionContext({
-          isMachine: true,
+          kind: 'service' as const, isMachine: true,
           scopes: [Scopes.Identity.UsersByHandles],
         }),
       ),

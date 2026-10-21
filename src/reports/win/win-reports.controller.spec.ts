@@ -26,12 +26,11 @@ describe("WIN endpoint", () => {
 
   beforeEach(() => {
     db.query.mockReset().mockResolvedValue([{ data: [], total: 0 }]);
-    authUser = { isMachine: true, scopes: ["reports:win"] };
+    authUser = { kind: 'service' as const, isMachine: true, scopes: ["reports:win"] };
   });
 
   it.each([
-    { isMachine: true, scopes: ["reports:win"] },
-    { isMachine: false, scopes: "openid reports:win" },
+    { kind: 'service' as const, isMachine: true, scopes: ["reports:win"] },
     { roles: ["Administrator"] },
     { role: "Topcoder Talent Manager" },
   ])("allows the requested scope or human role: %j", async (user) => {
@@ -45,9 +44,10 @@ describe("WIN endpoint", () => {
   it.each([
     undefined,
     { roles: ["Project Manager"] },
+    { isMachine: false, scopes: "openid reports:win" },
     { scopes: ["reports:all"] },
-    { isMachine: true, roles: ["Administrator"] },
-    { isMachine: true, scopes: ["reports:win-other"] },
+    { kind: 'service' as const, isMachine: true, roles: ["Administrator"] },
+    { kind: 'service' as const, isMachine: true, scopes: ["reports:win-other"] },
   ])("denies callers without WIN access: %j", async (user) => {
     authUser = user;
     expect((await fetch(url)).status).toBe(user ? 403 : 401);

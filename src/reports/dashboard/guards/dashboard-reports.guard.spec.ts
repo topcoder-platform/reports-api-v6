@@ -7,7 +7,7 @@ import { Scopes, UserRoles } from "../../../app-constants";
 import { DashboardReportsGuard } from "./dashboard-reports.guard";
 
 type AuthUserFixture = {
-  isMachine?: boolean;
+  kind?: 'user' | 'service'; isMachine?: boolean;
   roles?: string[] | string;
   role?: string[] | string;
   scopes?: string[] | string;
@@ -49,19 +49,19 @@ describe("DashboardReportsGuard", () => {
     expect(
       guard.canActivate(
         createExecutionContext({
-          isMachine: true,
+          kind: 'service' as const, isMachine: true,
           scopes: [Scopes.AllReports],
         }),
       ),
     ).toBe(true);
   });
 
-  it("accepts a space-delimited machine scope claim", () => {
+  it("accepts the normalized scope array from the shared validator", () => {
     expect(
       guard.canActivate(
         createExecutionContext({
-          isMachine: true,
-          scopes: `openid ${Scopes.AllReports}`,
+          kind: 'service' as const, isMachine: true,
+          scopes: ['openid', Scopes.AllReports],
         }),
       ),
     ).toBe(true);
@@ -70,7 +70,7 @@ describe("DashboardReportsGuard", () => {
   it.each([
     { roles: [UserRoles.ProductManager] },
     { scopes: [Scopes.AllReports] },
-    { isMachine: true, scopes: [Scopes.Member.MemberSearch] },
+    { kind: 'service' as const, isMachine: true, scopes: [Scopes.Member.MemberSearch] },
   ])("rejects an unauthorized caller: %o", (authUser) => {
     expect(() => guard.canActivate(createExecutionContext(authUser))).toThrow(
       ForbiddenException,
