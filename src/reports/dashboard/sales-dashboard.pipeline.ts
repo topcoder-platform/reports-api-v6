@@ -7,6 +7,13 @@ import {
 } from "./sales-dashboard.dto";
 
 /**
+ * Stages counted as Closed Won. Topcoder's only won Salesforce stage is `Won - SOW Signed`
+ * (closed and won), which the Sales app's Total WON SOW Signed card also reports. `Won - Closed`
+ * and Salesforce's default `Closed Won` still match, for orgs that use them.
+ */
+const WON_STAGE = /^(won\b|closed won$)/i;
+
+/**
  * Creates zero-filled UTC months for each series, used by the monthly business charts.
  * @param range Inclusive start and exclusive end.
  * @param definition Chart identity, labels, units and series.
@@ -52,7 +59,7 @@ function column(report: SalesReportDto, label: string): number {
  * Aggregates all Salesforce snapshot rows into the four pipeline charts from the executive overview.
  * @param report Complete normalized source snapshot, before UI pagination.
  * @param range Pipeline window (normally three months back through six months ahead).
- * @param closedRange Historical window for Won - Closed amounts.
+ * @param closedRange Historical window for Closed Won amounts.
  * @param dateBasis Close date or Created date, selected by the user.
  * @returns Zero-filled charts and explicit incomplete/missing-data notices.
  * @throws BadGatewayException if the source lacks amount, stage or the selected date field.
@@ -94,7 +101,8 @@ export function pipelineCharts(
     monthlyChart(closedRange, {
       id: "closed-won",
       title: "Closed Won revenue",
-      description: "Amount for opportunities in the Won - Closed stage.",
+      description:
+        "Amount for won opportunities (the Won - SOW Signed stage), by selected date.",
       unit: "currency",
       stacked: false,
       series: [{ key: "amount", label: "Closed Won" }],
@@ -165,7 +173,7 @@ export function pipelineCharts(
       const bucket = chart.months.find((m) => m.month === month);
       if (
         !bucket ||
-        (i === 1 && !/^(won\s*-\s*closed|closed won)$/i.test(stage.trim()))
+        (i === 1 && !WON_STAGE.test(stage.trim()))
       )
         return;
       const key = i === 3 ? stageKeys.get(stage)! : "amount";

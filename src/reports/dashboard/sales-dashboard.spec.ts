@@ -48,10 +48,10 @@ function pipeline(): SalesReportDto {
 }
 
 describe("Monthly sales dashboards", () => {
-  it("uses every row, converted amounts, weighted fallback, exact won stages and half-open month ranges", () => {
+  it("uses every row, converted amounts, weighted fallback, won stages and half-open month ranges", () => {
     const { charts } = pipelineCharts(pipeline(), range, range, "close");
     expect(charts[0].months.map((m) => m.values.amount)).toEqual([100, 300, 0]);
-    expect(charts[1].months.map((m) => m.values.amount)).toEqual([100, 0, 0]);
+    expect(charts[1].months.map((m) => m.values.amount)).toEqual([100, 300, 0]);
     expect(charts[2].months.map((m) => m.values.amount)).toEqual([50, 210, 0]);
     expect(
       charts[3].months.map((m) =>
@@ -63,6 +63,16 @@ describe("Monthly sales dashboards", () => {
   it("switches the pipeline date field and preserves empty months", () => {
     const { charts } = pipelineCharts(pipeline(), range, range, "created");
     expect(charts[0].months.map((m) => m.values.amount)).toEqual([300, 100, 0]);
+  });
+
+  it("counts Topcoder's Won - SOW Signed stage as Closed Won, but not open or lost stages", () => {
+    const report = pipeline();
+    ["Won - SOW Signed", "Closed Won", "Lost"].forEach((stage, i) => {
+      report.rows[i].cells[4].label = stage;
+    });
+    report.rows[2].cells[5].value = "2026-10-01";
+    const { charts } = pipelineCharts(report, range, range, "close");
+    expect(charts[1].months.map((m) => m.values.amount)).toEqual([100, 300, 0]);
   });
 
   it("labels incomplete data and missing dates/expected revenue rather than silently fabricating it", () => {
@@ -113,9 +123,16 @@ describe("Monthly sales dashboards", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
 
-  it("keeps revenue pending without guessing column mappings and bounds expensive monthly queries", async () => {
-    expect(await service().load(SalesDashboardSection.Revenue, range)).toEqual({
+  const overridden = { SALESFORCE_REVENUE_REPORT_ID: "00O1K00000A7UGEUA3" };
+
+  it("keeps an overridden revenue report pending without guessing column mappings and bounds expensive monthly queries", async () => {
+    expect(
+      await service(overridden).load(SalesDashboardSection.Revenue, range),
+    ).toEqual({
       charts: [],
       notices: [expect.stringContaining("pending")],
     });
@@ -147,7 +164,11 @@ describe("Monthly sales dashboards", () => {
         SALESFORCE_REVENUE_DATE_COLUMN: "date",
         SALESFORCE_REVENUE_AMOUNT_COLUMN: "recognized",
       }).load(SalesDashboardSection.Revenue, range);
-      expect(getDashboardSnapshot).toHaveBeenCalledWith("revenue");
+      expect(getDashboardSnapshot).toHaveBeenCalledWith("revenue", {
+        column: "date",
+        startDate: "2026-07-31",
+        endDate: "2026-11-01",
+      });
       expect(result.charts[0].months.map((m) => m.values.revenue)).toEqual([
         0, 123.45, 0,
       ]);
@@ -161,13 +182,116 @@ describe("Monthly sales dashboards", () => {
   ])(
     "keeps revenue pending when only one column is configured: %j",
     async (settings) => {
-      const result = await service(settings).load(
+      const result = await service({ ...overridden, ...settings }).load(
         SalesDashboardSection.Revenue,
         range,
       );
       expect(result.charts).toEqual([]);
       expect(result.notices[0]).toMatch(/pending/);
       expect(getDashboardSnapshot).not.toHaveBeenCalled();
+    },
+  );
+
+  it("charts the confirmed revenue report by default, by offering and account category", async () => {
+    const ids = [
+      "PSA_Revenue_Recognition__c.Date__c",
+      "PSA_Revenue_Recognition__c.Amount__c",
+      "PSA_Revenue_Recognition__c.Type__c",
+      "FK_Opportunity_Project_in_Appirio__c.Account_Category__c",
+    ];
+    const types = ["date", "currency", "string", "string"];
+    const rows: Array<[string, number, string, string]> = [
+      ["2026-08-31", 0.1, "Challenge", "Through Wipro"],
+      ["2026-08-31", 0.2, "Challenge", " Wipro Internal - Ignore"],
+      ["2026-10-31", 50, "License", ""],
+      ["2026-11-01", 999, "License", "External revenue"],
+      ...["A", "B", "C", "D", "E", "F"].map(
+        (type, i): [string, number, string, string] => [
+          "2026-09-30",
+          10 - i,
+          type,
+          "External revenue",
+        ],
+      ),
+    ];
+    getDashboardSnapshot.mockResolvedValue({
+      allData: true,
+      reportName: "Accounts Monthly revenue File",
+      columns: ids.map((id, i) => ({
+        id,
+        label: id === ids[3] ? "Account Category" : "Type",
+        dataType: types[i],
+      })),
+      rows: rows.map((cells) => ({
+        cells: cells.map((value) => ({ value, label: String(value) })),
+      })),
+    });
+    const result = await service().load(SalesDashboardSection.Revenue, range);
+    expect(getDashboardSnapshot).toHaveBeenCalledWith("revenue", {
+      column: ids[0],
+      startDate: "2026-07-31",
+      endDate: "2026-11-01",
+    });
+    const [total, offering, category] = result.charts;
+    expect(result.notices).toEqual([]);
+    expect(total.months.map((m) => m.values.revenue)).toEqual([0.3, 45, 50]);
+    expect(offering.series.map((s) => s.label)).toEqual([
+      "License",
+      "A",
+      "B",
+      "C",
+      "D",
+      "Other",
+    ]);
+    expect(offering.months[1].values.other).toBe(5 + 6);
+    expect(offering.months[0].values.other).toBe(0.3);
+    expect(category.description).toBe(
+      "Monthly revenue stacked by Account Category.",
+    );
+    expect(category.series.map((s) => s.label)).toEqual([
+      "Unknown",
+      "External revenue",
+      "Wipro Internal - Ignore",
+      "Through Wipro",
+    ]);
+  });
+
+  it("omits a revenue breakdown whose column the report lacks, with a notice", async () => {
+    getDashboardSnapshot.mockResolvedValue({
+      allData: true,
+      reportName: "Recognized revenue",
+      columns: [
+        { id: "date", dataType: "date" },
+        { id: "recognized", dataType: "currency" },
+      ],
+      rows: [{ cells: [{ value: "2026-09-01" }, { value: 1 }] }],
+    });
+    const result = await service({
+      ...overridden,
+      SALESFORCE_REVENUE_DATE_COLUMN: "date",
+      SALESFORCE_REVENUE_AMOUNT_COLUMN: "recognized",
+      SALESFORCE_REVENUE_CATEGORY_COLUMN: "category",
+    }).load(SalesDashboardSection.Revenue, range);
+    expect(result.charts.map((c) => c.id)).toEqual(["revenue"]);
+    expect(result.notices).toEqual([
+      "Revenue by account category is unavailable: the report has no category column.",
+    ]);
+  });
+
+  it.each([
+    ["close", "CLOSE_DATE"],
+    ["created", "CREATED_DATE"],
+  ] as const)(
+    "runs the pipeline over every charted month by %s date, not the saved fiscal year",
+    async (dateBasis, column) => {
+      jest.useFakeTimers({ now: Date.parse("2026-10-22T00:00:00Z") });
+      getDashboardSnapshot.mockResolvedValue(pipeline());
+      await service().load(SalesDashboardSection.Pipeline, { dateBasis });
+      expect(getDashboardSnapshot).toHaveBeenCalledWith("pipeline", {
+        column,
+        startDate: "2026-04-30",
+        endDate: "2027-05-01",
+      });
     },
   );
 

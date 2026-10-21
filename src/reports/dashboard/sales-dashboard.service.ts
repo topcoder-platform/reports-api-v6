@@ -9,7 +9,10 @@ import { ConfigService } from "@nestjs/config";
 import { Pool } from "pg";
 import { SqlLoaderService } from "../../common/sql-loader.service";
 import { DbService } from "../../db/db.service";
+import { SalesRowDto } from "../sales/sales-reports.dto";
 import {
+  DashboardDateFilter,
+  DEFAULT_REVENUE_COLUMNS,
   DEFAULT_REVENUE_REPORT_ID,
   SalesReportsService,
 } from "../sales/sales-reports.service";
@@ -34,6 +37,81 @@ type PaymentRow = {
   amount: string;
   members: string;
 };
+
+/** In-range revenue row, already validated and assigned to its UTC month. */
+type RevenueEntry = { month: string; amount: number; row: SalesRowDto };
+
+/** Opportunity report date columns behind each pipeline date basis. */
+const PIPELINE_DATE_COLUMNS = {
+  close: "CLOSE_DATE",
+  created: "CREATED_DATE",
+} as const;
+const DAY_MS = 86400000;
+
+/**
+ * Covers half-open UTC chart windows with one inclusive Salesforce date filter, padded by a
+ * day on each side for the Run As user's timezone. Rows are still bounded exactly afterwards.
+ * @param column Report column the filter applies to.
+ * @param ranges Chart windows that the run must cover.
+ * @returns Execution-only standard date filter replacing the saved fiscal-year filter.
+ * @throws Does not throw for previously validated ranges.
+ */
+function salesforceDateFilter(
+  column: string,
+  ...ranges: DashboardDateRange[]
+): DashboardDateFilter {
+  const day = (time: number) => new Date(time).toISOString().slice(0, 10);
+  return {
+    column,
+    startDate: day(
+      Math.min(...ranges.map((r) => Date.parse(r.startDate))) - DAY_MS,
+    ),
+    endDate: day(Math.max(...ranges.map((r) => Date.parse(r.endDate)))),
+  };
+}
+
+/**
+ * Stacks revenue by one category column, keeping the five largest categories and grouping the rest as Other.
+ * @param range Half-open UTC range of the entries.
+ * @param entries In-range revenue rows.
+ * @param index Category cell index; blank categories appear as Unknown.
+ * @param definition Chart identity and copy.
+ * @returns A stacked currency chart whose monthly totals match the revenue total.
+ * @throws Does not throw.
+ */
+function revenueBreakdown(
+  range: DashboardDateRange,
+  entries: RevenueEntry[],
+  index: number,
+  definition: Pick<SalesDashboardChartDto, "id" | "title" | "description">,
+): SalesDashboardChartDto {
+  const label = (entry: RevenueEntry) =>
+    entry.row.cells[index]?.label.trim() || "Unknown";
+  const totals = new Map<string, number>();
+  entries.forEach((entry) =>
+    totals.set(label(entry), (totals.get(label(entry)) ?? 0) + entry.amount),
+  );
+  const ranked = [...totals]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([name]) => name);
+  const top = ranked.length > 6 ? ranked.slice(0, 5) : ranked;
+  const keys = new Map(top.map((name, i) => [name, `group-${i}`]));
+  const chart = monthlyChart(range, {
+    ...definition,
+    unit: "currency",
+    stacked: true,
+    series: [
+      ...top.map((name) => ({ key: keys.get(name)!, label: name })),
+      ...(ranked.length > top.length ? [{ key: "other", label: "Other" }] : []),
+    ],
+  });
+  entries.forEach((entry) => {
+    const month = chart.months.find((m) => m.month === entry.month);
+    const key = keys.get(label(entry)) ?? "other";
+    if (month) month.values[key] = (month.values[key] ?? 0) + entry.amount;
+  });
+  return chart;
+}
 
 /** Builds the monthly business views shared by Reports and Sales, keeping source failures independent. */
 @Injectable()
@@ -86,11 +164,19 @@ export class SalesDashboardService implements OnModuleDestroy {
                   Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 7, 1),
                 ).toISOString(),
               };
+        const dateBasis = query.dateBasis ?? "close";
         return pipelineCharts(
-          await this.sales.getDashboardSnapshot("pipeline"),
+          await this.sales.getDashboardSnapshot(
+            "pipeline",
+            salesforceDateFilter(
+              PIPELINE_DATE_COLUMNS[dateBasis],
+              pipelineRange,
+              range,
+            ),
+          ),
           pipelineRange,
           range,
-          query.dateBasis ?? "close",
+          dateBasis,
         );
       }
       case SalesDashboardSection.Revenue:
@@ -105,26 +191,43 @@ export class SalesDashboardService implements OnModuleDestroy {
   }
 
   /**
-   * Groups the confirmed (or overridden) Salesforce revenue report by its explicitly selected date and amount fields.
-   * @param range Half-open UTC range.
-   * @returns A monthly revenue chart, or a pending-configuration notice; incomplete sources are labelled.
-   * @throws BadGatewayException for invalid source fields; sanitized upstream errors propagate.
+   * Resolves the revenue report's columns. The confirmed report uses its verified column IDs
+   * unless settings override them; an overridden report must configure date and amount itself.
+   * @returns Date, amount and optional breakdown column IDs, or undefined while the source is incomplete.
+   * @throws Does not throw.
+   */
+  private revenueColumns():
+    | { date: string; amount: string; offering?: string; category?: string }
+    | undefined {
+    const reportId = this.config.get<string>(
+      "SALESFORCE_REVENUE_REPORT_ID",
+      DEFAULT_REVENUE_REPORT_ID,
+    );
+    const defaults: Partial<typeof DEFAULT_REVENUE_COLUMNS> =
+      reportId === DEFAULT_REVENUE_REPORT_ID ? DEFAULT_REVENUE_COLUMNS : {};
+    const setting = (name: string, fallback?: string) =>
+      this.config.get<string>(name) || fallback;
+    const date = setting("SALESFORCE_REVENUE_DATE_COLUMN", defaults.date);
+    const amount = setting("SALESFORCE_REVENUE_AMOUNT_COLUMN", defaults.amount);
+    if (!reportId || !date || !amount) return undefined;
+    return {
+      date,
+      amount,
+      offering: setting("SALESFORCE_REVENUE_OFFERING_COLUMN", defaults.offering),
+      category: setting("SALESFORCE_REVENUE_CATEGORY_COLUMN", defaults.category),
+    };
+  }
+
+  /**
+   * Groups the confirmed (or overridden) Salesforce revenue report by its date and amount fields.
+   * @param range Half-open UTC range; the report run is filtered to it instead of the saved fiscal year.
+   * @returns Monthly revenue, plus stacked offering and account category views when those columns
+   * exist, or a pending-configuration notice. Incomplete sources are labelled.
+   * @throws BadGatewayException for invalid date/amount fields; sanitized upstream errors propagate.
    */
   private async revenue(range: DashboardDateRange): Promise<SalesDashboardDto> {
-    const dateColumn = this.config.get<string>(
-      "SALESFORCE_REVENUE_DATE_COLUMN",
-    );
-    const amountColumn = this.config.get<string>(
-      "SALESFORCE_REVENUE_AMOUNT_COLUMN",
-    );
-    if (
-      !this.config.get<string>(
-        "SALESFORCE_REVENUE_REPORT_ID",
-        DEFAULT_REVENUE_REPORT_ID,
-      ) ||
-      !dateColumn ||
-      !amountColumn
-    ) {
+    const columns = this.revenueColumns();
+    if (!columns) {
       return {
         charts: [],
         notices: [
@@ -132,27 +235,23 @@ export class SalesDashboardService implements OnModuleDestroy {
         ],
       };
     }
-    const report = await this.sales.getDashboardSnapshot("revenue");
+    const report = await this.sales.getDashboardSnapshot(
+      "revenue",
+      salesforceDateFilter(columns.date, range),
+    );
     const dateIndex = report.columns.findIndex(
-      (c) => c.id === dateColumn && ["date", "datetime"].includes(c.dataType),
+      (c) => c.id === columns.date && ["date", "datetime"].includes(c.dataType),
     );
     const amountIndex = report.columns.findIndex(
       (c) =>
-        c.id === amountColumn && ["currency", "double"].includes(c.dataType),
+        c.id === columns.amount && ["currency", "double"].includes(c.dataType),
     );
     if (dateIndex < 0 || amountIndex < 0)
       throw new BadGatewayException(
         "The configured revenue columns are missing or have incompatible types.",
       );
-    const chart = monthlyChart(range, {
-      id: "revenue",
-      title: "Revenue report",
-      description: `Monthly revenue from ${report.reportName}.`,
-      unit: "currency",
-      stacked: false,
-      series: [{ key: "revenue", label: "Revenue" }],
-    });
     const currencies = new Set<string>();
+    const entries: RevenueEntry[] = [];
     let skipped = 0;
     report.rows.forEach((row) => {
       const raw = row.cells[dateIndex].value;
@@ -174,16 +273,65 @@ export class SalesDashboardService implements OnModuleDestroy {
         return;
       const currency = row.cells[amountIndex].currencyCode;
       if (currency) currencies.add(currency);
-      const month = chart.months.find(
-        (m) => m.month === new Date(time).toISOString().slice(0, 7) + "-01",
-      );
-      if (month) month.values.revenue = (month.values.revenue ?? 0) + amount;
+      entries.push({
+        month: new Date(time).toISOString().slice(0, 7) + "-01",
+        amount,
+        row,
+      });
+    });
+    const total = monthlyChart(range, {
+      id: "revenue",
+      title: "Revenue report",
+      description: `Monthly revenue from ${report.reportName}.`,
+      unit: "currency",
+      stacked: false,
+      series: [{ key: "revenue", label: "Revenue" }],
+    });
+    entries.forEach((entry) => {
+      const month = total.months.find((m) => m.month === entry.month);
+      if (month)
+        month.values.revenue = (month.values.revenue ?? 0) + entry.amount;
     });
     const notices = report.allData
       ? []
       : [
           "Salesforce returned an incomplete revenue report. Totals include only returned rows.",
         ];
+    const charts = [total];
+    [
+      {
+        id: "revenue-offering",
+        title: "Revenue by offering",
+        column: columns.offering,
+      },
+      {
+        id: "revenue-category",
+        title: "Revenue by account category",
+        column: columns.category,
+      },
+    ].forEach(({ column, ...definition }) => {
+      if (!column) return;
+      const index = report.columns.findIndex((c) => c.id === column);
+      if (index < 0) {
+        notices.push(
+          `${definition.title} is unavailable: the report has no ${column} column.`,
+        );
+        return;
+      }
+      charts.push(
+        revenueBreakdown(range, entries, index, {
+          ...definition,
+          description: `Monthly revenue stacked by ${report.columns[index].label}.`,
+        }),
+      );
+    });
+    charts.forEach((chart) =>
+      chart.months.forEach((month) =>
+        Object.keys(month.values).forEach((key) => {
+          month.values[key] = Math.round((month.values[key] ?? 0) * 100) / 100;
+        }),
+      ),
+    );
     if (skipped)
       notices.push(
         `${skipped} revenue rows have no usable date or amount and are excluded.`,
@@ -192,7 +340,7 @@ export class SalesDashboardService implements OnModuleDestroy {
       notices.push(
         `Source currencies: ${[...currencies].join(", ")}. No currency conversion is applied.`,
       );
-    return { charts: [chart], notices };
+    return { charts, notices };
   }
 
   /**
