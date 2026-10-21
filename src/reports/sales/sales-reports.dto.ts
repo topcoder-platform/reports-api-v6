@@ -1,9 +1,13 @@
 import { Transform, Type } from "class-transformer";
 import {
+  ArrayMaxSize,
+  ArrayNotEmpty,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
+  IsNumber,
   IsOptional,
   IsString,
   Matches,
@@ -81,12 +85,20 @@ export class SalesReportQueryDto {
   filterColumn?: string;
 
   @ApiPropertyOptional({
-    description: "Case-insensitive substring of the column's displayed value.",
+    description:
+      "Case-insensitive displayed-value substrings, matched with OR. Repeat the parameter for multiple values.",
+    oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
   })
   @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  filterValue?: string;
+  @Transform(({ value }: { value: unknown }) =>
+    value === "" ? undefined : Array.isArray(value) ? value : [value],
+  )
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(25)
+  @IsString({ each: true })
+  @MaxLength(200, { each: true })
+  filterValue?: string | string[];
 
   @ApiPropertyOptional({
     description:
@@ -99,14 +111,49 @@ export class SalesReportQueryDto {
 
   @ApiPropertyOptional({
     description:
-      "Exact, case-insensitive displayed value of drilldownColumn. Narrows rows, " +
+      "Exact, case-insensitive displayed values of drilldownColumn, matched with OR. Repeat the parameter for multiple values. Narrows rows, " +
       "total and totalPages only; summary still describes the whole filtered set, " +
       "so a dashboard can drill into one bucket while still showing every bucket.",
+    oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === "" ? undefined : Array.isArray(value) ? value : [value],
+  )
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(25)
+  @IsString({ each: true })
+  @MaxLength(200, { each: true })
+  drilldownValue?: string | string[];
+
+  @ApiPropertyOptional({
+    description: "Currency or double column ID to filter by numeric amount.",
   })
   @IsOptional()
   @IsString()
   @MaxLength(200)
-  drilldownValue?: string;
+  amountColumn?: string;
+
+  @ApiPropertyOptional({
+    description: "Exclusive lower amount bound; requires amountColumn.",
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === "string" && value.trim() ? Number(value) : value,
+  )
+  @IsNumber()
+  amountMin?: number;
+
+  @ApiPropertyOptional({
+    description: "Exclusive upper amount bound; requires amountColumn.",
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === "string" && value.trim() ? Number(value) : value,
+  )
+  @IsNumber()
+  amountMax?: number;
 
   @ApiPropertyOptional({
     description:

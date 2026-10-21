@@ -87,29 +87,64 @@ describe("SalesReportsService", () => {
     jest.restoreAllMocks();
   });
 
+  const window = {
+    column: "CLOSE_DATE",
+    startDate: "2026-04-30",
+    endDate: "2026-11-01",
+  };
+  const run = (filter: typeof window) => ({
+    standardDateFilter: { ...filter, durationValue: "CUSTOM" },
+  });
+
   it("uses the confirmed revenue report by default without changing the pipeline source", async () => {
-    await service.getDashboardSnapshot("revenue");
-    await service.getDashboardSnapshot("pipeline");
+    await service.getDashboardSnapshot("revenue", window);
+    await service.getDashboardSnapshot("pipeline", window);
     expect(runReport.mock.calls).toEqual([
-      ["00O1K000009GxBtUAK"],
-      ["00O1K00000A7UGDUA3"],
+      ["00O1K000009GxBtUAK", run(window)],
+      ["00O1K00000A7UGDUA3", run(window)],
     ]);
   });
 
-  it("keeps monthly pipeline and revenue snapshots separate and coalesces each source", async () => {
+  it("keeps monthly pipeline, revenue and Sales page snapshots separate and coalesces each", async () => {
     service = new SalesReportsService(
       { runReport } as unknown as SalesforceReportsClient,
       new ConfigService({ SALESFORCE_REVENUE_REPORT_ID: "00O1K00000A7UGEUA3" }),
     );
     await Promise.all([
-      service.getDashboardSnapshot("pipeline"),
-      service.getDashboardSnapshot("revenue"),
-      service.getDashboardSnapshot("revenue"),
+      service.getDashboardSnapshot("pipeline", window),
+      service.getDashboardSnapshot("revenue", window),
+      service.getDashboardSnapshot("revenue", window),
     ]);
-    await service.getDashboardSnapshot("pipeline");
+    await service.getDashboardSnapshot("pipeline", window);
     expect(runReport).toHaveBeenCalledTimes(2);
-    expect(runReport).toHaveBeenCalledWith("00O1K00000A7UGDUA3");
-    expect(runReport).toHaveBeenCalledWith("00O1K00000A7UGEUA3");
+    expect(runReport).toHaveBeenCalledWith("00O1K00000A7UGDUA3", run(window));
+    expect(runReport).toHaveBeenCalledWith("00O1K00000A7UGEUA3", run(window));
+    await service.getReport(new SalesReportQueryDto());
+    expect(runReport).toHaveBeenLastCalledWith("00O1K00000A7UGDUA3");
+  });
+
+  it("replaces the saved date filter per dashboard window and bounds the window cache", async () => {
+    const created = { ...window, column: "CREATED_DATE" };
+    await service.getDashboardSnapshot("pipeline", window);
+    await service.getDashboardSnapshot("pipeline", created);
+    expect(runReport.mock.calls.slice(-1)).toEqual([
+      ["00O1K00000A7UGDUA3", run(created)],
+    ]);
+    await service.getReport(new SalesReportQueryDto());
+    for (let day = 10; day < 30; day++)
+      await service.getDashboardSnapshot("revenue", {
+        ...window,
+        endDate: `2026-11-${day}`,
+      });
+    const calls = runReport.mock.calls.length;
+    await service.getReport(new SalesReportQueryDto());
+    await service.getDashboardSnapshot("revenue", {
+      ...window,
+      endDate: "2026-11-29",
+    });
+    expect(runReport).toHaveBeenCalledTimes(calls);
+    await service.getDashboardSnapshot("pipeline", window);
+    expect(runReport).toHaveBeenCalledTimes(calls + 1);
   });
 
   it("preserves stage groupings and readable image formulas from Bookings By Stage", async () => {
@@ -258,6 +293,79 @@ describe("SalesReportsService", () => {
         Object.assign(new SalesReportQueryDto(), { filterValue: "Alpha" }),
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("ORs multiple column values before totals and pagination, while retaining other filters", async () => {
+    const result = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), {
+        filterColumn: "NAME",
+        filterValue: ["  ALP ", "bet"],
+        perPage: 1,
+      }),
+    );
+    expect(result).toMatchObject({
+      total: 2,
+      totalPages: 2,
+      summary: { recordCount: 2 },
+    });
+    expect(result.summary.amounts[0].total).toBe(1020);
+    expect(result.rows).toHaveLength(1);
+    const searched = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), {
+        filterColumn: "NAME",
+        filterValue: ["Alpha", "Beta"],
+        search: "bet",
+        dateColumn: "CLOSE_DATE",
+        dateFrom: "2026-10-01",
+        amountColumn: "AMOUNT",
+        amountMin: 0,
+      }),
+    );
+    expect(searched.rows.map((row) => row.cells[0].label)).toEqual(["Beta"]);
+  });
+
+  it.each([
+    [{ amountMin: 20 }, ["Alpha"], 1000],
+    [{ amountMax: 1000 }, ["Beta"], 20],
+    [{ amountMin: 0, amountMax: 1000.01 }, ["Alpha", "Beta"], 1020],
+    [{ amountMin: 1000 }, [], 0],
+    [{ amountMax: 0 }, [], 0],
+  ])(
+    "compares raw numeric amounts with exclusive bounds %j and excludes missing values",
+    async (bounds, names, total) => {
+      const result = await service.getReport(
+        Object.assign(new SalesReportQueryDto(), {
+          amountColumn: "AMOUNT",
+          ...bounds,
+        }),
+      );
+      expect(result.rows.map((row) => row.cells[0].label)).toEqual(names);
+      expect(result.total).toBe(names.length);
+      expect(result.summary.amounts[0].total).toBe(total);
+    },
+  );
+
+  it("preserves a selected amount field without bounds and rejects unusable ranges", async () => {
+    expect(
+      (
+        await service.getReport(
+          Object.assign(new SalesReportQueryDto(), {
+            amountColumn: "AMOUNT",
+          }),
+        )
+      ).total,
+    ).toBe(3);
+    for (const query of [
+      { amountMin: 0 },
+      { amountColumn: "MISSING", amountMin: 0 },
+      { amountColumn: "NAME", amountMax: 100 },
+      { amountColumn: "AMOUNT", amountMin: 100, amountMax: 100 },
+      { amountColumn: "AMOUNT", amountMin: 101, amountMax: 100 },
+    ]) {
+      await expect(
+        service.getReport(Object.assign(new SalesReportQueryDto(), query)),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    }
   });
 
   it("coalesces requests, caches for a minute, and honors manual refresh after its cooldown", async () => {
@@ -553,6 +661,34 @@ describe("SalesReportsService", () => {
       "Proposal",
       "Closing",
     ]);
+    const selected = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), {
+        drilldownColumn: "STAGE_NAME",
+        drilldownValue: ["proposal", " CLOSING "],
+        perPage: 1,
+      }),
+    );
+    expect(selected).toMatchObject({
+      total: 3,
+      totalPages: 3,
+      summary: { recordCount: 3 },
+    });
+    const exact = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), {
+        drilldownColumn: "STAGE_NAME",
+        drilldownValue: ["pro", "closing"],
+      }),
+    );
+    expect(exact.total).toBe(1);
+    const ranged = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), {
+        drilldownColumn: "STAGE_NAME",
+        drilldownValue: ["proposal", "closing"],
+        amountColumn: "AMOUNT",
+        amountMin: 20,
+      }),
+    );
+    expect(ranged).toMatchObject({ total: 1, summary: { recordCount: 1 } });
   });
 
   it("rejects a half-supplied or unknown drilldown", async () => {
@@ -664,6 +800,30 @@ describe("Sales authorization", () => {
 describe("Sales query validation", () => {
   const pipe = new ValidationPipe({ transform: true, whitelist: true });
   const metadata = { type: "query" as const, metatype: SalesReportQueryDto };
+  it("accepts legacy single values, repeated OR values and finite numeric bounds", async () => {
+    expect(
+      await pipe.transform({ filterValue: "", drilldownValue: "" }, metadata),
+    ).toMatchObject({
+      filterValue: undefined,
+      drilldownValue: undefined,
+    });
+    expect(
+      await pipe.transform(
+        {
+          filterValue: "Alpha",
+          drilldownValue: ["Proposal", "Contracts"],
+          amountMin: "0",
+          amountMax: "100000.50",
+        },
+        metadata,
+      ),
+    ).toMatchObject({
+      filterValue: ["Alpha"],
+      drilldownValue: ["Proposal", "Contracts"],
+      amountMin: 0,
+      amountMax: 100000.5,
+    });
+  });
   it("parses booleans without interpreting false as true", async () => {
     expect(
       await pipe.transform(
@@ -694,6 +854,16 @@ describe("Sales query validation", () => {
     { refresh: "1" },
     { sortOrder: "invalid" },
     { search: ["a", "b"] },
+    { filterValue: [] },
+    { filterValue: ["a", 2] },
+    { drilldownValue: Array(26).fill("Proposal") },
+    { drilldownValue: ["x".repeat(201)] },
+    { amountMin: "NaN" },
+    { amountMax: "Infinity" },
+    { amountMin: "" },
+    { amountMin: " " },
+    { amountMin: ["1", "2"] },
+    { amountMax: "$100,000" },
     { dateFrom: "09/01/2026" },
     { dateFrom: "2026-09-01T00:00:00Z" },
     { dateFrom: "2026-02-30" },
