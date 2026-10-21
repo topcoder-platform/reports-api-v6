@@ -43,11 +43,13 @@ Both endpoints accept the same query parameters:
 | --- | --- |
 | `page`, `perPage` | One-based page (default 1); page size 1–200 (default 25) |
 | `search` | Case-insensitive substring across all displayed cells, up to 200 characters |
-| `filterColumn`, `filterValue` | Column ID and case-insensitive displayed-value substring; supply both |
-| `drilldownColumn`, `drilldownValue` | Column ID and exact, case-insensitive displayed value; narrows the returned page only, never `summary`; supply both |
+| `filterColumn`, `filterValue` | Column ID and case-insensitive displayed-value substrings; repeat `filterValue` for OR matching (up to 25 values); supply both |
+| `drilldownColumn`, `drilldownValue` | Column ID and exact, case-insensitive displayed values; repeat `drilldownValue` for OR matching (up to 25 values); narrows the returned page only, never `summary`; supply both |
 | `sortBy`, `sortOrder` | Column ID and `asc`/`desc`; numeric and ISO date values sort before pagination |
 | `dateColumn` | Column ID of a `date`/`datetime` column, such as Created Date or Close Date |
 | `dateFrom`, `dateTo` | Inclusive `YYYY-MM-DD` bounds; either or both, and both require `dateColumn` |
+| `amountColumn` | Currency/double column ID for numeric amount comparisons |
+| `amountMin`, `amountMax` | Exclusive numeric bounds (greater than / less than); either or both require `amountColumn` |
 | `refresh` | `true` to refresh, subject to the one-minute minimum interval; default `false` |
 
 Response fields: `reportId`, `reportName`, `columns[{id,label,dataType}]`,
@@ -68,10 +70,33 @@ pagination. `total` is the returned received-row count, after any drilldown;
 `sourceRowCount` is its unfiltered count. Out-of-range pages clamp to the final
 available page. Empty reports return zero rows and `totalPages: 0`, `page: 1`.
 
+### Multiple values and amount ranges (PM-6639)
+
+Repeat a value parameter to OR its values, for example
+`filterColumn=STAGE_NAME&filterValue=Proposal&filterValue=Contracts`, or
+`drilldownColumn=STAGE_NAME&drilldownValue=Proposal&drilldownValue=Contracts`.
+Single-value requests retain their existing matching behavior. Values are not
+comma-split, so names containing commas still match as one value. At most 25
+values of up to 200 characters each are accepted.
+
+`amountColumn=AMOUNT&amountMin=100000` means strictly greater than 100,000.
+`amountMax=200000` adds a strictly less than 200,000 upper bound. Bounds compare
+underlying numeric values, never formatted currency labels; null and nonnumeric
+cells cannot match. Amounts use the selected column's units without converting
+currencies. Choose a converted column when a common currency is required.
+A selected amount column without bounds does not filter. Bounds must be finite
+numbers, with the lower bound less than the upper bound; missing, unknown or
+nonnumeric columns and invalid ranges return 400. Zero is a valid bound.
+
+Search, column-value OR matching, dates and amounts combine with AND before
+summary aggregation and pagination. Stage drilldowns still narrow rows only,
+leaving every stage in the already-filtered summary available for selection.
+Deploy this API change before the matching Sales UI change.
+
 ### Drilldown (PM-6392)
 
 `drilldownColumn`/`drilldownValue` narrow `rows`, `total` and `totalPages` to the
-rows whose displayed value in that column equals `drilldownValue` exactly, ignoring
+rows whose displayed value in that column equals any `drilldownValue` exactly, ignoring
 case and surrounding whitespace. Unlike `filterColumn`/`filterValue` it is applied
 **after** aggregation, so `summary` continues to describe the whole filtered set.
 That lets a dashboard drill into one `summary.groups[].buckets[]` entry — a pipeline

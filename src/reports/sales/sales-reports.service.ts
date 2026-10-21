@@ -461,9 +461,9 @@ export class SalesReportsService {
 
   /**
    * Filters, stably sorts and paginates a live report snapshot for UI or WIN callers.
-   * @param query Validated page, search, column filter, drilldown, date range, sorting and refresh options.
+   * @param query Validated page, search, OR column filters/drilldowns, amount/date ranges, sorting and refresh options.
    * @returns Metadata, aggregates over the filtered set and one page; total is the returned-row count after any drilldown.
-   * @throws BadRequestException for unknown columns, incomplete filters or an inverted date range; upstream exceptions propagate.
+   * @throws BadRequestException for unknown/incompatible columns, incomplete filters or invalid ranges; upstream exceptions propagate.
    */
   async getReport(query: SalesReportQueryDto): Promise<SalesReportDto> {
     if (!!query.filterColumn !== !!query.filterValue) {
@@ -484,7 +484,24 @@ export class SalesReportsService {
     if (query.dateFrom && query.dateTo && query.dateFrom > query.dateTo) {
       throw new BadRequestException("dateFrom must not be after dateTo.");
     }
+    const amountRanged =
+      query.amountMin !== undefined || query.amountMax !== undefined;
+    if (amountRanged && !query.amountColumn) {
+      throw new BadRequestException(
+        "amountColumn must be supplied with amountMin or amountMax.",
+      );
+    }
+    if (
+      query.amountMin !== undefined &&
+      query.amountMax !== undefined &&
+      query.amountMin >= query.amountMax
+    ) {
+      throw new BadRequestException("amountMin must be less than amountMax.");
+    }
     const report = await this.getSnapshot(query.refresh);
+    const amountIndex = report.columns.findIndex(
+      (column) => column.id === query.amountColumn,
+    );
     const sortIndex = report.columns.findIndex(
       (column) => column.id === query.sortBy,
     );
@@ -501,7 +518,8 @@ export class SalesReportsService {
       (query.sortBy && sortIndex < 0) ||
       (query.filterColumn && filterIndex < 0) ||
       (query.drilldownColumn && drilldownIndex < 0) ||
-      (query.dateColumn && dateIndex < 0)
+      (query.dateColumn && dateIndex < 0) ||
+      (query.amountColumn && amountIndex < 0)
     ) {
       throw new BadRequestException(
         "Unknown report column. Use a column ID from the report response.",
@@ -515,13 +533,38 @@ export class SalesReportsService {
         "dateColumn must reference a date or datetime column.",
       );
     }
+    if (
+      amountIndex >= 0 &&
+      !AMOUNT_TYPES.includes(report.columns[amountIndex].dataType)
+    ) {
+      throw new BadRequestException(
+        "amountColumn must reference a currency or double column.",
+      );
+    }
     const search = query.search?.trim().toLowerCase();
-    const filter = query.filterValue?.trim().toLowerCase();
-    const drilldown = query.drilldownValue?.trim().toLowerCase();
+    const filters = [query.filterValue ?? []]
+      .flat()
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
+    const drilldowns = [query.drilldownValue ?? []]
+      .flat()
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
     // A range only applies once a bound is given, so selecting a date field
     // alone leaves the result set untouched.
     const ranged = dateIndex >= 0 && !!(query.dateFrom || query.dateTo);
     const matched = report.rows.filter((row) => {
+      if (amountRanged) {
+        const amount = row.cells[amountIndex].value;
+        if (
+          typeof amount !== "number" ||
+          !Number.isFinite(amount) ||
+          (query.amountMin !== undefined && amount <= query.amountMin) ||
+          (query.amountMax !== undefined && amount >= query.amountMax)
+        ) {
+          return false;
+        }
+      }
       if (ranged) {
         // Rows without a usable date cannot satisfy a range, so they drop out
         // rather than silently inflating counts and totals.
@@ -539,16 +582,20 @@ export class SalesReportsService {
           row.cells.some((cell) =>
             cell.label.toLowerCase().includes(search),
           )) &&
-        (!filter || row.cells[filterIndex].label.toLowerCase().includes(filter))
+        (!filters.length ||
+          filters.some((filter) =>
+            row.cells[filterIndex].label.toLowerCase().includes(filter),
+          ))
       );
     });
     // The summary covers every matching row, so a drilldown can narrow the page
     // to one bucket while the breakdown it was clicked in stays on screen.
     const summary = this.summarize(matched, report.columns);
-    const rows = drilldown
-      ? matched.filter(
-          (row) =>
-            row.cells[drilldownIndex].label.trim().toLowerCase() === drilldown,
+    const rows = drilldowns.length
+      ? matched.filter((row) =>
+          drilldowns.includes(
+            row.cells[drilldownIndex].label.trim().toLowerCase(),
+          ),
         )
       : matched;
     if (sortIndex >= 0) {
