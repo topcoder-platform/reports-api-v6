@@ -6,6 +6,14 @@ Reports return JSON data by default. Endpoints that support CSV can also return
 CSV when the request sets `Accept: text/csv` (including the Challenges,
 Topcoder, Member, and Admin report groups).
 
+## Leaderboard handle colors
+
+The generic (`/v6/reports/topcoder/leaderboard/generic`) and Marathon Match
+(`/v6/reports/topcoder/leaderboard/mm`) reports return `ratingColor: "#555555"`
+for members with a rating below 900, overriding any stored legacy gray color.
+Ratings of 900 or higher and missing or nonnumeric ratings retain the stored
+color. Website leaderboards use this response field to style member handles.
+
 ## Reports Portal Dashboards
 
 The Reports Portal dashboard API is available under
@@ -13,10 +21,10 @@ The Reports Portal dashboard API is available under
 
 - `GET /v6/reports/dashboard` returns all dashboards, keyed as
   `newSignups`, `membersPaid`, `challengeParticipation`,
-  `memberPaymentByMonth`, and `memberPaymentByCustomer`.
+  `memberPaymentByMonth`, `memberPaymentByCustomer`, and `activeMembers`.
 - `GET /v6/reports/dashboard/:dashboard` returns one dashboard. Supported
   slugs are `new-signups`, `members-paid`, `challenge-participation`,
-  `member-payment-by-month`, and `member-payment-by-customer`.
+  `member-payment-by-month`, `member-payment-by-customer`, and `active-members`.
 - `GET /v6/reports/dashboard/export` downloads all monthly dashboard rows as
   a flat CSV.
 - `GET /v6/reports/dashboard/:dashboard/export` downloads one dashboard as a
@@ -40,18 +48,46 @@ Dashboard figures use these shared definitions:
   within each payment bucket and month.
 - Member-payment values use the latest non-cancelled finance payment and group
   `gross_amount` by payment creation month, falling back to `total_amount`.
-  The payment-by-customer dashboard ranks the top five billing-account clients
-  across the selected range and groups all unnamed or remaining clients under
+  The payment-by-customer dashboard uses the billing account's
+  `subcontractingEndCustomer` (`reportingAccountName`) as the customer label,
+  except TaaS payments for `Wipro Limited (NA subcontracting)` use `TaaS` and
+  non-TaaS payments for `Topcoder` use `Topcoder`. The payment billing account
+  takes precedence over the challenge billing account, including when its
+  reporting account name is blank. The dashboard ranks the top five client/label
+  pairs across the selected range, with distinct stable series keys for different
+  labels under the same client. Unnamed or remaining customers are grouped under
   `Other Customers`.
 - Challenge participation uses the latest actual phase completion month for
   Challenge, Marathon Match, and First2Finish cohorts. Registrants are
   Submitter resources, and submitters have a non-deleted submission for the
   same challenge and member. Each category is deduplicated by member and
   cohort month.
+- Active members are the union of members with a paid payment (all categories),
+  a Submitter/Registrant challenge registration, an engagement application, or
+  a recorded engagement acceptance in the selected UTC month. Each member is
+  counted once per month and once in the selected-range summary. Detail includes
+  every qualifying activity, newest first; empty months have zero counts.
+  Payments follow Recent Member Data: latest version, `PAID` status, `PAYMENT`
+  winning type, and `date_paid` falling back to `created_at`. Registrations use
+  `Resource.createdAt`; applications use `EngagementApplication.createdAt`,
+  regardless of later status or engagement visibility. Acceptances use the
+  immutable `EngagementAssignment.acceptedAt`, including ended assignments.
+  Deploy the engagements acceptance-date migration/service for new acceptance
+  events. Legacy acceptances with unknown dates are omitted; application and
+  payment activity still qualify. The query tolerates the pre-migration schema.
+  `ENGAGEMENTS_DB_URL` is required, as for the Engagement Data report. CSV exports
+  include monthly unique counts and individual dated member activities.
 - Rates are percentages from 0 through 100.
 
 Human access is limited to Administrator and Talent Manager roles. Machine
 tokens require the `reports:all` scope.
+
+The customer-payment SQL regression tests use an empty, disposable PostgreSQL
+database and roll back all fixtures. After `nvm use`, run:
+
+```sh
+DASHBOARD_TEST_DATABASE_URL=postgresql://localhost/reports_test pnpm test --runInBand member-payment-by-customer.integration.spec.ts
+```
 
 ## Salesforce Sales report
 
@@ -110,7 +146,7 @@ Create a `.env` file in the root of the project. You can copy the example struct
 # This is used by Prisma to connect to your local PostgreSQL instance.
 DATABASE_URL="postgresql://user:password@localhost:5432/lookups?schema=public"
 
-# Engagements database used by the Engagement Data member report.
+# Engagements database used by Engagement Data and Active Members dashboards.
 ENGAGEMENTS_DB_URL="postgresql://user:password@localhost:5432/engagements"
 
 # The same report also reads member/profile/project data from the main

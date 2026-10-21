@@ -256,3 +256,71 @@ database persistence, background snapshot collection, or new migration.
 References: [Opportunity History report](https://help.salesforce.com/articleView?id=reports_opp_history.htm&language=en_US&type=0),
 [report execution overrides](https://developer.salesforce.com/docs/analytics/salesforce-analytics-rest-api/guide/sforce-analytics-rest-api-getreportrundata.html),
 [unique-count aggregates](https://developer.salesforce.com/docs/analytics/salesforce-analytics-rest-api/guide/analytics-api-report-list-resource.html).
+
+## Monthly dashboards (PM-6632)
+
+`GET /v6/reports/sales-dashboard/:section` supplies the shared Sales and Reports
+portal dashboards. Sections are `pipeline`, `revenue`, `payments`, `talent`, and
+`gross-margin`; each loads independently. The dashboard guard permits human
+Administrators/Talent Managers and machines with `reports:all`.
+
+Optional query parameters:
+
+- `portal=reports|sales` (default `reports`): Sales payment charts include only
+  linked customer work, excluding TaaS and internal Topcoder payments **before**
+  totals, distinct-member counts, and top-five customer ranking. Reports preserves
+  the existing dashboard payment categories and customer-label rules.
+- `dateBasis=close|created` (default `close`): pipeline date column.
+- `startDate` / `endDate`: inclusive/exclusive UTC bounds, at most 24 months.
+  Defaults are the latest six calendar months, including the current month.
+  Without explicit dates, opportunity size, expected revenue and pipeline by
+  stage instead span three months back through six months ahead.
+
+Pipeline uses the existing cached Salesforce snapshot before pagination. Amount
+and Expected Revenue prefer converted columns where available. Missing Expected
+Revenue falls back to Amount × Probability / 100. Closed Won includes `Won - Closed`
+(or `Closed Won`), not `Won - SOW Signed`. Incomplete reports, missing values and
+non-USD/mixed currencies are surfaced as notices. No currency conversion is added.
+
+The revenue report confirmed in the October 20 PM-6632 comment is
+[Salesforce report `00O1K000009GxBtUAK`](https://topcoder.lightning.force.com/lightning/r/Report/00O1K000009GxBtUAK/view).
+It is the default source. Its exact monthly date and revenue amount column IDs
+still need verification against that report's metadata; they are not inferred
+from pipeline columns or labels. Until both column settings are configured, the
+section returns an explicit pending notice:
+
+- `SALESFORCE_REVENUE_REPORT_ID`: optional override; defaults to `00O1K000009GxBtUAK`.
+- `SALESFORCE_REVENUE_DATE_COLUMN`: exact date/datetime column ID from that report.
+- `SALESFORCE_REVENUE_AMOUNT_COLUMN`: exact currency/double revenue column ID.
+
+Revenue uses the existing report normalization and an independent one-minute
+cache, including request coalescing and failure cooldown. The report must expose
+detail rows, as the pipeline report does.
+
+Flexible talent uses `ENGAGEMENTS_DB_URL`. It counts distinct members newly
+assigned (durable `acceptedAt`, falling back to legacy `startDate`), completed
+(`COMPLETED` assignment `endDate`), and ongoing at month end (now for the current
+month). Completed and terminated history contributes to earlier ongoing months.
+Selected/rejected offers do not count. Unknown assignment dates are not inferred
+from mutable `updatedAt`.
+
+Gross margin is **on hold** per the October 20 PM-6632 clarification. Neither
+portal renders or requests it. The existing API endpoint remains available for
+backward compatibility; its calculation is the arithmetic mean of stored
+`payment.challenge_markup` × 100, grouped by payment creation month. All payment
+categories/statuses participate in both portals. The latest payment version is
+used, consistently with existing payment dashboards. Null markup is excluded
+with an explicit count; a month without known markup remains null, not zero.
+This is not the fee-to-revenue ratio shown in the draft attachment.
+
+Regression coverage includes monthly aggregation, source configuration, snapshot
+isolation, scope selection and actual PostgreSQL calculations. To run the SQL
+fixtures, provision a **disposable** database named `sales_dashboard_test`, then:
+
+```bash
+nvm use
+SALES_DASHBOARD_TEST_DB_URL=postgresql://user:password@localhost:5432/sales_dashboard_test pnpm test --runInBand
+```
+
+The SQL suite creates and drops its fixture schemas and is skipped without that
+variable. No production or development data is required.

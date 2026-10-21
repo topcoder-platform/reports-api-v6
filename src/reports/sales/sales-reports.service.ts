@@ -2,6 +2,7 @@ import {
   BadGatewayException,
   BadRequestException,
   Injectable,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { compile } from "html-to-text";
@@ -22,6 +23,8 @@ import {
 
 const CACHE_MS = 60000;
 const REFRESH_COOLDOWN_MS = CACHE_MS;
+/** Revenue report confirmed in PM-6632; deployments may override it for another Salesforce org. */
+export const DEFAULT_REVENUE_REPORT_ID = "00O1K000009GxBtUAK";
 /** Column types that can carry a pipeline or revenue amount worth totalling. */
 const AMOUNT_TYPES = ["currency", "double"];
 /** Column types that a date range can be applied to. */
@@ -46,14 +49,20 @@ const htmlToPlainText = compile({
 });
 
 /**
- * Normalizes live Salesforce report data for both Sales and WIN. Maintains one
- * short-lived memory snapshot, never a database copy, and coalesces refreshes.
+ * Normalizes live Salesforce report data for Sales, WIN and monthly dashboards.
+ * Maintains independent short-lived pipeline/revenue snapshots, never database
+ * copies, and coalesces refreshes per source.
  */
 @Injectable()
 export class SalesReportsService {
-  private snapshot?: SalesReportDto;
-  private loading?: Promise<SalesReportDto>;
-  private lastFailure?: { error: unknown; time: number };
+  private readonly sources: Record<
+    string,
+    {
+      snapshot?: SalesReportDto;
+      loading?: Promise<SalesReportDto>;
+      lastFailure?: { error: unknown; time: number };
+    }
+  > = { pipeline: {}, revenue: {} };
 
   /** @param client Reusable Analytics client. @param config Server report selection. Does not throw. */
   constructor(
@@ -389,42 +398,65 @@ export class SalesReportsService {
   /**
    * Loads or reuses the current snapshot. Failed refreshes never relabel stale data as fresh.
    * @param refresh Whether to request a refresh, subject to the one-minute cache interval.
+   * @param source Pipeline or separately configured revenue report; caches stay independent.
    * @returns A report fetched within the cache interval.
    * @throws The sanitized client/normalization error; failures are throttled for one minute.
    */
-  private async getSnapshot(refresh: boolean): Promise<SalesReportDto> {
-    if (this.loading) return this.loading;
+  private async getSnapshot(
+    refresh: boolean,
+    source: "pipeline" | "revenue" = "pipeline",
+  ): Promise<SalesReportDto> {
+    const state = this.sources[source];
+    if (state.loading) return state.loading;
     if (
-      this.lastFailure &&
-      Date.now() - this.lastFailure.time < REFRESH_COOLDOWN_MS
+      state.lastFailure &&
+      Date.now() - state.lastFailure.time < REFRESH_COOLDOWN_MS
     )
-      throw this.lastFailure.error;
+      throw state.lastFailure.error;
     if (
-      this.snapshot &&
-      Date.now() - Date.parse(this.snapshot.refreshedAt) <
+      state.snapshot &&
+      Date.now() - Date.parse(state.snapshot.refreshedAt) <
         (refresh ? REFRESH_COOLDOWN_MS : CACHE_MS)
     )
-      return this.snapshot;
+      return state.snapshot;
     const reportId = this.config.get<string>(
-      "SALESFORCE_SALES_REPORT_ID",
-      "00O1K00000A7UGDUA3",
+      source === "pipeline"
+        ? "SALESFORCE_SALES_REPORT_ID"
+        : "SALESFORCE_REVENUE_REPORT_ID",
+      source === "pipeline" ? "00O1K00000A7UGDUA3" : DEFAULT_REVENUE_REPORT_ID,
     );
-    this.loading = this.client
+    if (!reportId)
+      throw new ServiceUnavailableException(
+        "The Salesforce revenue report has not been configured.",
+      );
+    state.loading = this.client
       .runReport(reportId)
       .then((report) => {
-        this.snapshot = this.normalize(report);
-        this.lastFailure = undefined;
-        return this.snapshot;
+        state.snapshot = this.normalize(report);
+        state.lastFailure = undefined;
+        return state.snapshot;
       })
       .catch((error: unknown) => {
-        this.lastFailure = { error, time: Date.now() };
+        state.lastFailure = { error, time: Date.now() };
         throw error;
       });
     try {
-      return await this.loading;
+      return await state.loading;
     } finally {
-      this.loading = undefined;
+      state.loading = undefined;
     }
+  }
+
+  /**
+   * Supplies all snapshot rows to the monthly dashboards before UI pagination.
+   * @param source Server-selected pipeline or revenue report, using the confirmed report IDs unless overridden.
+   * @returns Cached normalized report including completeness metadata.
+   * @throws Sanitized configuration or Salesforce errors, with the existing retry cooldown.
+   */
+  getDashboardSnapshot(
+    source: "pipeline" | "revenue",
+  ): Promise<SalesReportDto> {
+    return this.getSnapshot(false, source);
   }
 
   /**

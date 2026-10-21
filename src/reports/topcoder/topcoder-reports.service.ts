@@ -1189,7 +1189,7 @@ export class TopcoderReportsService implements OnModuleDestroy {
           prizes: 0,
           submissionCount: 0,
           rating: row.rating as number,
-          ratingColor: row.ratingColor,
+          ratingColor: this.getLeaderboardRatingColor(row.rating, row.ratingColor),
           challengeScores: {},
         };
       }
@@ -1580,6 +1580,7 @@ export class TopcoderReportsService implements OnModuleDestroy {
     const membersDetails: Record<string, LeaderboardMmMemberInfo> = {};
     rows.forEach((row) => {
       const rating = row.rating === null ? undefined : Number(row.rating);
+      const ratingColor = this.getLeaderboardRatingColor(row.rating, row.ratingColor);
       membersDetails[row.handle] = {
         ...membersDetails[row.handle],
         userId: row.userId,
@@ -1589,7 +1590,7 @@ export class TopcoderReportsService implements OnModuleDestroy {
         countryCode: row.countryCode ?? "",
         ...(row.photoURL && { photoURL: row.photoURL }),
         ...(rating !== undefined && Number.isFinite(rating) && { rating }),
-        ...(row.ratingColor && { ratingColor: row.ratingColor }),
+        ...(ratingColor && { ratingColor }),
       };
     });
 
@@ -1699,6 +1700,24 @@ export class TopcoderReportsService implements OnModuleDestroy {
       }
       return scores;
     }, []);
+  }
+
+  /**
+   * Resolves handle colors for the generic and Marathon Match leaderboards.
+   *
+   * @param rating Member rating from the report query, including numeric strings.
+   * @param storedColor Persisted member color, which may use the old gray shade.
+   * @returns #555555 for finite ratings below 900; otherwise the stored color.
+   * Does not throw for missing or nonnumeric report ratings.
+   */
+  private getLeaderboardRatingColor(
+    rating: string | number | null,
+    storedColor: string | null,
+  ): string | null {
+    const numericRating = this.toNullableNumber(rating);
+    return numericRating !== null && Number.isFinite(numericRating) && numericRating < 900
+      ? "#555555"
+      : storedColor;
   }
 
   private toNullableNumber(value: string | number | null | undefined) {
