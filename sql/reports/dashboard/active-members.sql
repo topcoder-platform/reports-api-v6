@@ -1,7 +1,11 @@
 -- Dated payouts and challenge registrations for the active-members dashboard.
 -- $1/$2: inclusive/exclusive timestamptz bounds. Stored timestamps are UTC.
+-- $3: text[] of project IDs (test projects) to omit; an empty array keeps all.
 -- Match Recent Member Data's latest-payment and paid-date fallback semantics.
 -- All payment categories qualify, including Topgear; owed/on-hold do not.
+-- A payment's project is its challenge's, or for engagement payments the
+-- assignment's engagement project, as in the SFDC payments report. Payments
+-- without a linked project are kept.
 WITH bounds AS (
   SELECT $1::timestamptz AT TIME ZONE 'UTC' AS start_at,
          $2::timestamptz AT TIME ZONE 'UTC' AS end_at
@@ -15,17 +19,23 @@ WITH bounds AS (
          NULL::text AS fallback_handle,
          'payment' AS activity,
          COALESCE(p.date_paid, p.created_at) AS activity_at,
-         COALESCE(NULLIF(w.title, ''), w.category::text, 'Payment') AS description
+         COALESCE(NULLIF(w.title, ''), w.category::text, 'Payment') AS description,
+         COALESCE(pc."projectId"::text, pe."projectId") AS project_id
   FROM finance.payment p
   JOIN latest_payment lp ON lp.winnings_id = p.winnings_id AND lp.max_version = p.version
   JOIN finance.winnings w ON w.winning_id = p.winnings_id
+  LEFT JOIN challenges."Challenge" pc
+    ON pc.id = w.external_id AND w.category::text IS DISTINCT FROM 'ENGAGEMENT_PAYMENT'
+  LEFT JOIN engagements."EngagementAssignment" ea
+    ON ea.id = w.external_id AND w.category::text = 'ENGAGEMENT_PAYMENT'
+  LEFT JOIN engagements."Engagement" pe ON pe.id = ea."engagementId"
   CROSS JOIN bounds b
   WHERE p.payment_status = 'PAID' AND w.type = 'PAYMENT'
     AND COALESCE(p.date_paid, p.created_at) >= b.start_at
     AND COALESCE(p.date_paid, p.created_at) < b.end_at
   UNION ALL
   SELECT 'registration:' || r.id, BTRIM(r."memberId"), r."memberHandle",
-         'challenge-registration', r."createdAt", c.name
+         'challenge-registration', r."createdAt", c.name, c."projectId"::text
   FROM resources."Resource" r
   JOIN resources."ResourceRole" rr ON rr.id = r."roleId"
   JOIN challenges."Challenge" c ON c.id = r."challengeId"
@@ -40,4 +50,5 @@ SELECT e.id, e.member_id AS "memberId",
 FROM events e
 LEFT JOIN members.member m ON m."userId"::text = e.member_id
 WHERE NULLIF(e.member_id, '') IS NOT NULL
+  AND (e.project_id IS NULL OR e.project_id <> ALL($3::text[]))
 ORDER BY e.activity_at DESC, e.id;
