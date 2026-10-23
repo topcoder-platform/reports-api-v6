@@ -181,6 +181,15 @@ AUTH_SECRET="mysecret"
 # A JSON array string of valid token issuers.
 VALID_ISSUERS='["https://topcoder-dev.auth0.com/","https://auth.topcoder-dev.com/","https://topcoder.auth0.com/","https://auth.topcoder.com/","https://api.topcoder.com","https://api.topcoder-dev.com"]'
 
+# Machine tokens: USE_KEYCLOAK=true requires the KEYCLOAK_* values; unset/false uses Auth0.
+USE_KEYCLOAK="false"
+KEYCLOAK_ISSUER=""
+KEYCLOAK_AUDIENCE=""
+KEYCLOAK_TOKEN_URL=""
+# Auth0 machine tokens are accepted only when both are set (issuers must be in VALID_ISSUERS).
+# LEGACY_M2M_ISSUERS='["https://topcoder-dev.auth0.com/"]'
+# LEGACY_M2M_AUDIENCE="https://m2m.topcoder-dev.com/"
+
 ## Running the Application
 
 ### Development Mode
@@ -252,4 +261,7 @@ scope and role checks, payload fields, pagination, and database requirements.
 ## Keycloak migration branch
 
 On `keycloak_m2M`, follow [Keycloak configuration and rollout](docs/keycloak-m2m.md).
-Legacy Auth0 M2M settings below do not configure token issuance on this branch.
+`USE_KEYCLOAK=true` validates Keycloak machine tokens (`KEYCLOAK_ISSUER`,
+`KEYCLOAK_AUDIENCE`, `KEYCLOAK_TOKEN_URL`); unset or `false` validates Auth0 machine
+tokens through `LEGACY_M2M_ISSUERS`/`LEGACY_M2M_AUDIENCE`. This service never issues
+M2M tokens.
