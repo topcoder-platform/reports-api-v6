@@ -238,9 +238,12 @@ Static datasets are stored under `data/statistics/srm` and `data/statistics/mm` 
 
 ## Container Runtime
 
-The production image uses Alpine 3.24's dynamically linked Node.js 26.5.1
-package and upgrades Alpine packages during the build so system security fixes,
-including OpenSSL updates, are applied. The runtime runs as the unprivileged
+The production image uses Alpine 3.24's dynamically linked Node.js package,
+constrained to the builder's Node major version (26 by default). The builder
+remains pinned to `NODE_VERSION=26.5.1`; the runtime accepts available minor/patch
+releases and package revisions within that major because Alpine replaces older
+revisions. The image upgrades Alpine packages during the build so system security
+fixes, including OpenSSL updates, are applied. The runtime runs as the unprivileged
 `app` account (UID 10001) and intentionally excludes npm and pnpm; package
 installation and application compilation happen only in builder stages.
 
