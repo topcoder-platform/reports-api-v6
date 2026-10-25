@@ -48,8 +48,9 @@ Both endpoints accept the same query parameters:
 | `sortBy`, `sortOrder` | Column ID and `asc`/`desc`; numeric and ISO date values sort before pagination |
 | `dateColumn` | Column ID of a `date`/`datetime` column, such as Created Date or Close Date |
 | `dateFrom`, `dateTo` | Inclusive `YYYY-MM-DD` bounds; either or both, and both require `dateColumn` |
-| `amountColumn` | Currency/double column ID for numeric amount comparisons |
+| `amountColumn` | Currency/double/int/percent column ID for numeric comparisons; probability uses 0–100 units |
 | `amountMin`, `amountMax` | Exclusive numeric bounds (greater than / less than); either or both require `amountColumn` |
+| `offeringType`, `dealCategory`, `customerType` | Repeat each parameter for OR choices; fields combine with AND before summaries and pagination; omit for ALL |
 | `refresh` | `true` to refresh, subject to the one-minute minimum interval; default `false` |
 
 Response fields: `reportId`, `reportName`, `columns[{id,label,dataType}]`,
@@ -93,6 +94,36 @@ summary aggregation and pagination. Stage drilldowns still narrow rows only,
 leaving every stage in the already-filtered summary available for selection.
 Deploy this API change before the matching Sales UI change.
 
+### Pipeline category and probability filters (PM-6660)
+
+The following independent dropdowns use exact matching against report column labels:
+
+| Query parameter | Report column | Allowed values |
+| --- | --- | --- |
+| `offeringType` | Engagement Offering Type (or Offering Type) | Flexible Talent, AI Training, Crowd-Powered Outcomes, Crowd-Powered Innovation |
+| `dealCategory` | Deal Category | Topcoder-Direct, Wipro-Direct, Wipro-Consumption, Wipro-Internal |
+| `customerType` | New Customer, or Follow-on Business? (or Customer Type) | New Customer, New Project to Existing Customer, Extension to Existing Project, Others |
+
+Each accepts one value or up to four repeated values, ORed within the field.
+Omit a parameter for ALL; do not send the literal `ALL`. Invalid choices and
+missing report columns return 400. Cell matching ignores case, surrounding
+whitespace and hyphen/space differences (e.g. Wipro Direct equals Wipro-Direct).
+Independent category filters combine with AND, search, column values, numeric
+ranges and dates before summary aggregation, sorting and pagination. Stage
+selection remains a separate drilldown after summaries. Stage is prioritized
+within the three category summary slots so these fields cannot crowd it out.
+
+`amountColumn=<probability column ID>&amountMin=60&amountMax=90` filters raw
+probability values strictly between 60 and 90, using percentage points rather
+than fractions. Numeric ranges support currency, double, int and percent types;
+percent/int columns are not added to monetary aggregates. Existing exclusive
+bounds, null handling, pagination and currency behavior are unchanged.
+
+Deploy this API change before the PM-6660 Sales UI. Tests cover dropdown options
+and validation, OR/AND matching, Salesforce spelling variants, combined
+search/date/numeric filters, stage summaries/drilldowns, sorting, pagination,
+clearing, empty matches, missing columns and probability boundary values.
+
 ### Drilldown (PM-6392)
 
 `drilldownColumn`/`drilldownValue` narrow `rows`, `total` and `totalPages` to the
@@ -130,7 +161,7 @@ page, so counts and totals stay correct under pagination:
 | --- | --- |
 | `recordCount` | Matching rows; equal to `total` unless a drilldown narrows the page |
 | `amounts[]` | One entry per `currency`/`double` column: `columnId`, `label`, `total`, contributing `count`, and `currencyCode` when the contributing rows agree |
-| `groups[]` | Up to three `picklist`/`multipicklist`/`combobox`/`boolean` columns broken into `buckets[{label,count,total,amounts[]}]`, ordered by total then count, capped at 25 with the remainder in `otherBuckets` |
+| `groups[]` | Up to three (prioritizing Stage) `picklist`/`multipicklist`/`combobox`/`boolean` columns broken into `buckets[{label,count,total,amounts[]}]`, ordered by total then count, capped at 25 with the remainder in `otherBuckets` |
 
 Bucket `total` uses the report's first amount column, named in `amountColumnId`,
 while `buckets[].amounts[]` repeats every amount column inside the bucket using the

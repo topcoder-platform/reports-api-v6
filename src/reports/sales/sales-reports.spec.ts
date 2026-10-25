@@ -205,6 +205,150 @@ describe("SalesReportsService", () => {
     });
   });
 
+  it("combines category OR selections before summaries, drilldowns, sorting and pagination", async () => {
+    const fixture = reportFixture();
+    const extra = [
+      ["OFFERING", "Engagement Offering Type", "picklist"],
+      ["CATEGORY", "Deal Category", "picklist"],
+      ["CUSTOMER", "New Customer, or Follow-on Business?", "picklist"],
+      ["STAGE", "Stage", "picklist"],
+      ["PROBABILITY", "Probability (%)", "percent"],
+    ];
+    for (const [id, label, dataType] of extra) {
+      fixture.reportMetadata!.detailColumns!.push(id);
+      fixture.reportExtendedMetadata!.detailColumnInfo![id] = {
+        label,
+        dataType,
+      };
+    }
+    const rows = [
+      ...fixture.factMap["0!T"].rows!,
+      ...fixture.factMap["1!T"].rows!,
+    ];
+    const values = [
+      ["Flexible Talent", "Wipro Direct", "New Customer", "Proposal", 75],
+      ["AI Training", "Wipro-Direct", "New Customer", "Contracts", 80],
+      ["Flexible Talent", "Topcoder Direct", "Others", "Won - SOW Signed", 100],
+    ];
+    rows.forEach((row, index) =>
+      row.dataCells.push(
+        ...values[index].map((value) => ({
+          label: String(value),
+          value,
+        })),
+      ),
+    );
+    runReport.mockResolvedValue(fixture);
+    const query = Object.assign(new SalesReportQueryDto(), {
+      offeringType: ["Flexible Talent", "AI Training"],
+      dealCategory: ["Wipro-Direct"],
+      customerType: ["New Customer"],
+      dateColumn: "CLOSE_DATE",
+      dateFrom: "2026-09-01",
+      amountColumn: "PROBABILITY",
+      amountMin: 60,
+      amountMax: 90,
+      filterColumn: "NAME",
+      filterValue: ["Alpha", "Beta"],
+      perPage: 1,
+      sortBy: "PROBABILITY",
+      sortOrder: "desc",
+    });
+    const result = await service.getReport(query);
+    expect(result).toMatchObject({
+      total: 2,
+      totalPages: 2,
+      summary: { recordCount: 2 },
+    });
+    expect(result.rows[0].cells[0].label).toBe("Beta");
+    expect(result.summary.amounts.map((amount) => amount.columnId)).toEqual([
+      "AMOUNT",
+    ]);
+    expect(result.summary.amounts[0].total).toBe(1020);
+    const stages = result.summary.groups.find(
+      (group) => group.columnId === "STAGE",
+    )!;
+    expect(
+      stages.buckets.map((bucket) => [
+        bucket.label,
+        bucket.count,
+        bucket.total,
+      ]),
+    ).toEqual([
+      ["Proposal", 1, 1000],
+      ["Contracts", 1, 20],
+    ]);
+    const drilled = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), query, {
+        drilldownColumn: "STAGE",
+        drilldownValue: ["Proposal"],
+        page: 99,
+      }),
+    );
+    expect(drilled).toMatchObject({
+      page: 1,
+      total: 1,
+      summary: { recordCount: 2 },
+    });
+    expect(drilled.rows[0].cells[0].label).toBe("Alpha");
+    const empty = await service.getReport(
+      Object.assign(new SalesReportQueryDto(), query, {
+        customerType: ["Others"],
+      }),
+    );
+    expect(empty).toMatchObject({
+      total: 0,
+      rows: [],
+      summary: { recordCount: 0 },
+    });
+    const cleared = await service.getReport(new SalesReportQueryDto());
+    expect(cleared).toMatchObject({ total: 3, summary: { recordCount: 3 } });
+    expect(runReport).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects category filters when the report lacks their column instead of ignoring them", async () => {
+    for (const key of ["offeringType", "dealCategory", "customerType"]) {
+      await expect(
+        service.getReport(
+          Object.assign(new SalesReportQueryDto(), { [key]: ["Others"] }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    }
+  });
+
+  it.each(["percent", "int", "double"])(
+    "compares probability in percent units with exclusive bounds (%s)",
+    async (dataType) => {
+      const fixture = reportFixture();
+      fixture.reportMetadata!.detailColumns!.push("PROBABILITY");
+      fixture.reportExtendedMetadata!.detailColumnInfo!.PROBABILITY = {
+        label: "Probability (%)",
+        dataType,
+      };
+      const rows = [
+        ...fixture.factMap["0!T"].rows!,
+        ...fixture.factMap["1!T"].rows!,
+      ];
+      rows.forEach((row, index) =>
+        row.dataCells.push({
+          label: `${[60, 75, 90][index]}%`,
+          value: [60, 75, 90][index],
+        }),
+      );
+      runReport.mockResolvedValue(fixture);
+      const result = await service.getReport(
+        Object.assign(new SalesReportQueryDto(), {
+          amountColumn: "PROBABILITY",
+          amountMin: 60,
+          amountMax: 90,
+        }),
+      );
+      expect(result.total).toBe(1);
+      expect(result.rows[0].cells[0].label).toBe("Beta");
+      expect(result.summary.recordCount).toBe(1);
+    },
+  );
+
   it("sorts lookup names by their displayed labels rather than Salesforce IDs", async () => {
     const fixture = reportFixture();
     fixture.factMap["0!T"].rows![0].dataCells[0].value = "zz-id";
@@ -824,6 +968,51 @@ describe("Sales query validation", () => {
       amountMax: 100000.5,
     });
   });
+  it("accepts each pipeline dropdown as repeated parameters or one value and treats omission as ALL", async () => {
+    expect(
+      await pipe.transform(
+        {
+          offeringType: [
+            "Flexible Talent",
+            "AI Training",
+            "Crowd-Powered Outcomes",
+            "Crowd-Powered Innovation",
+          ],
+          dealCategory: [
+            "Topcoder-Direct",
+            "Wipro-Direct",
+            "Wipro-Consumption",
+            "Wipro-Internal",
+          ],
+          customerType: [
+            "New Customer",
+            "New Project to Existing Customer",
+            "Extension to Existing Project",
+            "Others",
+          ],
+        },
+        metadata,
+      ),
+    ).toMatchObject({
+      offeringType: expect.any(Array),
+      dealCategory: expect.any(Array),
+      customerType: expect.any(Array),
+    });
+    expect(
+      await pipe.transform(
+        {
+          offeringType: "AI Training",
+          dealCategory: "",
+          customerType: "Others",
+        },
+        metadata,
+      ),
+    ).toMatchObject({
+      offeringType: ["AI Training"],
+      dealCategory: undefined,
+      customerType: ["Others"],
+    });
+  });
   it("parses booleans without interpreting false as true", async () => {
     expect(
       await pipe.transform(
@@ -849,6 +1038,10 @@ describe("Sales query validation", () => {
     });
   });
   it.each([
+    { offeringType: ["invalid"] },
+    { dealCategory: ["Wipro-Direct", 1] },
+    { customerType: [] },
+    { offeringType: Array(5).fill("AI Training") },
     { page: "0" },
     { perPage: "201" },
     { refresh: "1" },
