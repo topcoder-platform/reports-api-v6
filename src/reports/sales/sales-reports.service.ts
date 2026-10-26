@@ -41,6 +41,29 @@ const MAX_SNAPSHOTS = 20;
 
 /** Column types that can carry a pipeline or revenue amount worth totalling. */
 const AMOUNT_TYPES = ["currency", "double"];
+/** Numeric ranges also support probability without adding percentages to monetary summaries. */
+const RANGE_TYPES = [...AMOUNT_TYPES, "int", "percent"];
+/** Pipeline category columns are resolved from report labels instead of org-specific Salesforce IDs. */
+const PIPELINE_FILTERS = [
+  { key: "offeringType", label: /^(?:engagement )?offering type$/i },
+  { key: "dealCategory", label: /^deal category$/i },
+  {
+    key: "customerType",
+    label: /^(?:new customer,? or follow[- ]on business\??|customer type)$/i,
+  },
+] as const;
+
+/**
+ * Normalizes a category label for exact matching, including Salesforce's "Wipro Direct" spelling.
+ * @param value Displayed category or canonical query option.
+ * @returns Lowercase words with hyphens/whitespace treated equally. Does not throw.
+ */
+function categoryValue(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, " ");
+}
 /** Column types that a date range can be applied to. */
 const DATE_TYPES = ["date", "datetime"];
 /** Column types that describe a category, such as a pipeline stage. */
@@ -412,6 +435,12 @@ export class SalesReportsService {
       groups: columns
         .map((column, index) => ({ column, index }))
         .filter(({ column }) => CATEGORY_TYPES.includes(column.dataType))
+        // Keep Stage available even when the three pipeline filter columns precede it.
+        .sort(
+          (left, right) =>
+            Number(!/^stage$/i.test(left.column.label.trim())) -
+            Number(!/^stage$/i.test(right.column.label.trim())),
+        )
         .slice(0, MAX_SUMMARY_GROUPS)
         .map(({ column, index }) =>
           this.group(rows, column, index, amountIndexes),
@@ -524,7 +553,7 @@ export class SalesReportsService {
 
   /**
    * Filters, stably sorts and paginates a live report snapshot for UI or WIN callers.
-   * @param query Validated page, search, OR column filters/drilldowns, amount/date ranges, sorting and refresh options.
+   * @param query Validated page, search, OR column/category filters/drilldowns, numeric/date ranges, sorting and refresh options.
    * @returns Metadata, aggregates over the filtered set and one page; total is the returned-row count after any drilldown.
    * @throws BadRequestException for unknown/incompatible columns, incomplete filters or invalid ranges; upstream exceptions propagate.
    */
@@ -598,12 +627,25 @@ export class SalesReportsService {
     }
     if (
       amountIndex >= 0 &&
-      !AMOUNT_TYPES.includes(report.columns[amountIndex].dataType)
+      !RANGE_TYPES.includes(report.columns[amountIndex].dataType)
     ) {
       throw new BadRequestException(
-        "amountColumn must reference a currency or double column.",
+        "amountColumn must reference a currency, double, int or percent column.",
       );
     }
+    const categories = PIPELINE_FILTERS.flatMap(({ key, label }) => {
+      const values = query[key];
+      if (!values?.length) return [];
+      const index = report.columns.findIndex((column) =>
+        label.test(column.label.trim()),
+      );
+      if (index < 0) {
+        throw new BadRequestException(
+          `The report does not provide the ${key} column.`,
+        );
+      }
+      return [{ index, values: values.map(categoryValue) }];
+    });
     const search = query.search?.trim().toLowerCase();
     const filters = [query.filterValue ?? []]
       .flat()
@@ -617,6 +659,13 @@ export class SalesReportsService {
     // alone leaves the result set untouched.
     const ranged = dateIndex >= 0 && !!(query.dateFrom || query.dateTo);
     const matched = report.rows.filter((row) => {
+      if (
+        !categories.every(({ index, values }) =>
+          values.includes(categoryValue(row.cells[index].label)),
+        )
+      ) {
+        return false;
+      }
       if (amountRanged) {
         const amount = row.cells[amountIndex].value;
         if (

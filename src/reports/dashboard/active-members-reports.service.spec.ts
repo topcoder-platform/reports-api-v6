@@ -14,6 +14,7 @@ const range = {
   startDate: "2026-01-01T00:00:00.000Z",
   endDate: "2026-04-01T00:00:00.000Z",
 };
+const defaultExcludedProjectIds = ["1001120", "34654", "1001194"];
 
 /**
  * Creates a dated activity fixture for aggregation and CSV regression tests.
@@ -105,13 +106,43 @@ describe("ActiveMembersReportsService", () => {
     });
     expect(db.query).toHaveBeenCalledWith(
       "reports/dashboard/active-members.sql",
-      [range.startDate, range.endDate],
+      [range.startDate, range.endDate, defaultExcludedProjectIds],
     );
     expect(pool.query).toHaveBeenCalledWith(
       "reports/dashboard/active-members-engagements.sql",
-      [range.startDate, range.endDate],
+      [range.startDate, range.endDate, defaultExcludedProjectIds],
     );
   });
+
+  it.each([
+    ['[" 1 ", 2, ""]', ["1", "2"]],
+    ["3, 4,,", ["3", "4"]],
+    ["", []],
+    ["[]", []],
+  ])(
+    "passes configured excluded project IDs %p to both activity queries",
+    async (configured, expected) => {
+      const configuredService = new ActiveMembersReportsService(
+        db as unknown as DbService,
+        sql as unknown as SqlLoaderService,
+        new ConfigService({
+          ENGAGEMENTS_DB_URL: "postgresql://example/engagements",
+          REPORTS_ACTIVE_MEMBERS_EXCLUDED_PROJECT_IDS: configured,
+        }),
+      );
+      await configuredService.load(range);
+      expect(db.query).toHaveBeenCalledWith(expect.any(String), [
+        range.startDate,
+        range.endDate,
+        expected,
+      ]);
+      expect(pool.query).toHaveBeenCalledWith(expect.any(String), [
+        range.startDate,
+        range.endDate,
+        expected,
+      ]);
+    },
+  );
 
   it("zero-fills partial-month ranges and reuses and closes the engagements pool", async () => {
     const query = {

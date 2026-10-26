@@ -34,8 +34,10 @@ WORKDIR /usr/src/app
 # Use Alpine's dynamically linked Node runtime so patched system OpenSSL packages
 # can be upgraded independently. The final image intentionally contains no npm or
 # pnpm executable and runs as a dedicated unprivileged account.
+# Alpine replaces old package revisions; constrain Node to the builder's major
+# version while allowing supported minor/patch releases and packaging revisions.
 RUN apk upgrade --no-cache \
-    && apk add --no-cache ca-certificates nodejs-current=${NODE_VERSION}-r0 \
+    && apk add --no-cache ca-certificates "nodejs-current~${NODE_VERSION%%.*}" \
     && addgroup -S -g 10001 app \
     && adduser -S -D -u 10001 -G app -h /home/app app
 

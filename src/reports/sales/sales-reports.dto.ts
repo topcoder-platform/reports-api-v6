@@ -128,7 +128,90 @@ export class SalesReportQueryDto {
   drilldownValue?: string | string[];
 
   @ApiPropertyOptional({
-    description: "Currency or double column ID to filter by numeric amount.",
+    description:
+      "Engagement Offering Type values matched with OR; omit for ALL. Combines with other filters using AND.",
+    enum: [
+      "Flexible Talent",
+      "AI Training",
+      "Crowd-Powered Outcomes",
+      "Crowd-Powered Innovation",
+    ],
+    isArray: true,
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === "" ? undefined : Array.isArray(value) ? value : [value],
+  )
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(4)
+  @IsIn(
+    [
+      "Flexible Talent",
+      "AI Training",
+      "Crowd-Powered Outcomes",
+      "Crowd-Powered Innovation",
+    ],
+    { each: true },
+  )
+  offeringType?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      "Deal Category values matched with OR; omit for ALL. Combines with other filters using AND.",
+    enum: [
+      "Topcoder-Direct",
+      "Wipro-Direct",
+      "Wipro-Consumption",
+      "Wipro-Internal",
+    ],
+    isArray: true,
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === "" ? undefined : Array.isArray(value) ? value : [value],
+  )
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(4)
+  @IsIn(
+    ["Topcoder-Direct", "Wipro-Direct", "Wipro-Consumption", "Wipro-Internal"],
+    { each: true },
+  )
+  dealCategory?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      "New Customer, or Follow-on Business? values matched with OR; omit for ALL. Combines with other filters using AND.",
+    enum: [
+      "New Customer",
+      "New Project to Existing Customer",
+      "Extension to Existing Project",
+      "Others",
+    ],
+    isArray: true,
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === "" ? undefined : Array.isArray(value) ? value : [value],
+  )
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(4)
+  @IsIn(
+    [
+      "New Customer",
+      "New Project to Existing Customer",
+      "Extension to Existing Project",
+      "Others",
+    ],
+    { each: true },
+  )
+  customerType?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      "Currency, double, int or percent column ID to filter by numeric value; probability uses 0–100 units.",
   })
   @IsOptional()
   @IsString()

@@ -77,6 +77,9 @@ Dashboard figures use these shared definitions:
   payment activity still qualify. The query tolerates the pre-migration schema.
   `ENGAGEMENTS_DB_URL` is required, as for the Engagement Data report. CSV exports
   include monthly unique counts and individual dated member activities.
+  Activity on challenges and engagements in the projects listed in
+  `REPORTS_ACTIVE_MEMBERS_EXCLUDED_PROJECT_IDS` (test projects) is omitted,
+  including payments for those challenges and engagement assignments.
 - Rates are percentages from 0 through 100.
 
 Human access is limited to Administrator and Talent Manager roles. Machine
@@ -167,6 +170,12 @@ REPORTS_EXCLUDED_CHALLENGE_TYPES='["Task","First2Finish"]'
 # exclude tcwebservice (22838965), even if it is not listed here.
 REPORTS_EXCLUDED_USER_IDS='["8547899","251280"]'
 
+# Project IDs (test projects) whose challenge registrations, engagement
+# applications/acceptances, and payments are omitted from the Active Members
+# dashboard. JSON array or comma-separated. Defaults to
+# '["1001120","34654","1001194"]'; set to '[]' to include every project.
+REPORTS_ACTIVE_MEMBERS_EXCLUDED_PROJECT_IDS='["1001120","34654","1001194"]'
+
 # Old tc-payments database URL (used by member-tax CSV export script)
 OLD_PAYMENTS_DATABASE_URL="postgresql://user:password@localhost:5432/tc_payments?schema=public"
 
@@ -238,9 +247,12 @@ Static datasets are stored under `data/statistics/srm` and `data/statistics/mm` 
 
 ## Container Runtime
 
-The production image uses Alpine 3.24's dynamically linked Node.js 26.5.1
-package and upgrades Alpine packages during the build so system security fixes,
-including OpenSSL updates, are applied. The runtime runs as the unprivileged
+The production image uses Alpine 3.24's dynamically linked Node.js package,
+constrained to the builder's Node major version (26 by default). The builder
+remains pinned to `NODE_VERSION=26.5.1`; the runtime accepts available minor/patch
+releases and package revisions within that major because Alpine replaces older
+revisions. The image upgrades Alpine packages during the build so system security
+fixes, including OpenSSL updates, are applied. The runtime runs as the unprivileged
 `app` account (UID 10001) and intentionally excludes npm and pnpm; package
 installation and application compilation happen only in builder stages.
 
