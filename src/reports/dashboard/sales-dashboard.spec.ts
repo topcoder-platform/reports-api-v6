@@ -12,8 +12,22 @@ import {
   SalesDashboardQueryDto,
   SalesDashboardSection,
 } from "./sales-dashboard.dto";
+import {
+  categoryColumn,
+  CATEGORY_LABELS,
+  offeringLabel,
+} from "./sales-dashboard.categories";
 import { pipelineCharts } from "./sales-dashboard.pipeline";
 import { SalesDashboardService } from "./sales-dashboard.service";
+
+const talentQuery = jest.fn();
+jest.mock("pg", () => ({
+  Pool: jest
+    .fn()
+    .mockImplementation(() => ({
+      query: (...args: unknown[]) => talentQuery(...args),
+    })),
+}));
 
 const range = {
   startDate: "2026-08-01T00:00:00Z",
@@ -48,42 +62,97 @@ function pipeline(): SalesReportDto {
 }
 
 describe("Monthly sales dashboards", () => {
-  it("uses every row, converted amounts, weighted fallback, won stages and half-open month ranges", () => {
-    const { charts } = pipelineCharts(pipeline(), range, range, "close");
-    expect(charts[0].months.map((m) => m.values.amount)).toEqual([100, 300, 0]);
-    expect(charts[1].months.map((m) => m.values.amount)).toEqual([100, 300, 0]);
-    expect(charts[2].months.map((m) => m.values.amount)).toEqual([50, 210, 0]);
-    expect(
-      charts[3].months.map((m) =>
-        Object.values(m.values).reduce((a: number, b) => a + (b ?? 0), 0),
-      ),
-    ).toEqual([100, 300, 0]);
-  });
-
-  it("switches the pipeline date field and preserves empty months", () => {
-    const { charts } = pipelineCharts(pipeline(), range, range, "created");
-    expect(charts[0].months.map((m) => m.values.amount)).toEqual([300, 100, 0]);
-  });
-
-  it("counts Topcoder's Won - SOW Signed stage as Closed Won, but not open or lost stages", () => {
+  it("separates won bookings from open pipeline and expected bookings, preferring converted amounts", () => {
     const report = pipeline();
-    ["Won - SOW Signed", "Closed Won", "Lost"].forEach((stage, i) => {
-      report.rows[i].cells[4].label = stage;
+    report.rows.push({
+      ...report.rows[2],
+      cells: report.rows[2].cells.map((c) => ({ ...c })),
     });
     report.rows[2].cells[5].value = "2026-10-01";
+    report.rows[2].cells[2].value = null;
     const { charts } = pipelineCharts(report, range, range, "close");
-    expect(charts[1].months.map((m) => m.values.amount)).toEqual([100, 300, 0]);
+    expect(charts.map((c) => c.id)).toEqual([
+      "closed-won",
+      "expected-revenue",
+      "pipeline-stage",
+    ]);
+    expect(charts[0].months.map((m) => m.values.amount)).toEqual([100, 300, 0]);
+    expect(charts[1].months.map((m) => m.values.amount)).toEqual([0, 0, 899.1]);
+    expect(charts[2].series.map((s) => s.label)).toEqual(["Proposal"]);
+    expect(
+      charts[2].months.map((m) =>
+        Object.values(m.values).reduce((a: number, b) => a + (b ?? 0), 0),
+      ),
+    ).toEqual([0, 0, 999]);
+    expect(
+      pipelineCharts(report, range, range, "created").charts[0].months.map(
+        (m) => m.values.amount,
+      ),
+    ).toEqual([300, 100, 0]);
   });
 
-  it("labels incomplete data and missing dates/expected revenue rather than silently fabricating it", () => {
+  it("builds all won-booking breakdowns from category metadata, preserving blanks and date grouping", () => {
+    const report = pipeline();
+    const labels = [
+      "Engagement Offering Type",
+      "Deal Category",
+      "New Customer or Follow-on Business?",
+    ];
+    report.columns.push(
+      ...labels.map((label, i) => ({
+        id: `category-${i}`,
+        label,
+        dataType: "string",
+      })),
+    );
+    const values = [
+      ["AI Training", "Wipro Direct", "New Customer"],
+      ["", "Topcoder Direct", "Follow-on"],
+      ["Not won", "Not won", "Not won"],
+    ];
+    report.rows.forEach((row, i) =>
+      row.cells.push(...values[i].map((value) => ({ value, label: value }))),
+    );
+    const { charts, notices } = pipelineCharts(report, range, range, "close");
+    expect(notices).toEqual([]);
+    expect(charts.slice(3).map((c) => c.id)).toEqual([
+      "won-offering",
+      "won-deal-category",
+      "won-customer-type",
+    ]);
+    charts.slice(3).forEach((chart) => {
+      expect(chart.series.some((series) => series.label === "Not won")).toBe(
+        false,
+      );
+      expect(
+        chart.months.map((m) =>
+          Object.values(m.values).reduce((a: number, b) => a + (b ?? 0), 0),
+        ),
+      ).toEqual([100, 300, 0]);
+    });
+    expect(charts[3].series.map((c) => c.label)).toEqual([
+      "AI Training",
+      "Unknown",
+    ]);
+    expect(
+      pipelineCharts(report, range, range, "created").charts[3].months.map(
+        (m) =>
+          Object.values(m.values).reduce((a: number, b) => a + (b ?? 0), 0),
+      ),
+    ).toEqual([300, 100, 0]);
+  });
+
+  it("labels incomplete data and missing dates/expected values without flagging won rows' unused forecasts", () => {
     const report = pipeline();
     report.allData = false;
     report.rows[0].cells[5].value = null;
     report.rows[1].cells[2].value = null;
     report.rows[1].cells[3].value = null;
+    report.rows[2].cells[2].value = null;
+    report.rows[2].cells[3].value = null;
     const { notices } = pipelineCharts(report, range, range, "close");
     expect(notices.join(" ")).toMatch(
-      /incomplete.*no usable date.*neither Expected Revenue/,
+      /incomplete.*no usable date.*1 opportunities have neither Expected Revenue/,
     );
     report.columns = [];
     expect(() => pipelineCharts(report, range, range, "close")).toThrow(
@@ -122,6 +191,7 @@ describe("Monthly sales dashboards", () => {
   }
   beforeEach(() => {
     jest.clearAllMocks();
+    talentQuery.mockResolvedValue({ rows: [] });
   });
   afterEach(() => {
     jest.useRealTimers();
@@ -196,8 +266,8 @@ describe("Monthly sales dashboards", () => {
     const ids = [
       "PSA_Revenue_Recognition__c.Date__c",
       "PSA_Revenue_Recognition__c.Amount__c",
-      "PSA_Revenue_Recognition__c.Type__c",
-      "FK_Opportunity_Project_in_Appirio__c.Account_Category__c",
+      "offering-field",
+      "deal-field",
     ];
     const types = ["date", "currency", "string", "string"];
     const rows: Array<[string, number, string, string]> = [
@@ -219,7 +289,12 @@ describe("Monthly sales dashboards", () => {
       reportName: "Accounts Monthly revenue File",
       columns: ids.map((id, i) => ({
         id,
-        label: id === ids[3] ? "Account Category" : "Type",
+        label: [
+          "Date",
+          "Gross Amount",
+          "Project Stream: Engagement Offering Type",
+          "Deal Category",
+        ][i],
         dataType: types[i],
       })),
       rows: rows.map((cells) => ({
@@ -246,7 +321,7 @@ describe("Monthly sales dashboards", () => {
     expect(offering.months[1].values.other).toBe(5 + 6);
     expect(offering.months[0].values.other).toBe(0.3);
     expect(category.description).toBe(
-      "Monthly revenue stacked by Account Category.",
+      "Monthly bookings stacked by Deal Category.",
     );
     expect(category.series.map((s) => s.label)).toEqual([
       "Unknown",
@@ -274,7 +349,8 @@ describe("Monthly sales dashboards", () => {
     }).load(SalesDashboardSection.Revenue, range);
     expect(result.charts.map((c) => c.id)).toEqual(["revenue"]);
     expect(result.notices).toEqual([
-      "Revenue by account category is unavailable: the report has no category column.",
+      "Bookings by offering is unavailable: the report has no Engagement Offering Type column.",
+      "Bookings by account category is unavailable: the report has no category column.",
     ]);
   });
 
@@ -338,9 +414,110 @@ describe("Monthly sales dashboards", () => {
       "Other Customers",
     ]);
     expect(result.charts[2].months[1].values.other).toBe(1);
+    expect(result.customerPayments?.series.map((c) => c.label)).toEqual(
+      Array.from({ length: 6 }, (_, i) => `Client ${i}`),
+    );
+    expect(
+      Object.values(result.customerPayments!.months[1].values).reduce(
+        (a: number, b) => a + (b ?? 0),
+        0,
+      ),
+    ).toBe(21);
+    expect(result.customerPayments!.months[0].values).toEqual(
+      Object.fromEntries(
+        result.customerPayments!.series.map((c) => [c.key, 0]),
+      ),
+    );
     const reports = await service().load(SalesDashboardSection.Payments, range);
     expect(query.mock.calls[1][1][2]).toBe(false);
     expect(reports.charts[0].series[0].key).toBe("taas");
+  });
+
+  it.each(["sales", "reports"] as const)(
+    "scopes %s talent before distinct counts, including an empty customer list",
+    async (portal) => {
+      query.mockResolvedValue([{ project_id: "123" }]);
+      const api = service({ ENGAGEMENTS_DB_URL: "postgres://unused" });
+      await api.load(SalesDashboardSection.Talent, { ...range, portal });
+      expect(talentQuery.mock.calls[0][1][2]).toEqual(
+        portal === "sales" ? ["123"] : null,
+      );
+      expect(query).toHaveBeenCalledTimes(portal === "sales" ? 1 : 0);
+      query.mockResolvedValue([]);
+      await api.load(SalesDashboardSection.Talent, { ...range, portal });
+      expect(talentQuery.mock.calls[1][1][2]).toEqual(
+        portal === "sales" ? [] : null,
+      );
+    },
+  );
+
+  it("uses engagement offering/deal fields instead of old Type/Account Category and corrects only blank offerings", async () => {
+    const columns = [
+      { id: "date", label: "Date", dataType: "date" },
+      { id: "amount", label: "Gross Amount", dataType: "currency" },
+      { id: "old-type", label: "Type", dataType: "string" },
+      {
+        id: "offering",
+        label: "Project Stream: Engagement Offering Type",
+        dataType: "string",
+      },
+      {
+        id: "old-category",
+        label: "Project Stream: Account Category",
+        dataType: "string",
+      },
+      { id: "deal", label: "Deal Category", dataType: "string" },
+      {
+        id: "project",
+        label: "Project Stream: Opportunity/Project Name",
+        dataType: "string",
+      },
+    ];
+    const rows = [
+      ["TopGear", null, 10],
+      ["Multiple App Enhancements 5", "", 20],
+      ["Multiple App Enhancement 5", "-", 30],
+      ["TopGear", "AI Training", 40],
+      ["Unmapped", null, -5],
+    ];
+    const report = {
+      allData: true,
+      columns,
+      rows: rows.map(([project, offering, amount]) => ({
+        cells: [
+          "2026-09-30",
+          amount,
+          "Wrong offering",
+          offering,
+          "Wrong category",
+          "Topcoder Direct",
+          project,
+        ].map((value) => ({
+          value,
+          label: value == null ? "-" : String(value),
+        })),
+      })),
+    } as SalesReportDto;
+    expect(categoryColumn(report, CATEGORY_LABELS.offering)).toBe(3);
+    expect(offeringLabel(report.rows[3], 3, 6)).toBe("AI Training");
+    getDashboardSnapshot.mockResolvedValue(report);
+    const result = await service({
+      SALESFORCE_REVENUE_DATE_COLUMN: "date",
+      SALESFORCE_REVENUE_AMOUNT_COLUMN: "amount",
+    }).load(SalesDashboardSection.Revenue, range);
+    const [total, offering, category] = result.charts;
+    expect(total.months[1].values.revenue).toBe(95);
+    expect(
+      Object.fromEntries(
+        offering.series.map((c) => [c.label, offering.months[1].values[c.key]]),
+      ),
+    ).toEqual({
+      "TopGear Ops": 10,
+      "Flexible Talent": 50,
+      "AI Training": 40,
+      Unknown: -5,
+    });
+    expect(category.series.map((c) => c.label)).toEqual(["Topcoder Direct"]);
   });
 
   it("preserves unknown markup and exposes excluded unknown-payment counts", async () => {

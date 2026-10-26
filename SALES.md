@@ -322,14 +322,14 @@ Administrators/Talent Managers and machines with `reports:all`.
 
 Optional query parameters:
 
-- `portal=reports|sales` (default `reports`): Sales payment charts include only
+- `portal=reports|sales` (default `reports`): Sales payment and talent charts include only
   linked customer work, excluding TaaS and internal Topcoder payments **before**
   totals, distinct-member counts, and top-five customer ranking. Reports preserves
   the existing dashboard payment categories and customer-label rules.
 - `dateBasis=close|created` (default `close`): pipeline date column.
 - `startDate` / `endDate`: inclusive/exclusive UTC bounds, at most 24 months.
   Defaults are the latest six calendar months, including the current month.
-  Without explicit dates, opportunity size, expected revenue and pipeline by
+  Without explicit dates, expected bookings and pipeline by
   stage instead span three months back through six months ahead.
 
 Both saved Salesforce reports filter to `THIS_FISCAL_YEAR`, which would silently
@@ -350,7 +350,15 @@ Amount and Expected Revenue prefer converted columns where available. Missing
 Expected Revenue falls back to Amount × Probability / 100. Closed Won counts
 `Won - SOW Signed`, the only won stage in Topcoder's org and the stage behind the
 Sales page's Total WON SOW Signed card. `Won - Closed` and `Closed Won` also match,
-for orgs that use them. Incomplete reports, missing values and non-USD/mixed
+for orgs that use them. PM-6667 removes Total Opportunity Size and puts Won - SOW
+Signed bookings first. Expected bookings and Pipeline by stage exclude all won
+stages before aggregation. Won amounts are also grouped into three monthly charts:
+`won-offering` (Engagement Offering Type), `won-deal-category` (Deal Category), and
+`won-customer-type` (New Customer or Follow-on Business / Customer Type). These
+fields are resolved from report labels, ignoring a relationship prefix. Blank
+categories remain Unknown; a missing category field omits its chart with a notice.
+All won charts follow the selected date basis and use the same converted amounts.
+Incomplete reports, missing values and non-USD/mixed
 currencies are surfaced as notices. No currency conversion is added.
 
 The revenue report confirmed in the October 20 PM-6632 comment is
@@ -364,23 +372,42 @@ that report is used:
 | `SALESFORCE_REVENUE_REPORT_ID` | `00O1K000009GxBtUAK` | Optional report override |
 | `SALESFORCE_REVENUE_DATE_COLUMN` | `PSA_Revenue_Recognition__c.Date__c` (Date) | Date/datetime column that assigns the month |
 | `SALESFORCE_REVENUE_AMOUNT_COLUMN` | `PSA_Revenue_Recognition__c.Amount__c` (Gross Amount) | Currency/double revenue column |
-| `SALESFORCE_REVENUE_OFFERING_COLUMN` | `PSA_Revenue_Recognition__c.Type__c` (Type) | Optional "Revenue by offering" breakdown |
-| `SALESFORCE_REVENUE_CATEGORY_COLUMN` | `FK_Opportunity_Project_in_Appirio__c.Account_Category__c` | Optional "Revenue by account category" breakdown |
+| `SALESFORCE_REVENUE_OFFERING_COLUMN` | Metadata label **Engagement Offering Type**, including `Project Stream:` prefix | Optional field-ID override for Bookings by offering |
+| `SALESFORCE_REVENUE_CATEGORY_COLUMN` | Metadata label **Deal Category** | Optional field-ID override for Bookings by account category |
 
 An overridden report must set its own date and amount columns. Until it does, the
-section returns an explicit pending notice; column IDs are never inferred from
-labels. Configured date or amount columns that are missing, or have the wrong
+section returns an explicit pending notice; date and amount IDs are never inferred
+from labels. Category fields use the business labels above unless explicitly configured.
+Remove any old offering/category overrides pointing to Type or Account Category
+when deploying PM-6667; those fields are no longer the default category sources. Configured date or amount columns that are missing, or have the wrong
 type, return 502. A configured breakdown column the report lacks omits that chart
 with a notice.
 
-The section returns monthly totals, plus stacked breakdowns by offering and by
-account category. Each breakdown keeps its five largest categories, merges the rest
-into Other, and shows blank values as Unknown. Every row the report returns counts,
+The section uses **Bookings** in display copy while retaining the `revenue` route,
+chart IDs and source field names for compatibility. It returns monthly totals,
+plus stacked breakdowns by engagement offering and deal category. Each breakdown keeps its five largest categories, merges the rest
+into Other (when there are more than six), and shows blank values as Unknown.
+For blank engagement offerings only, Opportunity/Project Name `TopGear` maps to
+`TopGear Ops`, and `Multiple App Enhancement 5` / `Multiple App Enhancements 5`
+maps to `Flexible Talent`. Populated offerings are never overwritten. These
+corrections are applied before category ranking and monthly summation. Every row the report returns counts,
 including the `Wipro Internal - Ignore` account category, so totals match the
 Salesforce report and the breakdown shows that category separately. Amounts round
 to cents. The report must expose detail rows, as the pipeline report does.
 
-Flexible talent uses `ENGAGEMENTS_DB_URL`. It counts distinct members newly
+Payments also return optional `customerPayments`, using the chart's `series` and
+`months` shape for **every** customer before top-five/Other grouping. Each series
+key identifies the client ID/end-customer label pair. The UI renders customers as
+rows, months as columns and calculates row, month and grand totals. Unnamed or
+unlinked customers in Reports remain identifiable entries rather than being lost.
+
+Flexible talent uses `ENGAGEMENTS_DB_URL`. For `portal=sales`, the reporting DB
+first resolves project IDs through `projects.projects.billingAccountId` → BillingAccount
+→ Client. Internal Topcoder clients, Topcoder/TaaS end-customer labels and unlinked
+projects are excluded. The resulting project allowlist is passed as a bound array
+to the engagement query and filters assignments **before** distinct counts. An
+empty list returns zero counts; Reports continues with unscoped counts. The
+reporting connection must be able to read projects and billing accounts. It counts distinct members newly
 assigned (durable `acceptedAt`, falling back to legacy `startDate`), completed
 (`COMPLETED` assignment `endDate`), and ongoing at month end (now for the current
 month). Completed and terminated history contributes to earlier ongoing months.
