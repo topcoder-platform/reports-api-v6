@@ -11,16 +11,21 @@ import {
 } from "./dashboard-reports.dto";
 import type { DashboardDateRange } from "./dashboard-reports.service";
 
+// Test projects omitted unless REPORTS_ACTIVE_MEMBERS_EXCLUDED_PROJECT_IDS overrides them.
+const DEFAULT_EXCLUDED_PROJECT_IDS = '["1001120","34654","1001194"]';
+
 /** Combines finance/resource and engagement events for the active-members dashboard. */
 @Injectable()
 export class ActiveMembersReportsService implements OnModuleDestroy {
   private engagementsPool?: Pool;
+  private readonly excludedProjectIds: string[];
 
   /**
    * Creates the cross-database activity report used by DashboardReportsService.
    * @param db Main reporting database connection.
    * @param sql Report SQL loader.
-   * @param config Supplies the separate engagements database URL.
+   * @param config Supplies the separate engagements database URL and the
+   * REPORTS_ACTIVE_MEMBERS_EXCLUDED_PROJECT_IDS list of projects to omit.
    * @returns A report service; no database connections are opened here.
    * @throws Does not throw.
    */
@@ -28,7 +33,12 @@ export class ActiveMembersReportsService implements OnModuleDestroy {
     private readonly db: DbService,
     private readonly sql: SqlLoaderService,
     private readonly config: ConfigService,
-  ) {}
+  ) {
+    this.excludedProjectIds = this.parseListConfig(
+      "REPORTS_ACTIVE_MEMBERS_EXCLUDED_PROJECT_IDS",
+      DEFAULT_EXCLUDED_PROJECT_IDS,
+    );
+  }
 
   /**
    * Closes the lazily opened engagements connection at application shutdown.
@@ -41,13 +51,14 @@ export class ActiveMembersReportsService implements OnModuleDestroy {
 
   /**
    * Loads dated activity and deduplicates members within months and the whole range.
+   * Activity on challenges and engagements in the excluded (test) projects is omitted.
    * Activity detail is ordered newest first, with stable IDs breaking date ties.
    * @param range Validated inclusive start and exclusive end UTC timestamps.
    * @returns Zero-filled monthly counts, activity detail, and a selected-range total.
    * @throws Error if ENGAGEMENTS_DB_URL is missing or a database query fails.
    */
   async load(range: DashboardDateRange): Promise<ActiveMembersDashboardDto> {
-    const params = [range.startDate, range.endDate];
+    const params = [range.startDate, range.endDate, this.excludedProjectIds];
     const pool = this.getEngagementsPool();
     const [mainEvents, engagementEvents] = await Promise.all([
       this.db.query<ActiveMemberActivityDto>(
@@ -109,5 +120,31 @@ export class ActiveMembersReportsService implements OnModuleDestroy {
       this.engagementsPool = new Pool({ connectionString });
     }
     return this.engagementsPool;
+  }
+
+  /**
+   * Reads a list setting given as a JSON array ('["1","2"]') or comma-separated values,
+   * matching the general statistics exclusion settings.
+   * @param key Configuration key.
+   * @param defaultValue Raw value used when the key is not set.
+   * @returns Trimmed, non-empty entries; an empty setting yields no entries.
+   * @throws Does not throw; invalid JSON falls back to comma-separated parsing.
+   */
+  private parseListConfig(key: string, defaultValue: string): string[] {
+    const raw = String(this.config.get<string>(key, defaultValue) ?? "").trim();
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item: string | number | null) => String(item ?? "").trim())
+          .filter(Boolean);
+      }
+    } catch {
+      // ignore JSON parse failure and fall back to comma-separated values
+    }
+    return raw
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
   }
 }

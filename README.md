@@ -77,6 +77,9 @@ Dashboard figures use these shared definitions:
   payment activity still qualify. The query tolerates the pre-migration schema.
   `ENGAGEMENTS_DB_URL` is required, as for the Engagement Data report. CSV exports
   include monthly unique counts and individual dated member activities.
+  Activity on challenges and engagements in the projects listed in
+  `REPORTS_ACTIVE_MEMBERS_EXCLUDED_PROJECT_IDS` (test projects) is omitted,
+  including payments for those challenges and engagement assignments.
 - Rates are percentages from 0 through 100.
 
 Human access is limited to Administrator and Talent Manager roles. Machine
@@ -166,6 +169,12 @@ REPORTS_EXCLUDED_CHALLENGE_TYPES='["Task","First2Finish"]'
 # comma-separated; defaults to empty. The expert skills statistics always
 # exclude tcwebservice (22838965), even if it is not listed here.
 REPORTS_EXCLUDED_USER_IDS='["8547899","251280"]'
+
+# Project IDs (test projects) whose challenge registrations, engagement
+# applications/acceptances, and payments are omitted from the Active Members
+# dashboard. JSON array or comma-separated. Defaults to
+# '["1001120","34654","1001194"]'; set to '[]' to include every project.
+REPORTS_ACTIVE_MEMBERS_EXCLUDED_PROJECT_IDS='["1001120","34654","1001194"]'
 
 # Old tc-payments database URL (used by member-tax CSV export script)
 OLD_PAYMENTS_DATABASE_URL="postgresql://user:password@localhost:5432/tc_payments?schema=public"
