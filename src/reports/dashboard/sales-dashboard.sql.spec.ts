@@ -20,13 +20,16 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
       CREATE SCHEMA challenges;
       CREATE SCHEMA "billing-accounts";
       CREATE SCHEMA engagements;
+      CREATE SCHEMA projects;
+      CREATE TABLE projects.projects (id int, "billingAccountId" int);
+      CREATE TABLE engagements."Engagement" (id text, "projectId" text);
       CREATE TABLE finance.payment (winnings_id text, version int, created_at timestamp, gross_amount numeric, total_amount numeric, billing_account text, payment_status text, challenge_markup numeric);
       CREATE TABLE finance.winnings (winning_id text, winner_id text, category text, type text, external_id text);
       CREATE TABLE challenges."Challenge" (id text);
       CREATE TABLE challenges."ChallengeBilling" ("challengeId" text, "billingAccountId" text);
       CREATE TABLE "billing-accounts"."BillingAccount" (id int, "clientId" text, "subcontractingEndCustomer" text);
       CREATE TABLE "billing-accounts"."Client" (id text, name text);
-      CREATE TABLE engagements."EngagementAssignment" ("memberId" text, status text, "acceptedAt" timestamp, "startDate" timestamp, "endDate" timestamp);
+      CREATE TABLE engagements."EngagementAssignment" ("memberId" text, status text, "acceptedAt" timestamp, "startDate" timestamp, "endDate" timestamp, "engagementId" text DEFAULT 'external');
       INSERT INTO "billing-accounts"."Client" VALUES ('customer', 'Customer'), ('internal', 'Topcoder'), ('wipro', 'Wipro Limited (NA subcontracting)');
       INSERT INTO "billing-accounts"."BillingAccount" VALUES (1, 'customer', 'Customer'), (2, 'internal', 'Some internal work'), (3, 'wipro', 'Customer B');
       INSERT INTO challenges."Challenge" VALUES ('challenge');
@@ -52,7 +55,9 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
         ('g', 1, '2026-09-02', 200, 200, '1', 'FAILED', .10),
         ('h', 1, '2026-10-01', 300, 300, 'missing', 'PAID', null),
         ('i', 1, '2026-11-01', 888, 888, '1', 'PAID', .99);
-      INSERT INTO engagements."EngagementAssignment" VALUES
+      INSERT INTO projects.projects VALUES (1, 1), (2, 2), (3, NULL), (4, 3);
+      INSERT INTO engagements."Engagement" VALUES ('external', '1'), ('internal', '2'), ('unlinked', '3'), ('wipro', '4');
+      INSERT INTO engagements."EngagementAssignment" ("memberId", status, "acceptedAt", "startDate", "endDate") VALUES
         ('alice', 'COMPLETED', '2026-08-05', '2026-08-10', '2026-09-15'),
         ('alice', 'ASSIGNED', '2026-08-20', null, null),
         ('bob', 'ASSIGNED', null, '2026-07-01', null),
@@ -68,7 +73,7 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
       new URL(connectionString).pathname === "/sales_dashboard_test"
     ) {
       await pool.query(
-        'DROP SCHEMA IF EXISTS finance, challenges, "billing-accounts", engagements CASCADE',
+        'DROP SCHEMA IF EXISTS finance, challenges, "billing-accounts", engagements, projects CASCADE',
       );
     }
     await pool.end();
@@ -139,7 +144,7 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
   it("counts distinct assigned/completed/ongoing members using durable event dates and legacy starts", async () => {
     const result = await pool.query(
       sql.load("reports/dashboard/sales-talent.sql"),
-      bounds,
+      [...bounds, null],
     );
     expect(result.rows[0]).toMatchObject({
       month: "2026-08-01",
@@ -158,6 +163,43 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
       newly_assigned: "0",
       completed: "0",
       ongoing: "2",
+    });
+  });
+  it("excludes internal/unlinked engagement assignments before all monthly distinct counts", async () => {
+    await pool.query(`INSERT INTO engagements."EngagementAssignment" VALUES
+      ('internal-only', 'COMPLETED', '2026-08-01', null, '2026-09-15', 'internal'),
+      ('unlinked-only', 'ASSIGNED', '2026-08-01', null, null, 'unlinked'),
+      ('alice', 'ASSIGNED', '2026-08-01', null, null, 'internal'),
+      ('external-wipro', 'ASSIGNED', '2026-08-01', null, null, 'wipro')`);
+    const projects = await pool.query(
+      sql.load("reports/dashboard/sales-customer-projects.sql"),
+    );
+    const ids = projects.rows.map((p) => p.project_id).sort();
+    expect(ids).toEqual(["1", "4"]);
+    const scoped = await pool.query(
+      sql.load("reports/dashboard/sales-talent.sql"),
+      [...bounds, ids],
+    );
+    expect(scoped.rows[0]).toMatchObject({ newly_assigned: "3", ongoing: "3" });
+    expect(scoped.rows[1]).toMatchObject({ completed: "2", ongoing: "3" });
+    const empty = await pool.query(
+      sql.load("reports/dashboard/sales-talent.sql"),
+      [...bounds, []],
+    );
+    expect(
+      empty.rows.every((row) =>
+        [row.newly_assigned, row.completed, row.ongoing].every(
+          (n) => n === "0",
+        ),
+      ),
+    ).toBe(true);
+    const unscoped = await pool.query(
+      sql.load("reports/dashboard/sales-talent.sql"),
+      [...bounds, null],
+    );
+    expect(unscoped.rows[0]).toMatchObject({
+      newly_assigned: "5",
+      ongoing: "5",
     });
   });
 });

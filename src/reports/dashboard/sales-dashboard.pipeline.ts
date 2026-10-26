@@ -2,6 +2,11 @@ import { BadGatewayException } from "@nestjs/common";
 import { SalesReportDto } from "../sales/sales-reports.dto";
 import { DashboardDateRange } from "./dashboard-reports.service";
 import {
+  CATEGORY_LABELS,
+  categoryColumn,
+  categoryLabel,
+} from "./sales-dashboard.categories";
+import {
   SalesDashboardChartDto,
   SalesDashboardDto,
 } from "./sales-dashboard.dto";
@@ -56,7 +61,7 @@ function column(report: SalesReportDto, label: string): number {
 }
 
 /**
- * Aggregates all Salesforce snapshot rows into the four pipeline charts from the executive overview.
+ * Aggregates won bookings and their three business categories separately from open pipeline amounts.
  * @param report Complete normalized source snapshot, before UI pagination.
  * @param range Pipeline window (normally three months back through six months ahead).
  * @param closedRange Historical window for Closed Won amounts.
@@ -85,40 +90,36 @@ export function pipelineCharts(
   }
   const stages = [
     ...new Set(
-      report.rows.map((row) => row.cells[stageIndex]?.label || "Unknown"),
+      report.rows
+        .map((row) => row.cells[stageIndex]?.label.trim() || "Unknown")
+        .filter((stage) => !WON_STAGE.test(stage)),
     ),
   ].sort();
   const stageKeys = new Map(stages.map((label, i) => [label, `stage-${i}`]));
   const charts = [
-    monthlyChart(range, {
-      id: "opportunity-size",
-      title: "Total opportunity size",
-      description: "Opportunity amount by month.",
-      unit: "currency",
-      stacked: false,
-      series: [{ key: "amount", label: "Amount" }],
-    }),
     monthlyChart(closedRange, {
       id: "closed-won",
-      title: "Closed Won revenue",
+      title: "Won - SOW Signed bookings",
       description:
         "Amount for won opportunities (the Won - SOW Signed stage), by selected date.",
       unit: "currency",
       stacked: false,
-      series: [{ key: "amount", label: "Closed Won" }],
+      series: [{ key: "amount", label: "Bookings won" }],
     }),
     monthlyChart(range, {
       id: "expected-revenue",
-      title: "Expected revenue",
-      description: "Expected Revenue, falling back to Amount × Probability.",
+      title: "Expected bookings",
+      description:
+        "Open opportunities only: Expected Revenue, falling back to Amount × Probability. Won bookings are excluded.",
       unit: "currency",
       stacked: false,
-      series: [{ key: "amount", label: "Expected revenue" }],
+      series: [{ key: "amount", label: "Expected bookings" }],
     }),
     monthlyChart(range, {
       id: "pipeline-stage",
       title: "Pipeline by stage",
-      description: "Opportunity amount split by stage and month.",
+      description:
+        "Open opportunity amount split by stage and month, excluding won bookings.",
       unit: "currency",
       stacked: true,
       series: stages.map((label) => ({ key: stageKeys.get(label)!, label })),
@@ -129,6 +130,51 @@ export function pipelineCharts(
     : [
         "Salesforce returned an incomplete report. These charts show only the returned rows.",
       ];
+  const breakdowns = [
+    {
+      id: "won-offering",
+      title: "Bookings won by offering type",
+      label: CATEGORY_LABELS.offering,
+    },
+    {
+      id: "won-deal-category",
+      title: "Bookings won by deal category",
+      label: CATEGORY_LABELS.deal,
+    },
+    {
+      id: "won-customer-type",
+      title: "Bookings won by customer type",
+      label: CATEGORY_LABELS.customer,
+    },
+  ].flatMap(({ id, title, label }) => {
+    const index = categoryColumn(report, label);
+    if (index < 0) {
+      notices.push(
+        `${title} is unavailable: the pipeline report does not include this category column.`,
+      );
+      return [];
+    }
+    const labels = [
+      ...new Set(
+        report.rows
+          .filter((row) =>
+            WON_STAGE.test(row.cells[stageIndex]?.label.trim() ?? ""),
+          )
+          .map((row) => categoryLabel(row, index) || "Unknown"),
+      ),
+    ].sort();
+    const keys = new Map(labels.map((name, i) => [name, `group-${i}`]));
+    const chart = monthlyChart(closedRange, {
+      id,
+      title,
+      description: `Won opportunity amounts by ${report.columns[index].label} and selected date.`,
+      unit: "currency",
+      stacked: true,
+      series: labels.map((name) => ({ key: keys.get(name)!, label: name })),
+    });
+    charts.push(chart);
+    return [{ index, keys, chart }];
+  });
   let missingDates = 0;
   let missingAmounts = 0;
   let missingExpected = 0;
@@ -153,7 +199,8 @@ export function pipelineCharts(
       continue;
     }
     if (amountCell.currencyCode) currencies.add(amountCell.currencyCode);
-    const stage = row.cells[stageIndex]?.label || "Unknown";
+    const stage = row.cells[stageIndex]?.label.trim() || "Unknown";
+    const won = WON_STAGE.test(stage);
     const expected = row.cells[expectedIndex]?.value;
     const probability = row.cells[probabilityIndex]?.value;
     const weighted =
@@ -162,25 +209,28 @@ export function pipelineCharts(
         : typeof probability === "number"
           ? (amount * probability) / 100
           : undefined;
-    if (weighted === undefined) missingExpected++;
-    charts.forEach((chart, i) => {
-      const bounds = i === 1 ? closedRange : range;
-      if (
-        timestamp < Date.parse(bounds.startDate) ||
-        timestamp >= Date.parse(bounds.endDate)
-      )
-        return;
-      const bucket = chart.months.find((m) => m.month === month);
-      if (
-        !bucket ||
-        (i === 1 && !WON_STAGE.test(stage.trim()))
-      )
-        return;
-      const key = i === 3 ? stageKeys.get(stage)! : "amount";
-      if (i === 2 && weighted === undefined) return;
-      bucket.values[key] =
-        (bucket.values[key] ?? 0) + (i === 2 ? weighted! : amount);
-    });
+    if (!won && weighted === undefined) missingExpected++;
+    const inRange = (bounds: DashboardDateRange) =>
+      timestamp >= Date.parse(bounds.startDate) &&
+      timestamp < Date.parse(bounds.endDate);
+    if (won && inRange(closedRange)) {
+      const bucket = charts[0].months.find((m) => m.month === month);
+      if (bucket) bucket.values.amount = (bucket.values.amount ?? 0) + amount;
+      breakdowns.forEach(({ index, keys, chart }) => {
+        const group = chart.months.find((m) => m.month === month);
+        const key = keys.get(categoryLabel(row, index) || "Unknown")!;
+        if (group) group.values[key] = (group.values[key] ?? 0) + amount;
+      });
+    } else if (!won && inRange(range)) {
+      const expectedMonth = charts[1].months.find((m) => m.month === month);
+      if (expectedMonth && weighted !== undefined)
+        expectedMonth.values.amount =
+          (expectedMonth.values.amount ?? 0) + weighted;
+      const stageMonth = charts[2].months.find((m) => m.month === month);
+      const key = stageKeys.get(stage)!;
+      if (stageMonth)
+        stageMonth.values[key] = (stageMonth.values[key] ?? 0) + amount;
+    }
   }
   if (missingDates)
     notices.push(
@@ -192,7 +242,7 @@ export function pipelineCharts(
     );
   if (missingExpected)
     notices.push(
-      `${missingExpected} opportunities have neither Expected Revenue nor Probability and are excluded from expected revenue.`,
+      `${missingExpected} opportunities have neither Expected Revenue nor Probability and are excluded from expected bookings.`,
     );
   if (currencies.size > 1 || [...currencies].some((code) => code !== "USD"))
     notices.push(
