@@ -33,8 +33,6 @@ export const DEFAULT_REVENUE_REPORT_ID = "00O1K000009GxBtUAK";
 export const DEFAULT_REVENUE_COLUMNS = {
   date: "PSA_Revenue_Recognition__c.Date__c",
   amount: "PSA_Revenue_Recognition__c.Amount__c",
-  offering: "PSA_Revenue_Recognition__c.Type__c",
-  category: "FK_Opportunity_Project_in_Appirio__c.Account_Category__c",
 };
 /** Most cached dashboard snapshots, so arbitrary API date ranges cannot grow memory without bound. */
 const MAX_SNAPSHOTS = 20;

@@ -48,4 +48,7 @@ export class SalesDashboardDto {
   @ApiProperty({ type: [SalesDashboardChartDto] })
   charts: SalesDashboardChartDto[];
   @ApiProperty({ type: [String] }) notices: string[];
+  /** Full customer series for the payments matrix, before top-five/Other grouping. */
+  @ApiPropertyOptional({ type: SalesDashboardChartDto })
+  customerPayments?: SalesDashboardChartDto;
 }

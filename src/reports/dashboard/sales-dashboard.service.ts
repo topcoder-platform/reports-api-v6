@@ -26,6 +26,12 @@ import {
   SalesDashboardQueryDto,
   SalesDashboardSection,
 } from "./sales-dashboard.dto";
+import {
+  CATEGORY_LABELS,
+  categoryColumn,
+  categoryLabel,
+  offeringLabel,
+} from "./sales-dashboard.categories";
 import { monthlyChart, pipelineCharts } from "./sales-dashboard.pipeline";
 
 type PaymentRow = {
@@ -74,7 +80,7 @@ function salesforceDateFilter(
  * Stacks revenue by one category column, keeping the five largest categories and grouping the rest as Other.
  * @param range Half-open UTC range of the entries.
  * @param entries In-range revenue rows.
- * @param index Category cell index; blank categories appear as Unknown.
+ * @param label Resolves the business category for each row, including source corrections.
  * @param definition Chart identity and copy.
  * @returns A stacked currency chart whose monthly totals match the revenue total.
  * @throws Does not throw.
@@ -82,11 +88,9 @@ function salesforceDateFilter(
 function revenueBreakdown(
   range: DashboardDateRange,
   entries: RevenueEntry[],
-  index: number,
+  label: (entry: RevenueEntry) => string,
   definition: Pick<SalesDashboardChartDto, "id" | "title" | "description">,
 ): SalesDashboardChartDto {
-  const label = (entry: RevenueEntry) =>
-    entry.row.cells[index]?.label.trim() || "Unknown";
   const totals = new Map<string, number>();
   entries.forEach((entry) =>
     totals.set(label(entry), (totals.get(label(entry)) ?? 0) + entry.amount),
@@ -184,7 +188,7 @@ export class SalesDashboardService implements OnModuleDestroy {
       case SalesDashboardSection.Payments:
         return this.payments(range, query.portal === "sales");
       case SalesDashboardSection.Talent:
-        return this.talent(range);
+        return this.talent(range, query.portal === "sales");
       case SalesDashboardSection.GrossMargin:
         return this.grossMargin(range);
     }
@@ -193,7 +197,7 @@ export class SalesDashboardService implements OnModuleDestroy {
   /**
    * Resolves the revenue report's columns. The confirmed report uses its verified column IDs
    * unless settings override them; an overridden report must configure date and amount itself.
-   * @returns Date, amount and optional breakdown column IDs, or undefined while the source is incomplete.
+   * @returns Date/amount IDs and optional category overrides; categories otherwise resolve from business labels.
    * @throws Does not throw.
    */
   private revenueColumns():
@@ -213,15 +217,15 @@ export class SalesDashboardService implements OnModuleDestroy {
     return {
       date,
       amount,
-      offering: setting("SALESFORCE_REVENUE_OFFERING_COLUMN", defaults.offering),
-      category: setting("SALESFORCE_REVENUE_CATEGORY_COLUMN", defaults.category),
+      offering: setting("SALESFORCE_REVENUE_OFFERING_COLUMN"),
+      category: setting("SALESFORCE_REVENUE_CATEGORY_COLUMN"),
     };
   }
 
   /**
    * Groups the confirmed (or overridden) Salesforce revenue report by its date and amount fields.
    * @param range Half-open UTC range; the report run is filtered to it instead of the saved fiscal year.
-   * @returns Monthly revenue, plus stacked offering and account category views when those columns
+   * @returns Monthly bookings, plus engagement-offering and deal-category views when those columns
    * exist, or a pending-configuration notice. Incomplete sources are labelled.
    * @throws BadGatewayException for invalid date/amount fields; sanitized upstream errors propagate.
    */
@@ -281,11 +285,11 @@ export class SalesDashboardService implements OnModuleDestroy {
     });
     const total = monthlyChart(range, {
       id: "revenue",
-      title: "Revenue report",
-      description: `Monthly revenue from ${report.reportName}.`,
+      title: "Bookings report",
+      description: `Monthly bookings from ${report.reportName}.`,
       unit: "currency",
       stacked: false,
-      series: [{ key: "revenue", label: "Revenue" }],
+      series: [{ key: "revenue", label: "Bookings" }],
     });
     entries.forEach((entry) => {
       const month = total.months.find((m) => m.month === entry.month);
@@ -298,31 +302,43 @@ export class SalesDashboardService implements OnModuleDestroy {
           "Salesforce returned an incomplete revenue report. Totals include only returned rows.",
         ];
     const charts = [total];
+    const projectIndex = categoryColumn(report, CATEGORY_LABELS.project);
     [
       {
         id: "revenue-offering",
-        title: "Revenue by offering",
+        title: "Bookings by offering",
         column: columns.offering,
+        label: CATEGORY_LABELS.offering,
       },
       {
         id: "revenue-category",
-        title: "Revenue by account category",
+        title: "Bookings by account category",
         column: columns.category,
+        label: CATEGORY_LABELS.deal,
       },
-    ].forEach(({ column, ...definition }) => {
-      if (!column) return;
-      const index = report.columns.findIndex((c) => c.id === column);
+    ].forEach(({ column, label, ...definition }) => {
+      const index = column
+        ? report.columns.findIndex((c) => c.id === column)
+        : categoryColumn(report, label);
       if (index < 0) {
         notices.push(
-          `${definition.title} is unavailable: the report has no ${column} column.`,
+          `${definition.title} is unavailable: the report has no ${column ?? (definition.id === "revenue-offering" ? "Engagement Offering Type" : "Deal Category")} column.`,
         );
         return;
       }
       charts.push(
-        revenueBreakdown(range, entries, index, {
-          ...definition,
-          description: `Monthly revenue stacked by ${report.columns[index].label}.`,
-        }),
+        revenueBreakdown(
+          range,
+          entries,
+          (entry) =>
+            definition.id === "revenue-offering"
+              ? offeringLabel(entry.row, index, projectIndex)
+              : categoryLabel(entry.row, index) || "Unknown",
+          {
+            ...definition,
+            description: `Monthly bookings stacked by ${report.columns[index].label}.`,
+          },
+        ),
       );
     });
     charts.forEach((chart) =>
@@ -347,7 +363,7 @@ export class SalesDashboardService implements OnModuleDestroy {
    * Aggregates scoped payment events by type and customer, with customer ranking after filtering.
    * @param range Half-open UTC reporting range.
    * @param customerOnly Excludes TaaS, Topcoder and payments without a linked customer in Sales.
-   * @returns Payment values, distinct paid members per type, and the top five customers plus Other.
+   * @returns Payment values, distinct members per type, top-five customer chart and an ungrouped customer table.
    * @throws Propagates database errors.
    */
   private async payments(
@@ -417,6 +433,31 @@ export class SalesDashboardService implements OnModuleDestroy {
         { key: "other", label: "Other Customers" },
       ],
     });
+    // Keep every customer in the table, independently of the chart's top-five ranking.
+    const customers = new Map<string, string>();
+    rows
+      .filter((row) => row.kind === "customer")
+      .forEach((row) => {
+        const key = JSON.stringify([row.customer_id, row.customer_label]);
+        customers.set(
+          key,
+          row.customer_label ||
+            (row.customer_id
+              ? `Customer ${row.customer_id}`
+              : "Unknown customer"),
+        );
+      });
+    const customerPayments = monthlyChart(range, {
+      id: "payment-customer-all",
+      title: "Monthly member payments by customer",
+      description:
+        "All customers, with monthly payments and fiscal-period totals.",
+      unit: "currency",
+      stacked: true,
+      series: [...customers]
+        .sort((a, b) => a[1].localeCompare(b[1]) || a[0].localeCompare(b[0]))
+        .map(([key, label]) => ({ key, label })),
+    });
     rows.forEach((row) => {
       if (row.kind === "type") {
         charts.forEach((chart, index) => {
@@ -428,6 +469,12 @@ export class SalesDashboardService implements OnModuleDestroy {
         });
       } else {
         const key = JSON.stringify([row.customer_id, row.customer_label]);
+        const fullMonth = customerPayments.months.find(
+          (m) => m.month === row.month,
+        );
+        if (fullMonth)
+          fullMonth.values[key] =
+            (fullMonth.values[key] ?? 0) + Number(row.amount);
         const selected = top.some((c) => c.key === key) ? key : "other";
         const month = customerChart.months.find((m) => m.month === row.month);
         if (month)
@@ -435,16 +482,24 @@ export class SalesDashboardService implements OnModuleDestroy {
             (month.values[selected] ?? 0) + Number(row.amount);
       }
     });
-    return { charts: [...charts, customerChart], notices: [] };
+    return {
+      charts: [...charts, customerChart],
+      customerPayments,
+      notices: [],
+    };
   }
 
   /**
    * Reads actual assignment acceptance and ending dates from the engagement database.
    * @param range Half-open UTC range.
-   * @returns Distinct monthly newly assigned, completed and ongoing member counts.
+   * @param customerOnly Restricts assignments to linked external-customer projects for the Sales portal.
+   * @returns Distinct monthly newly assigned, completed and ongoing member counts after scoping.
    * @throws ServiceUnavailableException if the engagement connection is missing; query failures propagate.
    */
-  private async talent(range: DashboardDateRange): Promise<SalesDashboardDto> {
+  private async talent(
+    range: DashboardDateRange,
+    customerOnly: boolean,
+  ): Promise<SalesDashboardDto> {
     if (!this.engagementsPool) {
       const connectionString = this.config.get<string>("ENGAGEMENTS_DB_URL");
       if (!connectionString)
@@ -453,6 +508,11 @@ export class SalesDashboardService implements OnModuleDestroy {
         );
       this.engagementsPool = new Pool({ connectionString });
     }
+    const customerProjects = customerOnly
+      ? await this.db.query<{ project_id: string }>(
+          this.sql.load("reports/dashboard/sales-customer-projects.sql"),
+        )
+      : undefined;
     const result = await this.engagementsPool.query<{
       month: string;
       newly_assigned: string;
@@ -461,11 +521,13 @@ export class SalesDashboardService implements OnModuleDestroy {
     }>(this.sql.load("reports/dashboard/sales-talent.sql"), [
       range.startDate,
       range.endDate,
+      customerProjects?.map((project) => project.project_id) ?? null,
     ]);
     const chart = monthlyChart(range, {
       id: "flexible-talent",
       title: "Flexible talent",
       description:
+        (customerOnly ? "Customer work only. " : "") +
         "Unique members newly assigned or completed during the month, and ongoing at month end (today for the current month). Legacy assignments use their start date when acceptance is unknown.",
       unit: "count",
       stacked: false,

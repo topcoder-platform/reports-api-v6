@@ -1,4 +1,6 @@
 -- $1/$2 inclusive/exclusive UTC bounds. Executed on ENGAGEMENTS_DB_URL.
+-- $3 allowed customer project IDs from the reporting DB; null keeps Reports unscoped.
+-- An empty array deliberately counts no assignments; filtering precedes all distinct counts.
 -- acceptedAt records actual assignment; startDate is the legacy fallback.
 -- Completion/termination writes endDate in the engagement service. updatedAt is not an event date.
 -- Ongoing means still assigned at the month-end snapshot (now for the current month).
@@ -16,6 +18,11 @@ WITH bounds AS (
   FROM engagements."EngagementAssignment" a
   WHERE a.status::text IN ('ASSIGNED', 'COMPLETED', 'TERMINATED')
     AND NULLIF(BTRIM(a."memberId"), '') IS NOT NULL
+    AND ($3::text[] IS NULL OR EXISTS (
+      SELECT 1 FROM engagements."Engagement" e
+      WHERE e.id = a."engagementId"
+        AND BTRIM(e."projectId") = ANY($3::text[])
+    ))
 )
 SELECT TO_CHAR(m.month_start, 'YYYY-MM-01') AS month,
        COUNT(DISTINCT a.member_id) FILTER (
