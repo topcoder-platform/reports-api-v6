@@ -351,13 +351,15 @@ export class SalesDashboardService implements OnModuleDestroy {
         ),
       );
     });
-    // Prefer the end customer to a parent/account name when the report exposes both.
+    // Prefer end customers to parent accounts. The confirmed revenue report labels its
+    // PSA_Revenue_Recognition__c.Account__c lookup "Account", not "Account Name".
     const customerIndex = columns.customer
       ? report.columns.findIndex((column) => column.id === columns.customer)
       : ([
           /^(?:subcontracting )?end customer$/i,
           /^customer(?: name)?$/i,
           /^account name$/i,
+          /^account$/i,
         ]
           .map((label) => categoryColumn(report, label))
           .find((index) => index >= 0) ?? -1);
