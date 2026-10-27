@@ -82,11 +82,11 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
   it("filters customer work before type totals, distinct-member counts and customer ranking", async () => {
     const sales = await pool.query(
       sql.load("reports/dashboard/sales-payments.sql"),
-      [...bounds, true],
+      [...bounds, true, false],
     );
     const reports = await pool.query(
       sql.load("reports/dashboard/sales-payments.sql"),
-      [...bounds, false],
+      [...bounds, false, false],
     );
     const august = sales.rows.filter((r) => r.month === "2026-08-01");
     expect(
@@ -116,9 +116,9 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
     ).toBe(true);
     expect(
       reports.rows.some(
-        (r) => r.customer_label === "TaaS" && Number(r.amount) === 5000,
+        (r) => r.payment_type === "taas" || r.customer_label === "TaaS",
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       sales.rows.some(
         (r) => r.month === "2026-11-01" || r.month === "2026-10-01",
@@ -201,5 +201,58 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
       newly_assigned: "5",
       ongoing: "5",
     });
+  });
+  it("uses linked client names for missing end customers while preserving billing-account precedence", async () => {
+    await pool.query(`
+      INSERT INTO "billing-accounts"."Client" VALUES ('71000361', 'Named client'), ('82e8-test', 'Another named client');
+      INSERT INTO "billing-accounts"."BillingAccount" VALUES (20, '71000361', '   '), (21, '82e8-test', NULL), (22, 'customer', 'Specific end customer');
+      INSERT INTO finance.winnings VALUES ('fallback-a', 'member1', 'TASK_PAYMENT', 'PAYMENT', 'challenge'), ('fallback-b', 'member2', 'TASK_PAYMENT', 'PAYMENT', NULL), ('fallback-c', 'member3', 'TASK_PAYMENT', 'PAYMENT', NULL);
+      INSERT INTO finance.payment VALUES ('fallback-a', 1, '2026-09-01', 100, 100, '20', 'PAID', NULL), ('fallback-b', 1, '2026-09-01', 200, 200, '21', 'PAID', NULL), ('fallback-c', 1, '2026-09-01', 300, 300, '22', 'PAID', NULL);
+    `);
+    const { rows } = await pool.query(
+      sql.load("reports/dashboard/sales-payments.sql"),
+      [...bounds, true, false],
+    );
+    const labels = rows
+      .filter((row) => row.kind === "customer")
+      .map((row) => row.customer_label);
+    expect(labels).toEqual(
+      expect.arrayContaining([
+        "Named client",
+        "Another named client",
+        "Specific end customer",
+      ]),
+    );
+    expect(
+      labels.some((label) => label === null || /^Customer \d/.test(label)),
+    ).toBe(false);
+  });
+
+  it("isolates TaaS payments by creation month and latest version, excluding cancelled and out-of-range records", async () => {
+    await pool.query(`
+      INSERT INTO finance.winnings VALUES ('taas-cancelled', 'member1', 'TAAS_PAYMENT', 'PAYMENT', NULL), ('taas-outside', 'member2', 'TAAS_PAYMENT', 'PAYMENT', NULL);
+      INSERT INTO finance.payment VALUES ('c', 2, '2026-09-01', 6000, 6000, '3', 'PAID', NULL), ('taas-cancelled', 1, '2026-09-01', 100, 100, '3', 'CANCELLED', NULL), ('taas-outside', 1, '2026-11-01', 200, 200, '3', 'PAID', NULL);
+    `);
+    const { rows } = await pool.query(
+      sql.load("reports/dashboard/sales-payments.sql"),
+      [...bounds, false, true],
+    );
+    expect(rows.filter((row) => row.kind === "type")).toEqual([
+      expect.objectContaining({
+        month: "2026-09-01",
+        payment_type: "taas",
+        amount: "6000",
+        members: "1",
+      }),
+    ]);
+    const regular = await pool.query(
+      sql.load("reports/dashboard/sales-payments.sql"),
+      [...bounds, false, false],
+    );
+    expect(
+      regular.rows.some(
+        (row) => row.payment_type === "taas" || row.customer_label === "TaaS",
+      ),
+    ).toBe(false);
   });
 });

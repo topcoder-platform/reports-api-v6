@@ -18,8 +18,11 @@ import {
 import {
   SalesforceGrouping,
   SalesforceReport,
+  SalesforceReportOverrides,
   SalesforceReportsClient,
 } from "./salesforce-reports.client";
+
+import { categoryValue } from "./sales-category.utils";
 
 const CACHE_MS = 60000;
 const REFRESH_COOLDOWN_MS = CACHE_MS;
@@ -33,7 +36,11 @@ export const DEFAULT_REVENUE_REPORT_ID = "00O1K000009GxBtUAK";
 export const DEFAULT_REVENUE_COLUMNS = {
   date: "PSA_Revenue_Recognition__c.Date__c",
   amount: "PSA_Revenue_Recognition__c.Amount__c",
+  opportunity: "PSA_Revenue_Recognition__c.Opportunity__c",
+  projectOpportunity: "FK_Opportunity_Project_in_Appirio__c.Opportunity__c",
 };
+/** Execution-only category joined from the revenue record's Opportunity lookup. */
+export const REVENUE_CUSTOMER_TYPE_COLUMN = "__revenue_customer_type";
 /** Most cached dashboard snapshots, so arbitrary API date ranges cannot grow memory without bound. */
 const MAX_SNAPSHOTS = 20;
 
@@ -51,17 +58,6 @@ const PIPELINE_FILTERS = [
   },
 ] as const;
 
-/**
- * Normalizes a category label for exact matching, including Salesforce's "Wipro Direct" spelling.
- * @param value Displayed category or canonical query option.
- * @returns Lowercase words with hyphens/whitespace treated equally. Does not throw.
- */
-function categoryValue(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[-\s]+/g, " ");
-}
 /** Column types that a date range can be applied to. */
 const DATE_TYPES = ["date", "datetime"];
 /** Column types that describe a category, such as a pipeline stage. */
@@ -470,6 +466,8 @@ export class SalesReportsService {
    * @param refresh Whether to request a refresh, subject to the one-minute cache interval.
    * @param source Pipeline or separately configured revenue report; caches stay independent.
    * @param dateFilter Optional execution-only date filter replacing the saved report's; each window is cached separately.
+   * @param requiredColumns Extra server-selected detail fields, included only in this execution and cache key.
+   * @param enrichCustomerTypes Resolve required Opportunity lookup fields to Pipeline's customer categories.
    * @returns A report fetched within the cache interval.
    * @throws The sanitized client/normalization error; failures are throttled for one minute.
    */
@@ -477,6 +475,8 @@ export class SalesReportsService {
     refresh: boolean,
     source: "pipeline" | "revenue" = "pipeline",
     dateFilter?: DashboardDateFilter,
+    requiredColumns: string[] = [],
+    enrichCustomerTypes = false,
   ): Promise<SalesReportDto> {
     const state = this.snapshotState(
       dateFilter
@@ -485,6 +485,8 @@ export class SalesReportsService {
             dateFilter.column,
             dateFilter.startDate,
             dateFilter.endDate,
+            ...requiredColumns,
+            String(enrichCustomerTypes),
           ].join("|")
         : source,
     );
@@ -510,15 +512,31 @@ export class SalesReportsService {
       throw new ServiceUnavailableException(
         "The Salesforce revenue report has not been configured.",
       );
-    state.loading = (
-      dateFilter
-        ? this.client.runReport(reportId, {
-            standardDateFilter: { ...dateFilter, durationValue: "CUSTOM" },
-          })
-        : this.client.runReport(reportId)
-    )
-      .then((report) => {
-        state.snapshot = this.normalize(report);
+    state.loading = (async () => {
+      let overrides: SalesforceReportOverrides | undefined = dateFilter
+        ? { standardDateFilter: { ...dateFilter, durationValue: "CUSTOM" } }
+        : undefined;
+      if (requiredColumns.length) {
+        const metadata = await this.client.describeReport(reportId);
+        overrides = {
+          ...overrides,
+          detailColumns: [
+            ...new Set([
+              ...metadata.reportMetadata.detailColumns,
+              ...requiredColumns,
+            ]),
+          ],
+        };
+      }
+      return overrides
+        ? this.client.runReport(reportId, overrides)
+        : this.client.runReport(reportId);
+    })()
+      .then(async (report) => {
+        const normalized = this.normalize(report);
+        state.snapshot = enrichCustomerTypes
+          ? await this.withRevenueCustomerTypes(normalized, requiredColumns)
+          : normalized;
         state.lastFailure = undefined;
         return state.snapshot;
       })
@@ -534,19 +552,77 @@ export class SalesReportsService {
   }
 
   /**
+   * Adds Pipeline's customer category by raw Opportunity ID, never by a project/customer display name.
+   * @param report Normalized revenue snapshot. @param lookupColumns Ordered lookup IDs, direct opportunity first.
+   * @returns A snapshot with an appended Customer Type field; unlinked or unclassified rows remain blank.
+   * @throws Sanitized Salesforce errors when the category lookup fails.
+   */
+  private async withRevenueCustomerTypes(
+    report: SalesReportDto,
+    lookupColumns: string[],
+  ): Promise<SalesReportDto> {
+    const indexes = lookupColumns.map((id) =>
+      report.columns.findIndex((column) => column.id === id),
+    );
+    const ids = report.rows.map(
+      (row) =>
+        indexes
+          .map((index) => row.cells[index]?.value)
+          .find(
+            (value) =>
+              typeof value === "string" &&
+              /^006[a-zA-Z0-9]{12}(?:[a-zA-Z0-9]{3})?$/.test(value),
+          ) as string | undefined,
+    );
+    const types = await this.client.getOpportunityCustomerTypes(
+      ids.filter((id): id is string => !!id),
+    );
+    return {
+      ...report,
+      columns: [
+        ...report.columns,
+        {
+          id: REVENUE_CUSTOMER_TYPE_COLUMN,
+          label: "Customer Type",
+          dataType: "picklist",
+        },
+      ],
+      rows: report.rows.map((row, index) => {
+        const type = ids[index]
+          ? types.get(ids[index]!.slice(0, 15))
+          : undefined;
+        return {
+          ...row,
+          cells: [...row.cells, { label: type ?? "", value: type ?? null }],
+        };
+      }),
+    };
+  }
+
+  /**
    * Supplies all snapshot rows to the monthly dashboards before UI pagination.
    * The saved reports only cover the current fiscal year, so each dashboard run replaces
    * that filter with its own window. This snapshot is separate from the Sales page snapshot.
    * @param source Server-selected pipeline or revenue report, using the confirmed report IDs unless overridden.
    * @param dateFilter Server-generated date column and inclusive day bounds that cover the charted months.
+   * @param requiredColumns Additional verified source fields needed by dashboard filters; the saved report is unchanged.
+   * @param enrichCustomerTypes Join customer categories through the required Opportunity lookup fields.
    * @returns Cached normalized report including completeness metadata.
    * @throws Sanitized configuration or Salesforce errors, with the existing retry cooldown.
    */
   getDashboardSnapshot(
     source: "pipeline" | "revenue",
     dateFilter: DashboardDateFilter,
+    requiredColumns: string[] = [],
+    enrichCustomerTypes = false,
   ): Promise<SalesReportDto> {
-    return this.getSnapshot(false, source, dateFilter);
+    return this.getSnapshot(
+      false,
+      source,
+      dateFilter,
+      requiredColumns,
+      enrichCustomerTypes,
+    );
   }
 
   /**

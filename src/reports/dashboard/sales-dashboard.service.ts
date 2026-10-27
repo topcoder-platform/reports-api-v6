@@ -14,6 +14,7 @@ import {
   DashboardDateFilter,
   DEFAULT_REVENUE_COLUMNS,
   DEFAULT_REVENUE_REPORT_ID,
+  REVENUE_CUSTOMER_TYPE_COLUMN,
   SalesReportsService,
 } from "../sales/sales-reports.service";
 import {
@@ -31,6 +32,7 @@ import {
   categoryColumn,
   categoryLabel,
   offeringLabel,
+  filterDashboardCategories,
 } from "./sales-dashboard.categories";
 import { monthlyChart, pipelineCharts } from "./sales-dashboard.pipeline";
 
@@ -158,6 +160,7 @@ export class SalesDashboardService implements OnModuleDestroy {
         "Choose a range of no more than 24 months.",
       );
     switch (section) {
+      case SalesDashboardSection.Bookings:
       case SalesDashboardSection.Pipeline: {
         const now = new Date();
         const pipelineRange =
@@ -172,24 +175,36 @@ export class SalesDashboardService implements OnModuleDestroy {
                 ).toISOString(),
               };
         const dateBasis = query.dateBasis ?? "close";
-        return pipelineCharts(
-          await this.sales.getDashboardSnapshot(
-            "pipeline",
-            salesforceDateFilter(
-              PIPELINE_DATE_COLUMNS[dateBasis],
-              pipelineRange,
-              range,
-            ),
+        const snapshot = await this.sales.getDashboardSnapshot(
+          "pipeline",
+          salesforceDateFilter(
+            PIPELINE_DATE_COLUMNS[dateBasis],
+            pipelineRange,
+            range,
           ),
+        );
+        const filtered = filterDashboardCategories(snapshot, query);
+        const result = pipelineCharts(
+          filtered.report,
           pipelineRange,
           range,
           dateBasis,
         );
+        return {
+          ...result,
+          charts:
+            section === SalesDashboardSection.Bookings
+              ? result.charts.filter((chart) => chart.id === "closed-won")
+              : result.charts,
+          filterOptions: filtered.options,
+        };
       }
       case SalesDashboardSection.Revenue:
-        return this.revenue(range);
+        return this.revenue(range, query);
       case SalesDashboardSection.Payments:
         return this.payments(range, query.portal === "sales");
+      case SalesDashboardSection.TaasPayments:
+        return this.payments(range, false, true);
       case SalesDashboardSection.Talent:
         return this.talent(range, query.portal === "sales");
       case SalesDashboardSection.GrossMargin:
@@ -210,6 +225,8 @@ export class SalesDashboardService implements OnModuleDestroy {
         offering?: string;
         category?: string;
         customer?: string;
+        customerType?: string;
+        opportunities: string[];
       }
     | undefined {
     const reportId = this.config.get<string>(
@@ -229,17 +246,27 @@ export class SalesDashboardService implements OnModuleDestroy {
       offering: setting("SALESFORCE_REVENUE_OFFERING_COLUMN"),
       category: setting("SALESFORCE_REVENUE_CATEGORY_COLUMN"),
       customer: setting("SALESFORCE_REVENUE_CUSTOMER_COLUMN"),
+      customerType: setting("SALESFORCE_REVENUE_CUSTOMER_TYPE_COLUMN"),
+      opportunities: setting("SALESFORCE_REVENUE_OPPORTUNITY_COLUMN")
+        ? [setting("SALESFORCE_REVENUE_OPPORTUNITY_COLUMN")!]
+        : [defaults.opportunity, defaults.projectOpportunity].filter(
+            (id): id is string => !!id,
+          ),
     };
   }
 
   /**
    * Groups the confirmed (or overridden) Salesforce revenue report by its date and amount fields.
    * @param range Half-open UTC range; the report run is filtered to it instead of the saved fiscal year.
+   * @param query Category filters applied before all chart and customer totals.
    * @returns Monthly revenue and category charts plus all customers for the customer matrix.
    * Missing mappings and incomplete sources are labelled without suppressing available charts.
    * @throws BadGatewayException for invalid date/amount fields; sanitized upstream errors propagate.
    */
-  private async revenue(range: DashboardDateRange): Promise<SalesDashboardDto> {
+  private async revenue(
+    range: DashboardDateRange,
+    query: SalesDashboardQueryDto,
+  ): Promise<SalesDashboardDto> {
     const columns = this.revenueColumns();
     if (!columns) {
       return {
@@ -252,6 +279,8 @@ export class SalesDashboardService implements OnModuleDestroy {
     const report = await this.sales.getDashboardSnapshot(
       "revenue",
       salesforceDateFilter(columns.date, range),
+      columns.customerType ? [columns.customerType] : columns.opportunities,
+      !columns.customerType && columns.opportunities.length > 0,
     );
     const dateIndex = report.columns.findIndex(
       (c) => c.id === columns.date && ["date", "datetime"].includes(c.dataType),
@@ -265,7 +294,7 @@ export class SalesDashboardService implements OnModuleDestroy {
         "The configured revenue columns are missing or have incompatible types.",
       );
     const currencies = new Set<string>();
-    const entries: RevenueEntry[] = [];
+    let entries: RevenueEntry[] = [];
     let skipped = 0;
     report.rows.forEach((row) => {
       const raw = row.cells[dateIndex].value;
@@ -293,6 +322,22 @@ export class SalesDashboardService implements OnModuleDestroy {
         row,
       });
     });
+    const filtered = filterDashboardCategories(
+      { ...report, rows: entries.map((entry) => entry.row) },
+      query,
+      {
+        offeringType: columns.offering,
+        dealCategory: columns.category,
+        customerType:
+          columns.customerType ||
+          (columns.opportunities.length
+            ? REVENUE_CUSTOMER_TYPE_COLUMN
+            : undefined),
+      },
+      true,
+    );
+    const matchingRows = new Set(filtered.report.rows);
+    entries = entries.filter((entry) => matchingRows.has(entry.row));
     const total = monthlyChart(range, {
       id: "revenue",
       title: "Revenue report",
@@ -311,6 +356,18 @@ export class SalesDashboardService implements OnModuleDestroy {
       : [
           "Salesforce returned an incomplete revenue report. Totals include only returned rows.",
         ];
+    const typeIndex = report.columns.findIndex(
+      (column) => column.id === REVENUE_CUSTOMER_TYPE_COLUMN,
+    );
+    const unclassified =
+      typeIndex < 0
+        ? 0
+        : entries.filter((entry) => !categoryLabel(entry.row, typeIndex))
+            .length;
+    if (unclassified)
+      notices.push(
+        `${unclassified} revenue rows have no linked opportunity customer type. They are included in ALL only.`,
+      );
     const charts = [total];
     const projectIndex = categoryColumn(report, CATEGORY_LABELS.project);
     [
@@ -351,11 +408,12 @@ export class SalesDashboardService implements OnModuleDestroy {
         ),
       );
     });
-    // Prefer end customers to parent accounts. The confirmed revenue report labels its
-    // PSA_Revenue_Recognition__c.Account__c lookup "Account", not "Account Name".
+    // PM-6672 identifies Reporting Account as the revenue customer grouping.
+    // Keep other customer labels as fallbacks for alternative reports.
     const customerIndex = columns.customer
       ? report.columns.findIndex((column) => column.id === columns.customer)
       : ([
+          /^reporting account$/i,
           /^(?:subcontracting )?end customer$/i,
           /^customer(?: name)?$/i,
           /^account name$/i,
@@ -399,26 +457,50 @@ export class SalesDashboardService implements OnModuleDestroy {
       notices.push(
         `Source currencies: ${[...currencies].join(", ")}. No currency conversion is applied.`,
       );
-    return { charts, customerRevenue, notices };
+    return {
+      charts,
+      customerRevenue,
+      notices,
+      filterOptions: filtered.options,
+    };
   }
 
   /**
    * Aggregates scoped payment events by type and customer, with customer ranking after filtering.
    * @param range Half-open UTC reporting range.
-   * @param customerOnly Excludes TaaS, Topcoder and payments without a linked customer in Sales.
+   * @param customerOnly Excludes internal Topcoder and payments without a linked customer in Sales.
+   * @param taasOnly Selects only TaaS payments; otherwise TaaS is excluded from Topcoder payments.
    * @returns Payment values, distinct members per type, top-five customer chart and an ungrouped customer table.
    * @throws Propagates database errors.
    */
   private async payments(
     range: DashboardDateRange,
     customerOnly: boolean,
+    taasOnly = false,
   ): Promise<SalesDashboardDto> {
     const rows = await this.db.query<PaymentRow>(
       this.sql.load("reports/dashboard/sales-payments.sql"),
-      [range.startDate, range.endDate, customerOnly],
+      [range.startDate, range.endDate, customerOnly, taasOnly],
     );
+    if (taasOnly) {
+      const chart = monthlyChart(range, {
+        id: "taas-payments",
+        title: "TaaS payments",
+        description:
+          "TaaS payments by payment creation month, using the latest payment version and excluding cancelled payments.",
+        unit: "currency",
+        stacked: false,
+        series: [{ key: "taas", label: "TaaS" }],
+      });
+      rows
+        .filter((row) => row.kind === "type" && row.payment_type === "taas")
+        .forEach((row) => {
+          const month = chart.months.find((entry) => entry.month === row.month);
+          if (month) month.values.taas = Number(row.amount);
+        });
+      return { charts: [chart], notices: [] };
+    }
     const types = [
-      ...(!customerOnly ? [{ key: "taas", label: "TaaS" }] : []),
       { key: "task", label: "Task" },
       { key: "challenge", label: "Challenge" },
       { key: "engagement", label: "Engagement" },
