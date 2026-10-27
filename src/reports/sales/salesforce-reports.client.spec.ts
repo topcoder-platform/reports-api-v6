@@ -83,6 +83,65 @@ describe("SalesforceReportsClient", () => {
       });
     }
   });
+  it("queries only valid unique Opportunity IDs without a close-date restriction and renews OAuth", async () => {
+    await expect(
+      client.getOpportunityCustomerTypes(["invalid'", "001000000000001"]),
+    ).resolves.toEqual(new Map());
+    expect(request).not.toHaveBeenCalled();
+    request
+      .mockResolvedValueOnce(oauth())
+      .mockResolvedValueOnce(new Response("", { status: 401 }))
+      .mockResolvedValueOnce(oauth("renewed"))
+      .mockResolvedValueOnce(
+        Response.json({
+          done: true,
+          records: [
+            { Id: "006000000000001AAA", New_or_Follow_On__c: "New Customer" },
+            { Id: "006000000000002", New_or_Follow_On__c: null },
+          ],
+        }),
+      );
+    const result = await client.getOpportunityCustomerTypes([
+      "006000000000001",
+      "006000000000001AAA",
+      "006000000000002",
+      "bad'",
+    ]);
+    expect(result).toEqual(new Map([["006000000000001", "New Customer"]]));
+    expect(new URL(request.mock.calls[3][0]).searchParams.get("q")).toBe(
+      "SELECT Id, New_or_Follow_On__c FROM Opportunity WHERE Id IN ('006000000000001','006000000000002')",
+    );
+    expect(request.mock.calls[3][1].headers.Authorization).toBe(
+      "Bearer renewed",
+    );
+  });
+
+  it("bounds opportunity query batches and rejects incomplete responses", async () => {
+    request
+      .mockResolvedValueOnce(oauth())
+      .mockImplementation(async () =>
+        Response.json({ done: true, records: [] }),
+      );
+    await client.getOpportunityCustomerTypes(
+      Array.from(
+        { length: 201 },
+        (_, i) => `006${String(i).padStart(12, "0")}`,
+      ),
+    );
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(
+      new URL(request.mock.calls[1][0]).searchParams.get("q")?.match(/'006/g),
+    ).toHaveLength(200);
+    request.mockResolvedValueOnce(Response.json({ done: false, records: [] }));
+    await expect(
+      client.getOpportunityCustomerTypes(["006000000000001"]),
+    ).rejects.toThrow("incomplete opportunity customer types");
+    request.mockResolvedValueOnce(Response.json({ done: true, records: null }));
+    await expect(
+      client.getOpportunityCustomerTypes(["006000000000001"]),
+    ).rejects.toBeInstanceOf(BadGatewayException);
+  });
+
   it("renews expired sessions once", async () => {
     request
       .mockResolvedValueOnce(oauth())

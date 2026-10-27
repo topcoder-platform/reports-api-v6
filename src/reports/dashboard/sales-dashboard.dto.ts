@@ -1,9 +1,19 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsEnum, IsOptional } from "class-validator";
+import { Transform } from "class-transformer";
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from "class-validator";
 import { DashboardQueryDto } from "./dashboard-reports.dto";
 
 export enum SalesDashboardSection {
+  Bookings = "bookings",
   Pipeline = "pipeline",
+  TaasPayments = "taas-payments",
   Revenue = "revenue",
   Payments = "payments",
   Talent = "talent",
@@ -21,6 +31,50 @@ export class SalesDashboardQueryDto extends DashboardQueryDto {
   @IsOptional()
   @IsEnum({ close: "close", created: "created" })
   dateBasis?: "close" | "created";
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      "Exact category values, OR within a field and AND across fields; omit for all.",
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === "" ? undefined : Array.isArray(value) ? value : [value],
+  )
+  @IsArray()
+  @ArrayMaxSize(25)
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  offeringType?: string[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      "Exact category values, OR within a field and AND across fields; omit for all.",
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === "" ? undefined : Array.isArray(value) ? value : [value],
+  )
+  @IsArray()
+  @ArrayMaxSize(25)
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  dealCategory?: string[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      "Exact category values, OR within a field and AND across fields; omit for all.",
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === "" ? undefined : Array.isArray(value) ? value : [value],
+  )
+  @IsArray()
+  @ArrayMaxSize(25)
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  customerType?: string[];
 }
 
 /** One zero-filled monthly chart, with nullable values for unknown percentages. */
@@ -47,6 +101,13 @@ export class SalesDashboardChartDto {
 export class SalesDashboardDto {
   @ApiProperty({ type: [SalesDashboardChartDto] })
   charts: SalesDashboardChartDto[];
+  /** Unfiltered source categories so selecting one value does not remove the other choices. */
+  @ApiPropertyOptional({ type: Object })
+  filterOptions?: {
+    offeringType: string[];
+    dealCategory: string[];
+    customerType: string[];
+  };
   @ApiProperty({ type: [String] }) notices: string[];
   /** Full customer series for the payments matrix, before top-five/Other grouping. */
   @ApiPropertyOptional({ type: SalesDashboardChartDto })
