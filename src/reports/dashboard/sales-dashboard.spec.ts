@@ -601,7 +601,9 @@ describe("Monthly sales dashboards", () => {
     "Customer Name",
     "Customer",
     "Account Name",
+    "Account",
     "Project Stream: Account Name",
+    "Revenue Recognition: Account",
   ])(
     "resolves revenue customer metadata label %s and returns an empty dataset for a valid empty report",
     async (label) => {
@@ -622,6 +624,60 @@ describe("Monthly sales dashboards", () => {
       expect(result.customerRevenue?.months).toHaveLength(3);
     },
   );
+
+  it("uses Account lookup display names from the confirmed revenue report without confusing account categories", async () => {
+    getDashboardSnapshot.mockResolvedValue({
+      allData: true,
+      columns: [
+        {
+          id: "PSA_Revenue_Recognition__c.Date__c",
+          label: "Date",
+          dataType: "date",
+        },
+        {
+          id: "PSA_Revenue_Recognition__c.Amount__c",
+          label: "Gross Amount",
+          dataType: "currency",
+        },
+        {
+          id: "category",
+          label: "Project Stream: Account Category",
+          dataType: "string",
+        },
+        {
+          id: "reporting-account",
+          label: "Project Stream: Reporting Account",
+          dataType: "string",
+        },
+        {
+          id: "PSA_Revenue_Recognition__c.Account__c",
+          label: "Account",
+          dataType: "string",
+        },
+      ],
+      rows: [100, -25].map((amount) => ({
+        cells: [
+          { value: "2026-09-01", label: "9/1/2026" },
+          { value: amount, label: String(amount) },
+          { value: "Direct", label: "Direct" },
+          { value: "Reporting parent", label: "Reporting parent" },
+          { value: "001000000000001AAA", label: "Example customer" },
+        ],
+      })),
+    });
+    const result = await service().load(SalesDashboardSection.Revenue, range);
+    expect(result.customerRevenue?.series).toEqual([
+      { key: "group-0", label: "Example customer" },
+    ]);
+    expect(
+      result.customerRevenue?.months.map((month) => month.values["group-0"]),
+    ).toEqual([0, 75, 0]);
+    expect(
+      result.notices.some((notice) =>
+        notice.startsWith("Revenue Customer-Wise is unavailable"),
+      ),
+    ).toBe(false);
+  });
 
   it("honors an explicit revenue customer mapping and reports invalid mappings without falling back", async () => {
     getDashboardSnapshot.mockResolvedValue({

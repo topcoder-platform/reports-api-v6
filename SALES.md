@@ -373,7 +373,7 @@ that report is used:
 | `SALESFORCE_REVENUE_DATE_COLUMN` | `PSA_Revenue_Recognition__c.Date__c` (Date) | Date/datetime column that assigns the month |
 | `SALESFORCE_REVENUE_AMOUNT_COLUMN` | `PSA_Revenue_Recognition__c.Amount__c` (Gross Amount) | Currency/double revenue column |
 | `SALESFORCE_REVENUE_OFFERING_COLUMN` | Metadata label **Engagement Offering Type**, including `Project Stream:` prefix | Optional field-ID override for Revenue by offering |
-| `SALESFORCE_REVENUE_CUSTOMER_COLUMN` | Metadata labels **End Customer** / **Subcontracting End Customer**, then **Customer** / **Customer Name**, then **Account Name**, including relationship prefixes | Optional field-ID override for Revenue Customer-Wise |
+| `SALESFORCE_REVENUE_CUSTOMER_COLUMN` | Metadata labels **End Customer** / **Subcontracting End Customer**, then **Customer** / **Customer Name**, then **Account Name** / **Account**, including relationship prefixes | Optional field-ID override for Revenue Customer-Wise |
 | `SALESFORCE_REVENUE_CATEGORY_COLUMN` | Metadata label **Deal Category** | Optional field-ID override for Revenue by account category |
 
 An overridden report must set its own date and amount columns. Until it does, the
@@ -399,7 +399,10 @@ to cents. The report must expose detail rows, as the pipeline report does.
 Revenue also returns optional `customerRevenue` with **all** customer names, using
 the chart's `series` and `months` shape. It uses the same date, amount, fiscal-year
 bounds and source notices as the revenue charts. Customer metadata matching uses
-the labels above in priority order; an explicit field ID takes precedence and does
+the labels above in priority order. The confirmed report exposes the lookup
+`PSA_Revenue_Recognition__c.Account__c` as **Account**; its display label supplies
+the customer name rather than the raw Salesforce record ID. Account Category and
+Reporting Account are not customer-name fallbacks. An explicit field ID takes precedence and does
 not silently fall back when missing. If the report lacks the customer field, this
 dataset is omitted with an unavailable notice, while the other revenue charts
 remain usable. Blank names are retained as Unknown customer; equal names aggregate
