@@ -341,6 +341,53 @@ export class SalesforceReportsClient {
   }
 
   /**
+   * Reads the same Customer Type used by Pipeline for revenue-linked opportunities.
+   * @param ids Raw lookup IDs; only valid Opportunity IDs are queried, deduplicated in batches of 200.
+   * @returns Types keyed by case-sensitive 15-character IDs; missing values remain absent.
+   * @throws Sanitized upstream errors, including incomplete query responses. No date filter is applied.
+   */
+  async getOpportunityCustomerTypes(
+    ids: string[],
+  ): Promise<Map<string, string>> {
+    const unique = [
+      ...new Set(
+        ids
+          .filter((id) => /^006[a-zA-Z0-9]{12}(?:[a-zA-Z0-9]{3})?$/.test(id))
+          .map((id) => id.slice(0, 15)),
+      ),
+    ];
+    const types = new Map<string, string>();
+    for (let start = 0; start < unique.length; start += 200) {
+      const batch = unique.slice(start, start + 200);
+      const query = `SELECT Id, New_or_Follow_On__c FROM Opportunity WHERE Id IN (${batch.map((id) => `'${id}'`).join(",")})`;
+      const result = await this.dataRequest<{
+        done: boolean;
+        records: Array<{ Id: string; New_or_Follow_On__c?: string | null }>;
+      }>(
+        `query?q=${encodeURIComponent(query)}`,
+        {},
+        "opportunity customer types",
+      );
+      if (!result || result.done !== true || !Array.isArray(result.records)) {
+        throw new BadGatewayException(
+          "Salesforce returned incomplete opportunity customer types.",
+        );
+      }
+      for (const record of result.records) {
+        const id = typeof record?.Id === "string" ? record.Id.slice(0, 15) : "";
+        if (
+          batch.includes(id) &&
+          typeof record.New_or_Follow_On__c === "string" &&
+          record.New_or_Follow_On__c.trim()
+        ) {
+          types.set(id, record.New_or_Follow_On__c.trim());
+        }
+      }
+    }
+    return types;
+  }
+
+  /**
    * Executes a trusted report request with shared validation, retries and OAuth renewal.
    * @param reportId Configured report ID. @param suffix Internal resource suffix.
    * @param init Optional POST execution body. @returns Parsed report response.
@@ -356,6 +403,24 @@ export class SalesforceReportsClient {
         "Salesforce report ID is not configured correctly.",
       );
     }
+    return this.dataRequest<SalesforceReport>(
+      `analytics/reports/${reportId}${suffix}`,
+      init,
+      `report ${reportId}`,
+    );
+  }
+
+  /**
+   * Executes an internal Salesforce data path with shared OAuth renewal and bounded retries.
+   * @param path Server-built relative resource path. @param init HTTP options.
+   * @param operation Safe log context. @returns Parsed JSON; never saves report definitions.
+   * @throws Sanitized configuration, transport or response errors.
+   */
+  private async dataRequest<T>(
+    path: string,
+    init: RequestInit,
+    operation: string,
+  ): Promise<T> {
     const version = this.config.get<string>("SALESFORCE_API_VERSION", "65.0");
     if (!/^\d{2,3}\.0$/.test(version)) {
       throw new ServiceUnavailableException(
@@ -370,7 +435,7 @@ export class SalesforceReportsClient {
     for (let attempt = 0; attempt < 2; attempt++) {
       const session = await this.authenticate();
       const response = await this.request(
-        `${session.instance_url}/services/data/v${version}/analytics/reports/${reportId}${suffix}`,
+        `${session.instance_url}/services/data/v${version}/${path}`,
         {
           ...init,
           headers: {
@@ -386,7 +451,7 @@ export class SalesforceReportsClient {
         continue;
       }
       if (!response.ok) {
-        if (await this.logRejection(response, `report ${reportId}`)) {
+        if (await this.logRejection(response, operation)) {
           this.quotaRetryAt = Date.now() + 5 * 60 * 1000;
         }
         throw new BadGatewayException(
@@ -394,7 +459,7 @@ export class SalesforceReportsClient {
         );
       }
       try {
-        return (await response.json()) as SalesforceReport;
+        return (await response.json()) as T;
       } catch {
         throw new BadGatewayException(
           "Salesforce returned an invalid report response.",

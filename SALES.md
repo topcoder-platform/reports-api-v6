@@ -102,7 +102,7 @@ The following independent dropdowns use exact matching against report column lab
 | --- | --- | --- |
 | `offeringType` | Engagement Offering Type (or Offering Type) | Flexible Talent, AI Training, Crowd-Powered Outcomes, Crowd-Powered Innovation |
 | `dealCategory` | Deal Category | Topcoder-Direct, Wipro-Direct, Wipro-Consumption, Wipro-Internal |
-| `customerType` | New Customer, or Follow-on Business? (or Customer Type) | New Customer, New Project to Existing Customer, Extension to Existing Project, Others |
+| `customerType` | New Customer, or Follow-on Business? (or Customer Type) | New Customer, New Project at Existing Customer, Extension to Existing Project, Others |
 
 Each accepts one value or up to four repeated values, ORed within the field.
 Omit a parameter for ALL; do not send the literal `ALL`. Invalid choices and
@@ -316,7 +316,7 @@ References: [Opportunity History report](https://help.salesforce.com/articleView
 ## Monthly dashboards (PM-6632)
 
 `GET /v6/reports/sales-dashboard/:section` supplies the shared Sales and Reports
-portal dashboards. Sections are `pipeline`, `revenue`, `payments`, `talent`, and
+portal dashboards. Sections are `bookings`, `pipeline`, `revenue`, `payments`, `taas-payments`, `talent`, and
 `gross-margin`; each loads independently. The dashboard guard permits human
 Administrators/Talent Managers and machines with `reports:all`.
 
@@ -325,8 +325,17 @@ Optional query parameters:
 - `portal=reports|sales` (default `reports`): Sales payment and talent charts include only
   linked customer work, excluding TaaS and internal Topcoder payments **before**
   totals, distinct-member counts, and top-five customer ranking. Reports preserves
-  the existing dashboard payment categories and customer-label rules.
-- `dateBasis=close|created` (default `close`): pipeline date column.
+  internal and unlinked payment scope. Both portals load TaaS separately through
+  `taas-payments`, which includes all TaaS payments within the requested period.
+- `dateBasis=close|created` (default `close`): bookings and pipeline date column.
+- `offeringType`, `dealCategory`, `customerType`: repeat for OR choices within each
+  field; fields combine with AND before monthly aggregation. Omit for ALL. Applies
+  to bookings, pipeline and revenue, including their returned customer datasets.
+  `filterOptions` retains unfiltered choices so selecting a category does not hide
+  alternatives. Missing selected fields return 400 instead of ignoring the filter.
+  The UI holds independent selections per card and keeps its customer matrices unfiltered.
+  Customer Type uses Pipeline's four categories in every card. Legacy “New Project
+  to Existing Customer” values match the corrected “New Project at Existing Customer”.
 - `startDate` / `endDate`: inclusive/exclusive UTC bounds, at most 24 months.
   Defaults are the latest six calendar months, including the current month.
   Without explicit dates, expected bookings and pipeline by
@@ -358,6 +367,10 @@ stages before aggregation. Won amounts are also grouped into three monthly chart
 fields are resolved from report labels, ignoring a relationship prefix. Blank
 categories remain Unknown; a missing category field omits its chart with a notice.
 All won charts follow the selected date basis and use the same converted amounts.
+The `bookings` section returns only the consolidated `closed-won` chart, using the
+same cached pipeline snapshot; the pipeline response retains legacy charts for
+compatibility. The UI renders one won card and one open-pipeline card with an
+Amount / Expected Amount switch, each with its own three category dropdowns.
 Incomplete reports, missing values and non-USD/mixed
 currencies are surfaced as notices. No currency conversion is added.
 
@@ -373,8 +386,10 @@ that report is used:
 | `SALESFORCE_REVENUE_DATE_COLUMN` | `PSA_Revenue_Recognition__c.Date__c` (Date) | Date/datetime column that assigns the month |
 | `SALESFORCE_REVENUE_AMOUNT_COLUMN` | `PSA_Revenue_Recognition__c.Amount__c` (Gross Amount) | Currency/double revenue column |
 | `SALESFORCE_REVENUE_OFFERING_COLUMN` | Metadata label **Engagement Offering Type**, including `Project Stream:` prefix | Optional field-ID override for Revenue by offering |
-| `SALESFORCE_REVENUE_CUSTOMER_COLUMN` | Metadata labels **End Customer** / **Subcontracting End Customer**, then **Customer** / **Customer Name**, then **Account Name** / **Account**, including relationship prefixes | Optional field-ID override for Revenue Customer-Wise |
+| `SALESFORCE_REVENUE_CUSTOMER_COLUMN` | Metadata labels **Reporting Account**, then **End Customer** / **Subcontracting End Customer**, then **Customer** / **Customer Name**, then **Account Name** / **Account**, including relationship prefixes | Optional field-ID override for Revenue Customer-Wise |
 | `SALESFORCE_REVENUE_CATEGORY_COLUMN` | Metadata label **Deal Category** | Optional field-ID override for Revenue by account category |
+| `SALESFORCE_REVENUE_CUSTOMER_TYPE_COLUMN` | Joined from Opportunity (see below) | Optional direct field exposing Pipeline's four categories; added at execution time |
+| `SALESFORCE_REVENUE_OPPORTUNITY_COLUMN` | Revenue Opportunity, falling back to Project Stream Opportunity | Optional lookup field ID for a custom report; used unless a direct customer-type field is configured |
 
 An overridden report must set its own date and amount columns. Until it does, the
 section returns an explicit pending notice; date and amount IDs are never inferred
@@ -383,6 +398,20 @@ Remove any old offering/category overrides pointing to Type or Account Category
 when deploying PM-6667; those fields are no longer the default category sources. Configured date or amount columns that are missing, or have the wrong
 type, return 502. A configured breakdown column the report lacks omits that chart
 with a notice.
+
+Revenue Customer Type is resolved through raw Opportunity IDs, using
+`PSA_Revenue_Recognition__c.Opportunity__c`, then
+`FK_Opportunity_Project_in_Appirio__c.Opportunity__c` when the direct lookup is absent.
+These verified lookup fields are added to the report's detail columns for execution
+only; the saved report is unchanged. The API reads `Opportunity.New_or_Follow_On__c`
+through SOQL in batches of at most 200 distinct IDs, without an opportunity close-date
+restriction: an older opportunity can recognize revenue this fiscal year. The existing
+Salesforce integration identity must be able to read that field. Results are cached
+with the revenue snapshot; lookup errors use the existing sanitized error/cooldown path.
+The Yes/No `New Customer?` field is not used to infer the four categories. Missing links
+or classifications stay in ALL totals, with a notice, and never match a specific type.
+Custom reports can configure a direct four-category field or their Opportunity lookup;
+otherwise the existing Customer Type metadata-label match applies.
 
 The section uses **Revenue** in display copy (PM-6668), retaining the `revenue` route,
 chart IDs and source field names for compatibility. It returns monthly totals,
@@ -399,10 +428,10 @@ to cents. The report must expose detail rows, as the pipeline report does.
 Revenue also returns optional `customerRevenue` with **all** customer names, using
 the chart's `series` and `months` shape. It uses the same date, amount, fiscal-year
 bounds and source notices as the revenue charts. Customer metadata matching uses
-the labels above in priority order. The confirmed report exposes the lookup
-`PSA_Revenue_Recognition__c.Account__c` as **Account**; its display label supplies
-the customer name rather than the raw Salesforce record ID. Account Category and
-Reporting Account are not customer-name fallbacks. An explicit field ID takes precedence and does
+the labels above in priority order, with **Reporting Account** first (PM-6672).
+Relationship prefixes such as `Project Stream:` are ignored when matching labels.
+Lookup display labels supply names rather than raw Salesforce IDs. Account Category
+is not a customer-name fallback. An explicit field ID takes precedence and does
 not silently fall back when missing. If the report lacks the customer field, this
 dataset is omitted with an unavailable notice, while the other revenue charts
 remain usable. Blank names are retained as Unknown customer; equal names aggregate
@@ -411,17 +440,25 @@ A valid report with no rows returns an empty customer dataset.
 
 Payments return optional `customerPayments`, using the same shape for **every**
 customer before top-five/Other grouping. Each series key identifies the client
-ID/end-customer label pair. Unnamed or unlinked customers in Reports remain
+ID/customer label pair. A blank subcontracting end-customer name falls back to
+`Client.name`, preventing avoidable `Customer <id>` labels. Unnamed or unlinked customers in Reports remain
 identifiable entries rather than being lost. The existing `payment-customer`
 chart remains in the API for compatibility; the PM-6668 UI no longer renders it.
 
 The UI's bottom Customer section renders these datasets as **Revenue Customer-Wise**
 and **Goods Sold Customer-Wise**, respectively: customer rows, month columns,
-annual customer totals, monthly totals and a grand total. It shares the existing
-revenue/payment requests. All currency/count chart tables also show an Annual row,
-and their tooltips show Total before category values. Count sums are explicitly
-labelled as non-distinct across months/categories. No endpoint or database
-migration is needed; deploy this API companion before the PM-6668 UI.
+annual customer totals, monthly totals and a grand total. **Annual** is the first
+numeric column and **Total** is the first body row. Currency chart tables also show
+an Annual row and Total columns/tooltips. Count charts omit summed annual/series
+totals because members can recur across months and categories. Deploy this API
+companion before the PM-6672 UI; no database migration is required.
+
+Topcoder Payments switches between amount and monthly distinct-member count using
+one non-TaaS response. TaaS Payments has a separate amount chart based on the latest
+payment version's platform `created_at`, excluding cancelled and non-payment winnings.
+The SQL's fourth bound parameter selects TaaS-only versus non-TaaS rows before totals;
+its third parameter retains the existing customer-work scope for Sales Topcoder
+payments. TaaS is unscoped by customer in both portals.
 
 Flexible talent uses `ENGAGEMENTS_DB_URL`. For `portal=sales`, the reporting DB
 first resolves project IDs through `projects.projects.billingAccountId` → BillingAccount

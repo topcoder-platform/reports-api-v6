@@ -105,6 +105,110 @@ describe("SalesReportsService", () => {
     ]);
   });
 
+  it("adds filter detail fields only at execution time and coalesces enriched snapshots", async () => {
+    const fixture = reportFixture();
+    const describeReport = jest.fn().mockResolvedValue(fixture);
+    service = new SalesReportsService(
+      { runReport, describeReport } as unknown as SalesforceReportsClient,
+      new ConfigService(),
+    );
+    const original = [...fixture.reportMetadata.detailColumns];
+    const fields = ["PSA_Revenue_Recognition__c.Opportunity__c"];
+    await Promise.all([
+      service.getDashboardSnapshot("revenue", window, fields),
+      service.getDashboardSnapshot("revenue", window, fields),
+    ]);
+    expect(describeReport).toHaveBeenCalledTimes(1);
+    expect(runReport).toHaveBeenCalledWith("00O1K000009GxBtUAK", {
+      ...run(window),
+      detailColumns: [...original, ...fields],
+    });
+    expect(fixture.reportMetadata.detailColumns).toEqual(original);
+    await service.getDashboardSnapshot("revenue", window);
+    expect(runReport).toHaveBeenCalledTimes(2);
+  });
+
+  it("joins revenue categories by opportunity ID with direct lookup precedence and project fallback", async () => {
+    const fixture = reportFixture();
+    fixture.reportMetadata.detailColumns.push("DIRECT", "PROJECT");
+    fixture.reportExtendedMetadata.detailColumnInfo.DIRECT = {
+      label: "Opportunity",
+      dataType: "lookup",
+    };
+    fixture.reportExtendedMetadata.detailColumnInfo.PROJECT = {
+      label: "Project Stream: Opportunity",
+      dataType: "lookup",
+    };
+    const rows = [
+      ...fixture.factMap["0!T"].rows!,
+      ...fixture.factMap["1!T"].rows!,
+    ];
+    rows[0].dataCells.push(
+      { value: "006000000000001AAA", label: "Same project name" },
+      { value: "006000000000002" },
+    );
+    rows[1].dataCells.push(
+      { value: null },
+      { value: "006000000000002", label: "Same project name" },
+    );
+    rows[2].dataCells.push(
+      { value: null },
+      { value: null, label: "Same project name" },
+    );
+    runReport.mockResolvedValue(fixture);
+    const describeReport = jest.fn().mockResolvedValue(fixture);
+    const getOpportunityCustomerTypes = jest.fn().mockResolvedValue(
+      new Map([
+        ["006000000000001", "New Customer"],
+        ["006000000000002", "Extension to Existing Project"],
+      ]),
+    );
+    service = new SalesReportsService(
+      {
+        runReport,
+        describeReport,
+        getOpportunityCustomerTypes,
+      } as unknown as SalesforceReportsClient,
+      new ConfigService(),
+    );
+    const snapshots = await Promise.all([
+      service.getDashboardSnapshot(
+        "revenue",
+        window,
+        ["DIRECT", "PROJECT"],
+        true,
+      ),
+      service.getDashboardSnapshot(
+        "revenue",
+        window,
+        ["DIRECT", "PROJECT"],
+        true,
+      ),
+    ]);
+    expect(snapshots[0]).toBe(snapshots[1]);
+    expect(getOpportunityCustomerTypes).toHaveBeenCalledTimes(1);
+    expect(getOpportunityCustomerTypes).toHaveBeenCalledWith([
+      "006000000000001AAA",
+      "006000000000002",
+    ]);
+    expect(snapshots[0].columns.at(-1)).toMatchObject({
+      id: "__revenue_customer_type",
+      dataType: "picklist",
+    });
+    expect(snapshots[0].rows.map((row) => row.cells.at(-1)?.value)).toEqual([
+      "New Customer",
+      "Extension to Existing Project",
+      null,
+    ]);
+    expect(fixture.reportMetadata.detailColumns).toHaveLength(5);
+    const plain = await service.getDashboardSnapshot("revenue", window, [
+      "DIRECT",
+      "PROJECT",
+    ]);
+    expect(plain.columns).toHaveLength(5);
+    expect(runReport).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps monthly pipeline, revenue and Sales page snapshots separate and coalesces each", async () => {
     service = new SalesReportsService(
       { runReport } as unknown as SalesforceReportsClient,
@@ -305,6 +409,42 @@ describe("SalesReportsService", () => {
     expect(cleared).toMatchObject({ total: 3, summary: { recordCount: 3 } });
     expect(runReport).toHaveBeenCalledTimes(1);
   });
+
+  it.each([
+    "New Project at Existing Customer",
+    "New Project to Existing Customer",
+  ])(
+    "matches the corrected Salesforce customer type using %s",
+    async (customerType) => {
+      const fixture = reportFixture();
+      fixture.reportMetadata.detailColumns.push("CUSTOMER_TYPE");
+      fixture.reportExtendedMetadata.detailColumnInfo.CUSTOMER_TYPE = {
+        label: "Customer Type",
+        dataType: "string",
+      };
+      const rows = [
+        ...fixture.factMap["0!T"].rows!,
+        ...fixture.factMap["1!T"].rows!,
+      ];
+      rows.forEach((row, index) =>
+        row.dataCells.push({
+          label:
+            index === 0 ? "New Project at Existing Customer" : "New Customer",
+          value:
+            index === 0 ? "New Project at Existing Customer" : "New Customer",
+        }),
+      );
+      runReport.mockResolvedValue(fixture);
+      const pipe = new ValidationPipe({ transform: true, whitelist: true });
+      const query = await pipe.transform(
+        { customerType },
+        { type: "query", metatype: SalesReportQueryDto },
+      );
+      const result = await service.getReport(query);
+      expect(result.total).toBe(1);
+      expect(result.rows[0].cells[0].label).toBe("Alpha");
+    },
+  );
 
   it("rejects category filters when the report lacks their column instead of ignoring them", async () => {
     for (const key of ["offeringType", "dealCategory", "customerType"]) {

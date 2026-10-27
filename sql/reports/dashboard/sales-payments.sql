@@ -1,4 +1,5 @@
 -- $1/$2 inclusive/exclusive UTC bounds; $3 restricts to customer work for Sales.
+-- $4 selects TaaS only; false selects non-TaaS Topcoder payments.
 -- Exclude TaaS, internal Topcoder and unlinked payments BEFORE any sums or rankings.
 -- Uses the established dashboard payment version, category and customer-label rules.
 WITH bounds AS (
@@ -32,8 +33,10 @@ payment_events AS MATERIALIZED (
         AND TRIM(cl.name) = 'Wipro Limited (NA subcontracting)' THEN 'TaaS'
       WHEN w.category::text IS DISTINCT FROM 'TAAS_PAYMENT'
         AND TRIM(cl.name) = 'Topcoder' THEN 'Topcoder'
-      WHEN payment_ba.id IS NOT NULL THEN payment_ba."subcontractingEndCustomer"
-      ELSE challenge_ba."subcontractingEndCustomer"
+      WHEN payment_ba.id IS NOT NULL THEN COALESCE(
+        NULLIF(BTRIM(payment_ba."subcontractingEndCustomer"), ''), NULLIF(BTRIM(cl.name), '')
+      )
+      ELSE COALESCE(NULLIF(BTRIM(challenge_ba."subcontractingEndCustomer"), ''), NULLIF(BTRIM(cl.name), ''))
     END), '') AS customer_label
   FROM finance.payment p
   JOIN latest_payment_versions lpv
@@ -69,6 +72,7 @@ selected_events AS (
   CROSS JOIN bounds b
   WHERE pe.activity_at >= b.start_at
     AND pe.activity_at < b.end_at
+    AND (pe.payment_type = 'taas') = $4::boolean
     AND (NOT $3::boolean OR (
       pe.payment_type <> 'taas'
       AND pe.customer_id IS NOT NULL
