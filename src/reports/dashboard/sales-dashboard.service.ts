@@ -77,11 +77,12 @@ function salesforceDateFilter(
 }
 
 /**
- * Stacks revenue by one category column, keeping the five largest categories and grouping the rest as Other.
+ * Stacks revenue by a category, optionally grouping smaller categories as Other.
  * @param range Half-open UTC range of the entries.
  * @param entries In-range revenue rows.
  * @param label Resolves the business category for each row, including source corrections.
  * @param definition Chart identity and copy.
+ * @param maximumSeries Maximum series including Other; Infinity retains every customer for the table.
  * @returns A stacked currency chart whose monthly totals match the revenue total.
  * @throws Does not throw.
  */
@@ -90,6 +91,7 @@ function revenueBreakdown(
   entries: RevenueEntry[],
   label: (entry: RevenueEntry) => string,
   definition: Pick<SalesDashboardChartDto, "id" | "title" | "description">,
+  maximumSeries = 6,
 ): SalesDashboardChartDto {
   const totals = new Map<string, number>();
   entries.forEach((entry) =>
@@ -98,7 +100,8 @@ function revenueBreakdown(
   const ranked = [...totals]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([name]) => name);
-  const top = ranked.length > 6 ? ranked.slice(0, 5) : ranked;
+  const top =
+    ranked.length > maximumSeries ? ranked.slice(0, maximumSeries - 1) : ranked;
   const keys = new Map(top.map((name, i) => [name, `group-${i}`]));
   const chart = monthlyChart(range, {
     ...definition,
@@ -201,7 +204,13 @@ export class SalesDashboardService implements OnModuleDestroy {
    * @throws Does not throw.
    */
   private revenueColumns():
-    | { date: string; amount: string; offering?: string; category?: string }
+    | {
+        date: string;
+        amount: string;
+        offering?: string;
+        category?: string;
+        customer?: string;
+      }
     | undefined {
     const reportId = this.config.get<string>(
       "SALESFORCE_REVENUE_REPORT_ID",
@@ -219,14 +228,15 @@ export class SalesDashboardService implements OnModuleDestroy {
       amount,
       offering: setting("SALESFORCE_REVENUE_OFFERING_COLUMN"),
       category: setting("SALESFORCE_REVENUE_CATEGORY_COLUMN"),
+      customer: setting("SALESFORCE_REVENUE_CUSTOMER_COLUMN"),
     };
   }
 
   /**
    * Groups the confirmed (or overridden) Salesforce revenue report by its date and amount fields.
    * @param range Half-open UTC range; the report run is filtered to it instead of the saved fiscal year.
-   * @returns Monthly bookings, plus engagement-offering and deal-category views when those columns
-   * exist, or a pending-configuration notice. Incomplete sources are labelled.
+   * @returns Monthly revenue and category charts plus all customers for the customer matrix.
+   * Missing mappings and incomplete sources are labelled without suppressing available charts.
    * @throws BadGatewayException for invalid date/amount fields; sanitized upstream errors propagate.
    */
   private async revenue(range: DashboardDateRange): Promise<SalesDashboardDto> {
@@ -285,11 +295,11 @@ export class SalesDashboardService implements OnModuleDestroy {
     });
     const total = monthlyChart(range, {
       id: "revenue",
-      title: "Bookings report",
-      description: `Monthly bookings from ${report.reportName}.`,
+      title: "Revenue report",
+      description: `Monthly revenue from ${report.reportName}.`,
       unit: "currency",
       stacked: false,
-      series: [{ key: "revenue", label: "Bookings" }],
+      series: [{ key: "revenue", label: "Revenue" }],
     });
     entries.forEach((entry) => {
       const month = total.months.find((m) => m.month === entry.month);
@@ -306,13 +316,13 @@ export class SalesDashboardService implements OnModuleDestroy {
     [
       {
         id: "revenue-offering",
-        title: "Bookings by offering",
+        title: "Revenue by offering",
         column: columns.offering,
         label: CATEGORY_LABELS.offering,
       },
       {
         id: "revenue-category",
-        title: "Bookings by account category",
+        title: "Revenue by account category",
         column: columns.category,
         label: CATEGORY_LABELS.deal,
       },
@@ -336,17 +346,48 @@ export class SalesDashboardService implements OnModuleDestroy {
               : categoryLabel(entry.row, index) || "Unknown",
           {
             ...definition,
-            description: `Monthly bookings stacked by ${report.columns[index].label}.`,
+            description: `Monthly revenue stacked by ${report.columns[index].label}.`,
           },
         ),
       );
     });
-    charts.forEach((chart) =>
-      chart.months.forEach((month) =>
-        Object.keys(month.values).forEach((key) => {
-          month.values[key] = Math.round((month.values[key] ?? 0) * 100) / 100;
-        }),
-      ),
+    // Prefer the end customer to a parent/account name when the report exposes both.
+    const customerIndex = columns.customer
+      ? report.columns.findIndex((column) => column.id === columns.customer)
+      : ([
+          /^(?:subcontracting )?end customer$/i,
+          /^customer(?: name)?$/i,
+          /^account name$/i,
+        ]
+          .map((label) => categoryColumn(report, label))
+          .find((index) => index >= 0) ?? -1);
+    const customerRevenue =
+      customerIndex >= 0
+        ? revenueBreakdown(
+            range,
+            entries,
+            (entry) =>
+              categoryLabel(entry.row, customerIndex) || "Unknown customer",
+            {
+              id: "revenue-customer-all",
+              title: "Revenue Customer-Wise",
+              description: `All customers by ${report.columns[customerIndex].label}, with monthly revenue and annual totals.`,
+            },
+            Infinity,
+          )
+        : undefined;
+    if (!customerRevenue)
+      notices.push(
+        `Revenue Customer-Wise is unavailable: the report has no ${columns.customer ?? "customer name"} column.`,
+      );
+    [...charts, ...(customerRevenue ? [customerRevenue] : [])].forEach(
+      (chart) =>
+        chart.months.forEach((month) =>
+          Object.keys(month.values).forEach((key) => {
+            month.values[key] =
+              Math.round((month.values[key] ?? 0) * 100) / 100;
+          }),
+        ),
     );
     if (skipped)
       notices.push(
@@ -356,7 +397,7 @@ export class SalesDashboardService implements OnModuleDestroy {
       notices.push(
         `Source currencies: ${[...currencies].join(", ")}. No currency conversion is applied.`,
       );
-    return { charts, notices };
+    return { charts, customerRevenue, notices };
   }
 
   /**

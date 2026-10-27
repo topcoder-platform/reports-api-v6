@@ -22,11 +22,9 @@ import { SalesDashboardService } from "./sales-dashboard.service";
 
 const talentQuery = jest.fn();
 jest.mock("pg", () => ({
-  Pool: jest
-    .fn()
-    .mockImplementation(() => ({
-      query: (...args: unknown[]) => talentQuery(...args),
-    })),
+  Pool: jest.fn().mockImplementation(() => ({
+    query: (...args: unknown[]) => talentQuery(...args),
+  })),
 }));
 
 const range = {
@@ -308,7 +306,14 @@ describe("Monthly sales dashboards", () => {
       endDate: "2026-11-01",
     });
     const [total, offering, category] = result.charts;
-    expect(result.notices).toEqual([]);
+    expect(result.notices).toEqual([
+      "Revenue Customer-Wise is unavailable: the report has no customer name column.",
+    ]);
+    expect(result.charts.map((chart) => chart.title)).toEqual([
+      "Revenue report",
+      "Revenue by offering",
+      "Revenue by account category",
+    ]);
     expect(total.months.map((m) => m.values.revenue)).toEqual([0.3, 45, 50]);
     expect(offering.series.map((s) => s.label)).toEqual([
       "License",
@@ -321,7 +326,7 @@ describe("Monthly sales dashboards", () => {
     expect(offering.months[1].values.other).toBe(5 + 6);
     expect(offering.months[0].values.other).toBe(0.3);
     expect(category.description).toBe(
-      "Monthly bookings stacked by Deal Category.",
+      "Monthly revenue stacked by Deal Category.",
     );
     expect(category.series.map((s) => s.label)).toEqual([
       "Unknown",
@@ -349,8 +354,9 @@ describe("Monthly sales dashboards", () => {
     }).load(SalesDashboardSection.Revenue, range);
     expect(result.charts.map((c) => c.id)).toEqual(["revenue"]);
     expect(result.notices).toEqual([
-      "Bookings by offering is unavailable: the report has no Engagement Offering Type column.",
-      "Bookings by account category is unavailable: the report has no category column.",
+      "Revenue by offering is unavailable: the report has no Engagement Offering Type column.",
+      "Revenue by account category is unavailable: the report has no category column.",
+      "Revenue Customer-Wise is unavailable: the report has no customer name column.",
     ]);
   });
 
@@ -518,6 +524,144 @@ describe("Monthly sales dashboards", () => {
       Unknown: -5,
     });
     expect(category.series.map((c) => c.label)).toEqual(["Topcoder Direct"]);
+  });
+
+  it("retains every revenue customer before ranking, including blanks, adjustments and empty months", async () => {
+    const columns = [
+      { id: "date", label: "Date", dataType: "date" },
+      { id: "amount", label: "Gross Amount", dataType: "currency" },
+      { id: "account", label: "Account Name", dataType: "string" },
+      {
+        id: "end-customer",
+        label: "Project Stream: Subcontracting End Customer",
+        dataType: "string",
+      },
+    ];
+    const rows = [
+      ...Array.from({ length: 8 }, (_, i) => [
+        "2026-08-01",
+        i + 1,
+        "Parent account",
+        `Customer ${i}`,
+      ]),
+      ["2026-08-31", 0.1, "Parent account", "Customer 0"],
+      ["2026-08-31", 0.2, "Parent account", "Customer 0"],
+      ["2026-09-01", -2, "Parent account", "Customer 0"],
+      ["2026-09-15", 10, "Parent account", null],
+      ["2026-07-31", 1000, "Outside", "Outside"],
+      ["2026-11-01", 2000, "Outside", "Outside"],
+    ];
+    getDashboardSnapshot.mockResolvedValue({
+      allData: false,
+      columns,
+      rows: rows.map((cells) => ({
+        cells: cells.map((value) => ({
+          value,
+          label: value == null ? "-" : String(value),
+        })),
+      })),
+    });
+    const result = await service({
+      SALESFORCE_REVENUE_DATE_COLUMN: "date",
+      SALESFORCE_REVENUE_AMOUNT_COLUMN: "amount",
+    }).load(SalesDashboardSection.Revenue, range);
+    const customers = result.customerRevenue!;
+    expect(customers.series.map((series) => series.label).sort()).toEqual([
+      ...Array.from({ length: 8 }, (_, i) => `Customer ${i}`),
+      "Unknown customer",
+    ]);
+    expect(customers.series.some((series) => series.key === "other")).toBe(
+      false,
+    );
+    const first = customers.series.find(
+      (series) => series.label === "Customer 0",
+    )!;
+    expect(customers.months.map((month) => month.values[first.key])).toEqual([
+      1.3, -2, 0,
+    ]);
+    expect(
+      customers.months.map(
+        (month) =>
+          Math.round(
+            Object.values(month.values).reduce<number>(
+              (a, b) => a + (b ?? 0),
+              0,
+            ) * 100,
+          ) / 100,
+      ),
+    ).toEqual(result.charts[0].months.map((month) => month.values.revenue));
+    expect(result.notices).toContain(
+      "Salesforce returned an incomplete revenue report. Totals include only returned rows.",
+    );
+    expect(customers.title).toBe("Revenue Customer-Wise");
+  });
+
+  it.each([
+    "End Customer",
+    "Customer Name",
+    "Customer",
+    "Account Name",
+    "Project Stream: Account Name",
+  ])(
+    "resolves revenue customer metadata label %s and returns an empty dataset for a valid empty report",
+    async (label) => {
+      getDashboardSnapshot.mockResolvedValue({
+        allData: true,
+        columns: [
+          { id: "date", dataType: "date" },
+          { id: "amount", dataType: "currency" },
+          { id: "customer", label, dataType: "string" },
+        ],
+        rows: [],
+      });
+      const result = await service({
+        SALESFORCE_REVENUE_DATE_COLUMN: "date",
+        SALESFORCE_REVENUE_AMOUNT_COLUMN: "amount",
+      }).load(SalesDashboardSection.Revenue, range);
+      expect(result.customerRevenue?.series).toEqual([]);
+      expect(result.customerRevenue?.months).toHaveLength(3);
+    },
+  );
+
+  it("honors an explicit revenue customer mapping and reports invalid mappings without falling back", async () => {
+    getDashboardSnapshot.mockResolvedValue({
+      allData: true,
+      columns: [
+        { id: "date", dataType: "date" },
+        { id: "amount", dataType: "currency" },
+        { id: "custom", label: "Selected client", dataType: "string" },
+        { id: "default", label: "Customer Name", dataType: "string" },
+      ],
+      rows: [
+        {
+          cells: ["2026-09-01", 7, "Selected", "Default"].map((value) => ({
+            value,
+            label: String(value),
+          })),
+        },
+      ],
+    });
+    const settings = {
+      SALESFORCE_REVENUE_DATE_COLUMN: "date",
+      SALESFORCE_REVENUE_AMOUNT_COLUMN: "amount",
+      SALESFORCE_REVENUE_CUSTOMER_COLUMN: "custom",
+    };
+    const result = await service(settings).load(
+      SalesDashboardSection.Revenue,
+      range,
+    );
+    expect(
+      result.customerRevenue?.series.map((series) => series.label),
+    ).toEqual(["Selected"]);
+    const invalid = await service({
+      ...settings,
+      SALESFORCE_REVENUE_CUSTOMER_COLUMN: "missing",
+    }).load(SalesDashboardSection.Revenue, range);
+    expect(invalid.customerRevenue).toBeUndefined();
+    expect(invalid.charts[0].months[1].values.revenue).toBe(7);
+    expect(invalid.notices).toContain(
+      "Revenue Customer-Wise is unavailable: the report has no missing column.",
+    );
   });
 
   it("preserves unknown markup and exposes excluded unknown-payment counts", async () => {

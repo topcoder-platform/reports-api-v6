@@ -51,4 +51,7 @@ export class SalesDashboardDto {
   /** Full customer series for the payments matrix, before top-five/Other grouping. */
   @ApiPropertyOptional({ type: SalesDashboardChartDto })
   customerPayments?: SalesDashboardChartDto;
+  /** All customer names from the revenue report, without top-category/Other grouping. */
+  @ApiPropertyOptional({ type: SalesDashboardChartDto })
+  customerRevenue?: SalesDashboardChartDto;
 }
