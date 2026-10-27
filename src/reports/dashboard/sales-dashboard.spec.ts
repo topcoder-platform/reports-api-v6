@@ -174,6 +174,33 @@ describe("Monthly sales dashboards", () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it("validates and preserves dashboard category filters", async () => {
+    const pipe = new ValidationPipe({ transform: true, whitelist: true });
+    const metadata = {
+      type: "query" as const,
+      metatype: SalesDashboardQueryDto,
+    };
+    expect(
+      await pipe.transform(
+        {
+          offeringType: ["Flexible Talent", "AI Training"],
+          customerType: "New Project at Existing Customer",
+          dealCategory: "",
+        },
+        metadata,
+      ),
+    ).toMatchObject({
+      offeringType: ["Flexible Talent", "AI Training"],
+      customerType: ["New Project at Existing Customer"],
+      dealCategory: undefined,
+    });
+    for (const offeringType of [Array(26).fill("A"), [1], ["a".repeat(101)]]) {
+      await expect(pipe.transform({ offeringType }, metadata)).rejects.toThrow(
+        BadRequestException,
+      );
+    }
+  });
+
   const query = jest.fn();
   const getDashboardSnapshot = jest.fn();
   /** @param settings Optional server configuration. @returns Isolated service using mocked database and Salesforce transport. Does not throw. */
@@ -232,11 +259,21 @@ describe("Monthly sales dashboards", () => {
         SALESFORCE_REVENUE_DATE_COLUMN: "date",
         SALESFORCE_REVENUE_AMOUNT_COLUMN: "recognized",
       }).load(SalesDashboardSection.Revenue, range);
-      expect(getDashboardSnapshot).toHaveBeenCalledWith("revenue", {
-        column: "date",
-        startDate: "2026-07-31",
-        endDate: "2026-11-01",
-      });
+      expect(getDashboardSnapshot).toHaveBeenCalledWith(
+        "revenue",
+        {
+          column: "date",
+          startDate: "2026-07-31",
+          endDate: "2026-11-01",
+        },
+        reportId
+          ? []
+          : [
+              "PSA_Revenue_Recognition__c.Opportunity__c",
+              "FK_Opportunity_Project_in_Appirio__c.Opportunity__c",
+            ],
+        !reportId,
+      );
       expect(result.charts[0].months.map((m) => m.values.revenue)).toEqual([
         0, 123.45, 0,
       ]);
@@ -300,11 +337,19 @@ describe("Monthly sales dashboards", () => {
       })),
     });
     const result = await service().load(SalesDashboardSection.Revenue, range);
-    expect(getDashboardSnapshot).toHaveBeenCalledWith("revenue", {
-      column: ids[0],
-      startDate: "2026-07-31",
-      endDate: "2026-11-01",
-    });
+    expect(getDashboardSnapshot).toHaveBeenCalledWith(
+      "revenue",
+      {
+        column: ids[0],
+        startDate: "2026-07-31",
+        endDate: "2026-11-01",
+      },
+      [
+        "PSA_Revenue_Recognition__c.Opportunity__c",
+        "FK_Opportunity_Project_in_Appirio__c.Opportunity__c",
+      ],
+      true,
+    );
     const [total, offering, category] = result.charts;
     expect(result.notices).toEqual([
       "Revenue Customer-Wise is unavailable: the report has no customer name column.",
@@ -436,7 +481,10 @@ describe("Monthly sales dashboards", () => {
     );
     const reports = await service().load(SalesDashboardSection.Payments, range);
     expect(query.mock.calls[1][1][2]).toBe(false);
-    expect(reports.charts[0].series[0].key).toBe("taas");
+    expect(reports.charts[0].series.map((entry) => entry.key)).not.toContain(
+      "taas",
+    );
+    expect(query.mock.calls[1][1][3]).toBe(false);
   });
 
   it.each(["sales", "reports"] as const)(
@@ -601,6 +649,8 @@ describe("Monthly sales dashboards", () => {
     "Customer Name",
     "Customer",
     "Account Name",
+    "Reporting Account",
+    "Project Stream: Reporting Account",
     "Account",
     "Project Stream: Account Name",
     "Revenue Recognition: Account",
@@ -625,7 +675,7 @@ describe("Monthly sales dashboards", () => {
     },
   );
 
-  it("uses Account lookup display names from the confirmed revenue report without confusing account categories", async () => {
+  it("prefers Reporting Account over Account lookup names and Account Category", async () => {
     getDashboardSnapshot.mockResolvedValue({
       allData: true,
       columns: [
@@ -667,7 +717,7 @@ describe("Monthly sales dashboards", () => {
     });
     const result = await service().load(SalesDashboardSection.Revenue, range);
     expect(result.customerRevenue?.series).toEqual([
-      { key: "group-0", label: "Example customer" },
+      { key: "group-0", label: "Reporting parent" },
     ]);
     expect(
       result.customerRevenue?.months.map((month) => month.values["group-0"]),
@@ -719,6 +769,235 @@ describe("Monthly sales dashboards", () => {
       "Revenue Customer-Wise is unavailable: the report has no missing column.",
     );
   });
+
+  it("filters bookings and pipeline before aggregation while retaining all available choices", async () => {
+    const report = pipeline();
+    report.columns.push(
+      ...[
+        "Engagement Offering Type",
+        "Deal Category",
+        "New Customer or Follow-on Business?",
+      ].map((label, index) => ({
+        id: `category-${index}`,
+        label,
+        dataType: "string",
+      })),
+    );
+    const categories = [
+      ["Flexible Talent", "Wipro Direct", "New Project at Existing Customer"],
+      ["AI Training", "Topcoder Direct", "New Customer"],
+      ["Flexible Talent", "Wipro Direct", "New Project at Existing Customer"],
+    ];
+    report.rows.forEach((row, index) =>
+      row.cells.push(
+        ...categories[index].map((value) => ({ value, label: value })),
+      ),
+    );
+    report.rows[2].cells[5] = { value: "2026-10-01", label: "2026-10-01" };
+    getDashboardSnapshot.mockResolvedValue(report);
+    const filters = {
+      ...range,
+      offeringType: ["Flexible Talent", "AI Training"],
+      dealCategory: ["Wipro-Direct"],
+      customerType: ["New Project to Existing Customer"],
+    };
+    const won = await service().load(SalesDashboardSection.Bookings, filters);
+    expect(won.charts.map((chart) => chart.id)).toEqual(["closed-won"]);
+    expect(won.charts[0].months.map((month) => month.values.amount)).toEqual([
+      100, 0, 0,
+    ]);
+    expect(won.filterOptions?.offeringType).toEqual([
+      "AI Training",
+      "Flexible Talent",
+    ]);
+    const open = await service().load(SalesDashboardSection.Pipeline, filters);
+    expect(open.charts[1].months.map((month) => month.values.amount)).toEqual([
+      0, 0, 900,
+    ]);
+    expect(Object.values(open.charts[2].months[2].values)).toEqual([999]);
+    expect(report.rows).toHaveLength(3);
+    const cleared = await service().load(SalesDashboardSection.Bookings, range);
+    expect(
+      cleared.charts[0].months.map((month) => month.values.amount),
+    ).toEqual([100, 300, 0]);
+  });
+
+  it("filters revenue and customer totals together, including corrected offering and customer type labels", async () => {
+    getDashboardSnapshot.mockResolvedValue({
+      allData: true,
+      columns: [
+        {
+          id: "PSA_Revenue_Recognition__c.Date__c",
+          label: "Date",
+          dataType: "date",
+        },
+        {
+          id: "PSA_Revenue_Recognition__c.Amount__c",
+          label: "Gross Amount",
+          dataType: "currency",
+        },
+        ...[
+          "Project Stream: Engagement Offering Type",
+          "Deal Category",
+          "Customer Type",
+          "Reporting Account",
+          "Opportunity/Project Name",
+        ].map((label, index) => ({
+          id: `field-${index}`,
+          label,
+          dataType: "string",
+        })),
+      ],
+      rows: [
+        [
+          "2026-09-01",
+          20,
+          null,
+          "Wipro Direct",
+          "New Project at Existing Customer",
+          "Reporting client",
+          "Multiple App Enhancement 5",
+        ],
+        [
+          "2026-09-01",
+          50,
+          "AI Training",
+          "Topcoder Direct",
+          "New Customer",
+          "Other client",
+          "Other project",
+        ],
+      ].map((values) => ({
+        cells: values.map((value) => ({
+          value,
+          label: value === null ? "-" : String(value),
+        })),
+      })),
+    });
+    const result = await service({
+      SALESFORCE_REVENUE_CUSTOMER_TYPE_COLUMN: "field-2",
+    }).load(SalesDashboardSection.Revenue, {
+      ...range,
+      offeringType: ["Flexible Talent"],
+      dealCategory: ["Wipro-Direct"],
+      customerType: ["New Project at Existing Customer"],
+    });
+    expect(
+      result.charts[0].months.map((month) => month.values.revenue),
+    ).toEqual([0, 20, 0]);
+    expect(
+      result.customerRevenue?.series.map((series) => series.label),
+    ).toEqual(["Reporting client"]);
+    expect(result.filterOptions?.offeringType).toEqual([
+      "AI Training",
+      "Flexible Talent",
+    ]);
+    await expect(
+      service().load(SalesDashboardSection.Revenue, {
+        ...range,
+        offeringType: ["not present"],
+      }),
+    ).resolves.toMatchObject({ customerRevenue: { series: [] } });
+  });
+
+  it("filters revenue by the same four opportunity customer categories as Pipeline", async () => {
+    getDashboardSnapshot.mockResolvedValue({
+      allData: true,
+      columns: [
+        {
+          id: "PSA_Revenue_Recognition__c.Date__c",
+          label: "Date",
+          dataType: "date",
+        },
+        {
+          id: "PSA_Revenue_Recognition__c.Amount__c",
+          label: "Gross Amount",
+          dataType: "currency",
+        },
+        {
+          id: "__revenue_customer_type",
+          label: "Customer Type",
+          dataType: "picklist",
+        },
+        { id: "client", label: "Reporting Account", dataType: "string" },
+      ],
+      rows: ["New Customer", "New Project to Existing Customer", null].map(
+        (value) => ({
+          cells: [
+            { value: "2026-09-01", label: "9/1/2026" },
+            { value: 20, label: "$20" },
+            { value, label: String(value) },
+            { value: "Client", label: "Client" },
+          ],
+        }),
+      ),
+    });
+    const result = await service().load(SalesDashboardSection.Revenue, {
+      ...range,
+      customerType: ["New Project at Existing Customer"],
+    });
+    expect(result.filterOptions?.customerType).toEqual([
+      "New Customer",
+      "New Project at Existing Customer",
+      "Extension to Existing Project",
+      "Others",
+    ]);
+    expect(
+      result.charts[0].months.map((month) => month.values.revenue),
+    ).toEqual([0, 20, 0]);
+    expect(getDashboardSnapshot.mock.calls[0][2]).toEqual([
+      "PSA_Revenue_Recognition__c.Opportunity__c",
+      "FK_Opportunity_Project_in_Appirio__c.Opportunity__c",
+    ]);
+    expect(getDashboardSnapshot.mock.calls[0][3]).toBe(true);
+    const all = await service().load(SalesDashboardSection.Revenue, range);
+    expect(all.charts[0].months.map((month) => month.values.revenue)).toEqual([
+      0, 60, 0,
+    ]);
+    expect(all.notices).toContain(
+      "1 revenue rows have no linked opportunity customer type. They are included in ALL only.",
+    );
+  });
+
+  it("does not silently ignore filters for missing source columns", async () => {
+    getDashboardSnapshot.mockResolvedValue(pipeline());
+    await expect(
+      service().load(SalesDashboardSection.Bookings, {
+        ...range,
+        customerType: ["New Customer"],
+      }),
+    ).rejects.toThrow("The report does not provide the customerType column.");
+  });
+
+  it.each(["sales", "reports"] as const)(
+    "loads TaaS payments separately in %s",
+    async (portal) => {
+      query.mockResolvedValue([
+        {
+          month: "2026-09-01",
+          kind: "type",
+          payment_type: "taas",
+          amount: "125.50",
+          members: "2",
+        },
+      ]);
+      const result = await service().load(SalesDashboardSection.TaasPayments, {
+        ...range,
+        portal,
+      });
+      expect(query).toHaveBeenCalledWith(expect.any(String), [
+        new Date(range.startDate).toISOString(),
+        new Date(range.endDate).toISOString(),
+        false,
+        true,
+      ]);
+      expect(result.charts).toHaveLength(1);
+      expect(result.charts[0].months.map((month) => month.values.taas)).toEqual(
+        [0, 125.5, 0],
+      );
+      expect(result.customerPayments).toBeUndefined();
+    },
+  );
 
   it("preserves unknown markup and exposes excluded unknown-payment counts", async () => {
     query.mockResolvedValue([

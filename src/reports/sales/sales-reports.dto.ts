@@ -185,6 +185,7 @@ export class SalesReportQueryDto {
       "New Customer, or Follow-on Business? values matched with OR; omit for ALL. Combines with other filters using AND.",
     enum: [
       "New Customer",
+      "New Project at Existing Customer",
       "New Project to Existing Customer",
       "Extension to Existing Project",
       "Others",
@@ -201,6 +202,7 @@ export class SalesReportQueryDto {
   @IsIn(
     [
       "New Customer",
+      "New Project at Existing Customer",
       "New Project to Existing Customer",
       "Extension to Existing Project",
       "Others",
