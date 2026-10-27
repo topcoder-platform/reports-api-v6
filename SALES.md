@@ -372,8 +372,9 @@ that report is used:
 | `SALESFORCE_REVENUE_REPORT_ID` | `00O1K000009GxBtUAK` | Optional report override |
 | `SALESFORCE_REVENUE_DATE_COLUMN` | `PSA_Revenue_Recognition__c.Date__c` (Date) | Date/datetime column that assigns the month |
 | `SALESFORCE_REVENUE_AMOUNT_COLUMN` | `PSA_Revenue_Recognition__c.Amount__c` (Gross Amount) | Currency/double revenue column |
-| `SALESFORCE_REVENUE_OFFERING_COLUMN` | Metadata label **Engagement Offering Type**, including `Project Stream:` prefix | Optional field-ID override for Bookings by offering |
-| `SALESFORCE_REVENUE_CATEGORY_COLUMN` | Metadata label **Deal Category** | Optional field-ID override for Bookings by account category |
+| `SALESFORCE_REVENUE_OFFERING_COLUMN` | Metadata label **Engagement Offering Type**, including `Project Stream:` prefix | Optional field-ID override for Revenue by offering |
+| `SALESFORCE_REVENUE_CUSTOMER_COLUMN` | Metadata labels **End Customer** / **Subcontracting End Customer**, then **Customer** / **Customer Name**, then **Account Name**, including relationship prefixes | Optional field-ID override for Revenue Customer-Wise |
+| `SALESFORCE_REVENUE_CATEGORY_COLUMN` | Metadata label **Deal Category** | Optional field-ID override for Revenue by account category |
 
 An overridden report must set its own date and amount columns. Until it does, the
 section returns an explicit pending notice; date and amount IDs are never inferred
@@ -383,7 +384,7 @@ when deploying PM-6667; those fields are no longer the default category sources.
 type, return 502. A configured breakdown column the report lacks omits that chart
 with a notice.
 
-The section uses **Bookings** in display copy while retaining the `revenue` route,
+The section uses **Revenue** in display copy (PM-6668), retaining the `revenue` route,
 chart IDs and source field names for compatibility. It returns monthly totals,
 plus stacked breakdowns by engagement offering and deal category. Each breakdown keeps its five largest categories, merges the rest
 into Other (when there are more than six), and shows blank values as Unknown.
@@ -395,11 +396,29 @@ including the `Wipro Internal - Ignore` account category, so totals match the
 Salesforce report and the breakdown shows that category separately. Amounts round
 to cents. The report must expose detail rows, as the pipeline report does.
 
-Payments also return optional `customerPayments`, using the chart's `series` and
-`months` shape for **every** customer before top-five/Other grouping. Each series
-key identifies the client ID/end-customer label pair. The UI renders customers as
-rows, months as columns and calculates row, month and grand totals. Unnamed or
-unlinked customers in Reports remain identifiable entries rather than being lost.
+Revenue also returns optional `customerRevenue` with **all** customer names, using
+the chart's `series` and `months` shape. It uses the same date, amount, fiscal-year
+bounds and source notices as the revenue charts. Customer metadata matching uses
+the labels above in priority order; an explicit field ID takes precedence and does
+not silently fall back when missing. If the report lacks the customer field, this
+dataset is omitted with an unavailable notice, while the other revenue charts
+remain usable. Blank names are retained as Unknown customer; equal names aggregate
+together. All customers remain separate from Other regardless of their rank.
+A valid report with no rows returns an empty customer dataset.
+
+Payments return optional `customerPayments`, using the same shape for **every**
+customer before top-five/Other grouping. Each series key identifies the client
+ID/end-customer label pair. Unnamed or unlinked customers in Reports remain
+identifiable entries rather than being lost. The existing `payment-customer`
+chart remains in the API for compatibility; the PM-6668 UI no longer renders it.
+
+The UI's bottom Customer section renders these datasets as **Revenue Customer-Wise**
+and **Goods Sold Customer-Wise**, respectively: customer rows, month columns,
+annual customer totals, monthly totals and a grand total. It shares the existing
+revenue/payment requests. All currency/count chart tables also show an Annual row,
+and their tooltips show Total before category values. Count sums are explicitly
+labelled as non-distinct across months/categories. No endpoint or database
+migration is needed; deploy this API companion before the PM-6668 UI.
 
 Flexible talent uses `ENGAGEMENTS_DB_URL`. For `portal=sales`, the reporting DB
 first resolves project IDs through `projects.projects.billingAccountId` → BillingAccount
