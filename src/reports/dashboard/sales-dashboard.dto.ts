@@ -20,8 +20,25 @@ export enum SalesDashboardSection {
   GrossMargin = "gross-margin",
 }
 
+/** Selects the category displayed as chart series and monthly table columns. */
+export enum SalesDashboardGroupBy {
+  OfferingType = "offeringType",
+  DealCategory = "dealCategory",
+  CustomerType = "customerType",
+  Stage = "stage",
+}
+
 /** Monthly dashboard controls, shared by both portals; Sales payment scope is applied in SQL. */
 export class SalesDashboardQueryDto extends DashboardQueryDto {
+  @ApiPropertyOptional({
+    enum: SalesDashboardGroupBy,
+    description:
+      "Break down all amounts by this dimension; stage is available for pipeline only.",
+  })
+  @IsOptional()
+  @IsEnum(SalesDashboardGroupBy)
+  groupBy?: SalesDashboardGroupBy;
+
   @ApiPropertyOptional({ enum: ["reports", "sales"], default: "reports" })
   @IsOptional()
   @IsEnum({ reports: "reports", sales: "sales" })

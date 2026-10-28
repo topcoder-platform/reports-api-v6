@@ -328,12 +328,20 @@ Optional query parameters:
   internal and unlinked payment scope. Both portals load TaaS separately through
   `taas-payments`, which includes all TaaS payments within the requested period.
 - `dateBasis=close|created` (default `close`): bookings and pipeline date column.
-- `offeringType`, `dealCategory`, `customerType`: repeat for OR choices within each
+- `groupBy=offeringType|dealCategory|customerType|stage`: selects a chart breakdown
+  for bookings, pipeline or revenue. Stage is supported only for pipeline; other
+  unsupported combinations return 400. All selected-dimension categories appear as
+  series/table columns, including Unknown; none are merged into Other. Missing source
+  dimensions omit the chart with an explicit notice. The UI defaults to Offering Type
+  for won/revenue and Stage for pipeline, keeping independent choices per card.
+  Grouping preserves fiscal bounds, full customer datasets and all category totals;
+  it reuses cached snapshots and does not filter Salesforce records.
+- `offeringType`, `dealCategory`, `customerType`: legacy API value filters; repeat for OR choices within each
   field; fields combine with AND before monthly aggregation. Omit for ALL. Applies
   to bookings, pipeline and revenue, including their returned customer datasets.
   `filterOptions` retains unfiltered choices so selecting a category does not hide
   alternatives. Missing selected fields return 400 instead of ignoring the filter.
-  The UI holds independent selections per card and keeps its customer matrices unfiltered.
+  The PM-6672 follow-up UI sends `groupBy` instead of these value filters.
   Customer Type uses Pipeline's four categories in every card. Legacy “New Project
   to Existing Customer” values match the corrected “New Project at Existing Customer”.
 - `startDate` / `endDate`: inclusive/exclusive UTC bounds, at most 24 months.
@@ -368,9 +376,12 @@ fields are resolved from report labels, ignoring a relationship prefix. Blank
 categories remain Unknown; a missing category field omits its chart with a notice.
 All won charts follow the selected date basis and use the same converted amounts.
 The `bookings` section returns only the consolidated `closed-won` chart, using the
-same cached pipeline snapshot; the pipeline response retains legacy charts for
-compatibility. The UI renders one won card and one open-pipeline card with an
-Amount / Expected Amount switch, each with its own three category dropdowns.
+same cached pipeline snapshot. With `groupBy`, its series represent every category
+in the chosen dimension. Pipeline returns matching amount and expected-amount
+breakdowns, excluding won opportunities from both. Expected amounts retain the existing
+Expected Revenue / Amount × Probability fallback. Without `groupBy`, legacy chart
+responses are unchanged. The UI renders one full-width won card and one full-width
+open-pipeline card with an Amount / Expected Amount switch and one Filter by selector each.
 Incomplete reports, missing values and non-USD/mixed
 currencies are surfaced as notices. No currency conversion is added.
 
@@ -409,13 +420,15 @@ restriction: an older opportunity can recognize revenue this fiscal year. The ex
 Salesforce integration identity must be able to read that field. Results are cached
 with the revenue snapshot; lookup errors use the existing sanitized error/cooldown path.
 The Yes/No `New Customer?` field is not used to infer the four categories. Missing links
-or classifications stay in ALL totals, with a notice, and never match a specific type.
+or classifications stay in totals and appear as **Unknown** when grouped by Customer Type.
+They never match a specific category when legacy value filters are supplied.
 Custom reports can configure a direct four-category field or their Opportunity lookup;
 otherwise the existing Customer Type metadata-label match applies.
 
 The section uses **Revenue** in display copy (PM-6668), retaining the `revenue` route,
-chart IDs and source field names for compatibility. It returns monthly totals,
-plus stacked breakdowns by engagement offering and deal category. Each breakdown keeps its five largest categories, merges the rest
+chart IDs and source field names for compatibility. With `groupBy`, it returns a single
+`revenue` chart containing all categories of the chosen dimension, including customer types.
+Without `groupBy`, it retains the legacy monthly totals and stacked breakdowns by engagement offering and deal category. Each breakdown keeps its five largest categories, merges the rest
 into Other (when there are more than six), and shows blank values as Unknown.
 For blank engagement offerings only, Opportunity/Project Name `TopGear` maps to
 `TopGear Ops`, and `Multiple App Enhancement 5` / `Multiple App Enhancements 5`
@@ -448,7 +461,9 @@ chart remains in the API for compatibility; the PM-6668 UI no longer renders it.
 The UI's bottom Customer section renders these datasets as **Revenue Customer-Wise**
 and **Goods Sold Customer-Wise**, respectively: customer rows, month columns,
 annual customer totals, monthly totals and a grand total. **Annual** is the first
-numeric column and **Total** is the first body row. Currency chart tables also show
+numeric column and **Total** is the first body row. The UI previews five customer
+rows with an expand/collapse control; API datasets and displayed totals always retain
+every customer. Currency chart tables also show
 an Annual row and Total columns/tooltips. Count charts omit summed annual/series
 totals because members can recur across months and categories. Deploy this API
 companion before the PM-6672 UI; no database migration is required.
@@ -493,3 +508,7 @@ SALES_DASHBOARD_TEST_DB_URL=postgresql://user:password@localhost:5432/sales_dash
 
 The SQL suite creates and drops its fixture schemas and is skipped without that
 variable. No production or development data is required.
+
+PM-6672 follow-up tests: `sales-dashboard.breakdowns.spec.ts` checks every dimension,
+won/open separation, both date bases, expected weighting, full category visibility,
+canonical customer labels, Unknown buckets, missing dimensions and unchanged customer totals.
