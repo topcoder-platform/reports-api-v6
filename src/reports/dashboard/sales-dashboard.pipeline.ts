@@ -1,14 +1,17 @@
 import { BadGatewayException } from "@nestjs/common";
-import { SalesReportDto } from "../sales/sales-reports.dto";
+import { customerTypeLabel } from "../sales/sales-category.utils";
+import { SalesRowDto, SalesReportDto } from "../sales/sales-reports.dto";
 import { DashboardDateRange } from "./dashboard-reports.service";
 import {
   CATEGORY_LABELS,
+  DASHBOARD_GROUPS,
   categoryColumn,
   categoryLabel,
 } from "./sales-dashboard.categories";
 import {
   SalesDashboardChartDto,
   SalesDashboardDto,
+  SalesDashboardGroupBy,
 } from "./sales-dashboard.dto";
 
 /**
@@ -66,6 +69,7 @@ function column(report: SalesReportDto, label: string): number {
  * @param range Pipeline window (normally three months back through six months ahead).
  * @param closedRange Historical window for Closed Won amounts.
  * @param dateBasis Close date or Created date, selected by the user.
+ * @param groupBy Optional dimension for all won/open/expected series; absent retains legacy charts.
  * @returns Zero-filled charts and explicit incomplete/missing-data notices.
  * @throws BadGatewayException if the source lacks amount, stage or the selected date field.
  */
@@ -74,6 +78,7 @@ export function pipelineCharts(
   range: DashboardDateRange,
   closedRange: DashboardDateRange,
   dateBasis: "close" | "created",
+  groupBy?: SalesDashboardGroupBy,
 ): SalesDashboardDto {
   const amountIndex = column(report, "amount");
   const expectedIndex = column(report, "expected revenue");
@@ -88,14 +93,44 @@ export function pipelineCharts(
       "The pipeline report must include Amount, Stage and the selected date column.",
     );
   }
-  const stages = [
-    ...new Set(
-      report.rows
-        .map((row) => row.cells[stageIndex]?.label.trim() || "Unknown")
-        .filter((stage) => !WON_STAGE.test(stage)),
-    ),
-  ].sort();
-  const stageKeys = new Map(stages.map((label, i) => [label, `stage-${i}`]));
+  const group = groupBy ? DASHBOARD_GROUPS[groupBy] : undefined;
+  const groupIndex = group ? categoryColumn(report, group.pattern) : stageIndex;
+  if (groupIndex < 0)
+    return {
+      charts: [],
+      notices: [
+        `The ${group?.label} breakdown is unavailable: the pipeline report does not include this category column.`,
+      ],
+    };
+  /** @param row Source opportunity. @returns Selected category with canonical customer-type spelling or Unknown. Does not throw. */
+  const groupLabel = (row: SalesRowDto): string => {
+    const label = categoryLabel(row, groupIndex) || "Unknown";
+    return groupBy === SalesDashboardGroupBy.CustomerType
+      ? customerTypeLabel(label)
+      : label;
+  };
+  /** @param won Selects won or open opportunities. @returns Stable series keys for every category. Does not throw. */
+  const groupKeys = (won: boolean): Map<string, string> =>
+    new Map(
+      [
+        ...new Set(
+          report.rows
+            .filter(
+              (row) =>
+                WON_STAGE.test(row.cells[stageIndex]?.label.trim() ?? "") ===
+                won,
+            )
+            .map(groupLabel),
+        ),
+      ]
+        .sort()
+        .map((label, i) => [label, `${groupBy ? "group" : "stage"}-${i}`]),
+    );
+  const wonKeys = groupKeys(true);
+  const openKeys = groupKeys(false);
+  /** @param keys Category-to-key map. @returns Chart series definitions. Does not throw. */
+  const series = (keys: Map<string, string>) =>
+    [...keys].map(([label, key]) => ({ key, label }));
   const charts = [
     monthlyChart(closedRange, {
       id: "closed-won",
@@ -103,8 +138,10 @@ export function pipelineCharts(
       description:
         "Amount for won opportunities (the Won - SOW Signed stage), by selected date.",
       unit: "currency",
-      stacked: false,
-      series: [{ key: "amount", label: "Bookings won" }],
+      stacked: !!groupBy,
+      series: groupBy
+        ? series(wonKeys)
+        : [{ key: "amount", label: "Bookings won" }],
     }),
     monthlyChart(range, {
       id: "expected-revenue",
@@ -112,17 +149,18 @@ export function pipelineCharts(
       description:
         "Open opportunities only: Expected Revenue, falling back to Amount × Probability. Won bookings are excluded.",
       unit: "currency",
-      stacked: false,
-      series: [{ key: "amount", label: "Expected bookings" }],
+      stacked: !!groupBy,
+      series: groupBy
+        ? series(openKeys)
+        : [{ key: "amount", label: "Expected bookings" }],
     }),
     monthlyChart(range, {
       id: "pipeline-stage",
-      title: "Pipeline by stage",
-      description:
-        "Open opportunity amount split by stage and month, excluding won bookings.",
+      title: group ? "Pipeline" : "Pipeline by stage",
+      description: `Open opportunity amount split by ${group?.label ?? "stage"} and month, excluding won bookings.`,
       unit: "currency",
       stacked: true,
-      series: stages.map((label) => ({ key: stageKeys.get(label)!, label })),
+      series: series(openKeys),
     }),
   ];
   const notices = report.allData
@@ -130,23 +168,32 @@ export function pipelineCharts(
     : [
         "Salesforce returned an incomplete report. These charts show only the returned rows.",
       ];
-  const breakdowns = [
-    {
-      id: "won-offering",
-      title: "Bookings won by offering type",
-      label: CATEGORY_LABELS.offering,
-    },
-    {
-      id: "won-deal-category",
-      title: "Bookings won by deal category",
-      label: CATEGORY_LABELS.deal,
-    },
-    {
-      id: "won-customer-type",
-      title: "Bookings won by customer type",
-      label: CATEGORY_LABELS.customer,
-    },
-  ].flatMap(({ id, title, label }) => {
+  if (group)
+    charts.forEach((chart) => {
+      chart.title += ` by ${group.label}`;
+      chart.description += ` Breakdown: ${group.label}.`;
+    });
+  const breakdowns = (
+    groupBy
+      ? []
+      : [
+          {
+            id: "won-offering",
+            title: "Bookings won by offering type",
+            label: CATEGORY_LABELS.offering,
+          },
+          {
+            id: "won-deal-category",
+            title: "Bookings won by deal category",
+            label: CATEGORY_LABELS.deal,
+          },
+          {
+            id: "won-customer-type",
+            title: "Bookings won by customer type",
+            label: CATEGORY_LABELS.customer,
+          },
+        ]
+  ).flatMap(({ id, title, label }) => {
     const index = categoryColumn(report, label);
     if (index < 0) {
       notices.push(
@@ -215,7 +262,8 @@ export function pipelineCharts(
       timestamp < Date.parse(bounds.endDate);
     if (won && inRange(closedRange)) {
       const bucket = charts[0].months.find((m) => m.month === month);
-      if (bucket) bucket.values.amount = (bucket.values.amount ?? 0) + amount;
+      const wonKey = groupBy ? wonKeys.get(groupLabel(row))! : "amount";
+      if (bucket) bucket.values[wonKey] = (bucket.values[wonKey] ?? 0) + amount;
       breakdowns.forEach(({ index, keys, chart }) => {
         const group = chart.months.find((m) => m.month === month);
         const key = keys.get(categoryLabel(row, index) || "Unknown")!;
@@ -223,11 +271,12 @@ export function pipelineCharts(
       });
     } else if (!won && inRange(range)) {
       const expectedMonth = charts[1].months.find((m) => m.month === month);
+      const expectedKey = groupBy ? openKeys.get(groupLabel(row))! : "amount";
       if (expectedMonth && weighted !== undefined)
-        expectedMonth.values.amount =
-          (expectedMonth.values.amount ?? 0) + weighted;
+        expectedMonth.values[expectedKey] =
+          (expectedMonth.values[expectedKey] ?? 0) + weighted;
       const stageMonth = charts[2].months.find((m) => m.month === month);
-      const key = stageKeys.get(stage)!;
+      const key = openKeys.get(groupLabel(row))!;
       if (stageMonth)
         stageMonth.values[key] = (stageMonth.values[key] ?? 0) + amount;
     }

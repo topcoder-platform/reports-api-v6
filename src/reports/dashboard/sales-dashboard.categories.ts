@@ -13,6 +13,14 @@ export const CATEGORY_LABELS = {
   project: /^opportunity\/project name$/i,
 };
 
+/** Business dimensions offered by the monthly chart's Filter by selector. */
+export const DASHBOARD_GROUPS = {
+  offeringType: { label: "Offering Type", pattern: CATEGORY_LABELS.offering },
+  dealCategory: { label: "Deal Category", pattern: CATEGORY_LABELS.deal },
+  customerType: { label: "Customer Type", pattern: CATEGORY_LABELS.customer },
+  stage: { label: "Stage", pattern: /^stage$/i },
+};
+
 /**
  * Resolves a category from report metadata, ignoring a Salesforce relationship prefix.
  * @param report Normalized snapshot with org-specific field IDs.

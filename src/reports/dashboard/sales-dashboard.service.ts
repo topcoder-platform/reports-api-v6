@@ -9,6 +9,7 @@ import { ConfigService } from "@nestjs/config";
 import { Pool } from "pg";
 import { SqlLoaderService } from "../../common/sql-loader.service";
 import { DbService } from "../../db/db.service";
+import { customerTypeLabel } from "../sales/sales-category.utils";
 import { SalesRowDto } from "../sales/sales-reports.dto";
 import {
   DashboardDateFilter,
@@ -26,9 +27,11 @@ import {
   SalesDashboardDto,
   SalesDashboardQueryDto,
   SalesDashboardSection,
+  SalesDashboardGroupBy,
 } from "./sales-dashboard.dto";
 import {
   CATEGORY_LABELS,
+  DASHBOARD_GROUPS,
   categoryColumn,
   categoryLabel,
   offeringLabel,
@@ -84,7 +87,7 @@ function salesforceDateFilter(
  * @param entries In-range revenue rows.
  * @param label Resolves the business category for each row, including source corrections.
  * @param definition Chart identity and copy.
- * @param maximumSeries Maximum series including Other; Infinity retains every customer for the table.
+ * @param maximumSeries Maximum series including Other; Infinity retains every selected category or customer.
  * @returns A stacked currency chart whose monthly totals match the revenue total.
  * @throws Does not throw.
  */
@@ -143,14 +146,27 @@ export class SalesDashboardService implements OnModuleDestroy {
   /**
    * Dispatches an independently requested section to its data source.
    * @param section Validated section identifier.
-   * @param query Portal, date basis and optional UTC range, limited to 24 months.
+   * @param query Portal, date basis, category filters, breakdown dimension and optional UTC range, limited to 24 months.
    * @returns Charts plus source limitations; unconfigured revenue returns an explicit notice.
-   * @throws BadRequestException for oversized ranges; database or sanitized Salesforce errors otherwise.
+   * @throws BadRequestException for unsupported breakdowns or oversized ranges; database or sanitized Salesforce errors otherwise.
    */
   async load(
     section: SalesDashboardSection,
     query: SalesDashboardQueryDto,
   ): Promise<SalesDashboardDto> {
+    if (
+      query.groupBy &&
+      (![
+        SalesDashboardSection.Bookings,
+        SalesDashboardSection.Pipeline,
+        SalesDashboardSection.Revenue,
+      ].includes(section) ||
+        (query.groupBy === SalesDashboardGroupBy.Stage &&
+          section !== SalesDashboardSection.Pipeline))
+    )
+      throw new BadRequestException(
+        "This breakdown is not available for this dashboard.",
+      );
     const range = resolveDashboardDateRange(query);
     if (
       Date.parse(range.endDate) - Date.parse(range.startDate) >
@@ -189,6 +205,7 @@ export class SalesDashboardService implements OnModuleDestroy {
           pipelineRange,
           range,
           dateBasis,
+          query.groupBy,
         );
         return {
           ...result,
@@ -258,7 +275,7 @@ export class SalesDashboardService implements OnModuleDestroy {
   /**
    * Groups the confirmed (or overridden) Salesforce revenue report by its date and amount fields.
    * @param range Half-open UTC range; the report run is filtered to it instead of the saved fiscal year.
-   * @param query Category filters applied before all chart and customer totals.
+   * @param query Optional category filters and chart breakdown; grouping preserves all customer totals.
    * @returns Monthly revenue and category charts plus all customers for the customer matrix.
    * Missing mappings and incomplete sources are labelled without suppressing available charts.
    * @throws BadGatewayException for invalid date/amount fields; sanitized upstream errors propagate.
@@ -322,18 +339,19 @@ export class SalesDashboardService implements OnModuleDestroy {
         row,
       });
     });
+    const categoryColumns = {
+      offeringType: columns.offering,
+      dealCategory: columns.category,
+      customerType:
+        columns.customerType ||
+        (columns.opportunities.length
+          ? REVENUE_CUSTOMER_TYPE_COLUMN
+          : undefined),
+    };
     const filtered = filterDashboardCategories(
       { ...report, rows: entries.map((entry) => entry.row) },
       query,
-      {
-        offeringType: columns.offering,
-        dealCategory: columns.category,
-        customerType:
-          columns.customerType ||
-          (columns.opportunities.length
-            ? REVENUE_CUSTOMER_TYPE_COLUMN
-            : undefined),
-      },
+      categoryColumns,
       true,
     );
     const matchingRows = new Set(filtered.report.rows);
@@ -366,24 +384,64 @@ export class SalesDashboardService implements OnModuleDestroy {
             .length;
     if (unclassified)
       notices.push(
-        `${unclassified} revenue rows have no linked opportunity customer type. They are included in ALL only.`,
+        query.groupBy === SalesDashboardGroupBy.CustomerType
+          ? `${unclassified} revenue rows have no linked opportunity customer type and are grouped as Unknown.`
+          : query.groupBy
+            ? `${unclassified} revenue rows have no linked opportunity customer type. They remain included in these totals.`
+            : `${unclassified} revenue rows have no linked opportunity customer type. They are included in ALL only.`,
       );
     const charts = [total];
     const projectIndex = categoryColumn(report, CATEGORY_LABELS.project);
-    [
-      {
-        id: "revenue-offering",
-        title: "Revenue by offering",
-        column: columns.offering,
-        label: CATEGORY_LABELS.offering,
-      },
-      {
-        id: "revenue-category",
-        title: "Revenue by account category",
-        column: columns.category,
-        label: CATEGORY_LABELS.deal,
-      },
-    ].forEach(({ column, label, ...definition }) => {
+    if (query.groupBy && query.groupBy !== SalesDashboardGroupBy.Stage) {
+      const definition = DASHBOARD_GROUPS[query.groupBy];
+      const override = categoryColumns[query.groupBy];
+      const index = override
+        ? report.columns.findIndex((column) => column.id === override)
+        : categoryColumn(report, definition.pattern);
+      charts.splice(0);
+      if (index < 0)
+        notices.push(
+          `The ${definition.label} breakdown is unavailable: the revenue report does not include this category column.`,
+        );
+      else
+        charts.push(
+          revenueBreakdown(
+            range,
+            entries,
+            (entry) => {
+              if (query.groupBy === SalesDashboardGroupBy.OfferingType)
+                return offeringLabel(entry.row, index, projectIndex);
+              const label = categoryLabel(entry.row, index) || "Unknown";
+              return query.groupBy === SalesDashboardGroupBy.CustomerType
+                ? customerTypeLabel(label)
+                : label;
+            },
+            {
+              id: "revenue",
+              title: `Revenue by ${definition.label}`,
+              description: `Monthly revenue broken down by ${definition.label}.`,
+            },
+            Infinity,
+          ),
+        );
+    }
+    (query.groupBy
+      ? []
+      : [
+          {
+            id: "revenue-offering",
+            title: "Revenue by offering",
+            column: columns.offering,
+            label: CATEGORY_LABELS.offering,
+          },
+          {
+            id: "revenue-category",
+            title: "Revenue by account category",
+            column: columns.category,
+            label: CATEGORY_LABELS.deal,
+          },
+        ]
+    ).forEach(({ column, label, ...definition }) => {
       const index = column
         ? report.columns.findIndex((c) => c.id === column)
         : categoryColumn(report, label);
