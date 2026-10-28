@@ -21,3 +21,15 @@ export function categoryValue(value: string): string {
       "new project at existing customer",
     );
 }
+
+/**
+ * Uses Pipeline's canonical customer-type names when grouping legacy or differently cased values.
+ * @param value Source category label. @returns Canonical category, or the original unknown label. Does not throw.
+ */
+export function customerTypeLabel(value: string): string {
+  return (
+    SALES_CUSTOMER_TYPES.find(
+      (type) => categoryValue(type) === categoryValue(value),
+    ) ?? value
+  );
+}
