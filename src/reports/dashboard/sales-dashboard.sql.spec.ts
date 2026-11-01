@@ -255,4 +255,52 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
       ),
     ).toBe(false);
   });
+  it("deduplicates TaaS members across months, quarters and payment records", async () => {
+    await pool.query(`
+      INSERT INTO finance.winnings VALUES
+        ('quarter-a', 'member2', 'TAAS_PAYMENT', 'PAYMENT', null),
+        ('quarter-b', 'member9', 'TAAS_PAYMENT', 'PAYMENT', null),
+        ('quarter-c', 'member2', 'TAAS_PAYMENT', 'PAYMENT', null),
+        ('quarter-d', 'member2', 'TAAS_PAYMENT', 'PAYMENT', null);
+      INSERT INTO finance.payment VALUES
+        ('quarter-a', 1, '2027-04-01', 10, 10, '3', 'PAID', null),
+        ('quarter-b', 1, '2027-05-02', 20, 20, '3', 'OWED', null),
+        ('quarter-c', 1, '2027-07-01', 30, 30, '3', 'PAID', null),
+        ('quarter-d', 1, '2027-05-03', 40, 40, '3', 'PAID', null);
+    `);
+    try {
+      const result = await pool.query(
+        sql.load("reports/dashboard/sales-payments.sql"),
+        ["2027-04-01T00:00:00Z", "2028-04-01T00:00:00Z", false, true],
+      );
+      expect(result.rows.filter((row) => row.kind === "quarter")).toEqual([
+        expect.objectContaining({
+          month: "2027-04-01",
+          members: "2",
+          amount: "70",
+        }),
+        expect.objectContaining({
+          month: "2027-07-01",
+          members: "1",
+          amount: "30",
+        }),
+      ]);
+      expect(result.rows.find((row) => row.kind === "annual")).toMatchObject({
+        members: "2",
+        amount: "100",
+      });
+      expect(
+        result.rows
+          .filter((row) => row.kind === "type")
+          .map((row) => row.members),
+      ).toEqual(["1", "2", "1"]);
+    } finally {
+      await pool.query(
+        "DELETE FROM finance.payment WHERE winnings_id LIKE 'quarter-%'",
+      );
+      await pool.query(
+        "DELETE FROM finance.winnings WHERE winning_id LIKE 'quarter-%'",
+      );
+    }
+  });
 });
