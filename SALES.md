@@ -512,3 +512,31 @@ variable. No production or development data is required.
 PM-6672 follow-up tests: `sales-dashboard.breakdowns.spec.ts` checks every dimension,
 won/open separation, both date bases, expected weighting, full category visibility,
 canonical customer labels, Unknown buckets, missing dimensions and unchanged customer totals.
+
+
+## PM-6688 quarterly dashboard support
+
+Deploy this API update before the matching platform-ui update. Existing monthly response fields
+and request parameters remain compatible; no database migration or new configuration is needed.
+
+- `taas-payments` also returns the `taas-members-paid` count chart, using the same latest-version,
+  non-cancelled TaaS payment events and payment-creation dates as the amount chart.
+- Payment count charts (`members-paid` and `taas-members-paid`) include `quarters`, using the same
+  `{ month, values }` shape with UTC quarter-start dates, and `annual`, a series-key/value map.
+  SQL counts distinct members within each quarter and over the entire requested range. These
+  values must not be obtained by adding monthly unique counts. The UI requests April–March and
+  labels April–June Q1 through January–March Q4. Zero-filled periods remain zero; Topcoder
+  categories retain independent counts, so a member may appear in multiple categories.
+- Revenue includes `customerRevenueByAccountCategory`, keyed by `External Revenue`, `Through Wipro`
+  and `Wipro Internal`, when both customer and Account Category source columns exist. Matching
+  ignores case and maps the legacy `Wipro Internal - Ignore` value to `Wipro Internal`. Each
+  matrix filters source rows before aggregating by Reporting Account; a customer can appear in
+  multiple categories. This uses **Account Category**, not Deal Category. Empty categories return
+  empty matrices. Missing source columns omit this optional map; the UI reports unavailable data.
+  `customerRevenue` retains all categories, including unknowns, and revenue charts remain unchanged.
+
+Tests: `pnpm test --runInBand sales-dashboard`. To include PostgreSQL aggregation tests, point
+`SALES_DASHBOARD_TEST_DB_URL` at a disposable database named `sales_dashboard_test`; the suite
+creates and removes its own test schemas. Tests exercise duplicate payments, members recurring
+across months and quarters, both portals, independent account/deal categories, negative revenue
+adjustments, and preservation of unfiltered customer/chart totals.

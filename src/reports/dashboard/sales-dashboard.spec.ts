@@ -991,13 +991,121 @@ describe("Monthly sales dashboards", () => {
         false,
         true,
       ]);
-      expect(result.charts).toHaveLength(1);
+      expect(result.charts).toHaveLength(2);
       expect(result.charts[0].months.map((month) => month.values.taas)).toEqual(
         [0, 125.5, 0],
+      );
+      expect(result.charts[1]).toMatchObject({
+        id: "taas-members-paid",
+        unit: "count",
+      });
+      expect(result.charts[1].months.map((month) => month.values.taas)).toEqual(
+        [0, 2, 0],
       );
       expect(result.customerPayments).toBeUndefined();
     },
   );
+
+  it.each([SalesDashboardSection.Payments, SalesDashboardSection.TaasPayments])(
+    "uses event-level quarterly and annual member counts for %s without polluting customer amounts",
+    async (section) => {
+      const type =
+        section === SalesDashboardSection.Payments ? "challenge" : "taas";
+      query.mockResolvedValue([
+        {
+          month: "2026-08-01",
+          kind: "type",
+          payment_type: type,
+          amount: "100",
+          members: "2",
+        },
+        {
+          month: "2026-09-01",
+          kind: "type",
+          payment_type: type,
+          amount: "200",
+          members: "2",
+        },
+        {
+          month: "2026-07-01",
+          kind: "quarter",
+          payment_type: type,
+          amount: "300",
+          members: "3",
+        },
+        {
+          month: null,
+          kind: "annual",
+          payment_type: type,
+          amount: "300",
+          members: "3",
+        },
+      ]);
+      const result = await service().load(section, range);
+      const count = result.charts.find((chart) => chart.unit === "count")!;
+      expect(count.quarters?.map((quarter) => quarter.values[type])).toEqual([
+        3, 0,
+      ]);
+      expect(count.annual?.[type]).toBe(3);
+      expect(count.months.map((month) => month.values[type])).toEqual([
+        2, 2, 0,
+      ]);
+      expect(result.customerPayments?.series ?? []).toEqual([]);
+    },
+  );
+
+  it("filters revenue customers by Account Category independently of Deal Category and keeps ALL complete", async () => {
+    getDashboardSnapshot.mockResolvedValue({
+      allData: true,
+      reportName: "Revenue",
+      columns: [
+        {
+          id: "PSA_Revenue_Recognition__c.Date__c",
+          label: "Date",
+          dataType: "date",
+        },
+        {
+          id: "PSA_Revenue_Recognition__c.Amount__c",
+          label: "Gross Amount",
+          dataType: "currency",
+        },
+        {
+          id: "category",
+          label: "Project Stream: Account Category",
+          dataType: "string",
+        },
+        { id: "customer", label: "Reporting Account", dataType: "string" },
+        { id: "deal", label: "Deal Category", dataType: "string" },
+      ],
+      rows: [
+        ["2026-09-01", 100, "External revenue", "Shared", "Through Wipro"],
+        ["2026-09-01", -25, "External revenue", "Shared", "Through Wipro"],
+        ["2026-09-01", 20, "Through Wipro", "Shared", "External revenue"],
+        [
+          "2026-09-01",
+          30,
+          "Wipro Internal - Ignore",
+          "Internal",
+          "External revenue",
+        ],
+        ["2026-09-01", 5, "", "Unknown", "External revenue"],
+      ].map((cells) => ({
+        cells: cells.map((value) => ({ value, label: String(value) })),
+      })),
+    });
+    const result = await service().load(SalesDashboardSection.Revenue, range);
+    const categories = result.customerRevenueByAccountCategory!;
+    const total = (chart: typeof result.customerRevenue) =>
+      Object.values(chart!.months[1].values).reduce<number>(
+        (sum, value) => sum + (value ?? 0),
+        0,
+      );
+    expect(total(result.customerRevenue)).toBe(130);
+    expect(total(categories["External Revenue"])).toBe(75);
+    expect(total(categories["Through Wipro"])).toBe(20);
+    expect(total(categories["Wipro Internal"])).toBe(30);
+    expect(total(result.charts[0])).toBe(130);
+  });
 
   it("preserves unknown markup and exposes excluded unknown-payment counts", async () => {
     query.mockResolvedValue([

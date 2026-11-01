@@ -90,4 +90,16 @@ GROUP BY GROUPING SETS (
   (DATE_TRUNC('month', activity_at), payment_type),
   (DATE_TRUNC('month', activity_at), customer_id, customer_label)
 )
+UNION ALL
+SELECT TO_CHAR(DATE_TRUNC('quarter', activity_at), 'YYYY-MM-01') AS month,
+       'quarter' AS kind, payment_type, NULL AS customer_id, NULL AS customer_label,
+       SUM(amount) AS amount, COUNT(DISTINCT member_id) AS members
+FROM selected_events
+GROUP BY DATE_TRUNC('quarter', activity_at), payment_type
+UNION ALL
+SELECT NULL AS month, 'annual' AS kind, payment_type,
+       NULL AS customer_id, NULL AS customer_label,
+       SUM(amount) AS amount, COUNT(DISTINCT member_id) AS members
+FROM selected_events
+GROUP BY payment_type
 ORDER BY month, kind, payment_type, customer_id, customer_label;
