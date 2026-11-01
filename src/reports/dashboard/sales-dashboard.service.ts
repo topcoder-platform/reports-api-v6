@@ -23,6 +23,7 @@ import {
   resolveDashboardDateRange,
 } from "./dashboard-reports.service";
 import {
+  SALES_ACCOUNT_CATEGORIES,
   SalesDashboardChartDto,
   SalesDashboardDto,
   SalesDashboardQueryDto,
@@ -40,7 +41,7 @@ import {
 import { monthlyChart, pipelineCharts } from "./sales-dashboard.pipeline";
 
 type PaymentRow = {
-  month: string;
+  month: string | null;
   kind: string;
   payment_type: string;
   customer_id: string | null;
@@ -494,18 +495,46 @@ export class SalesDashboardService implements OnModuleDestroy {
             Infinity,
           )
         : undefined;
+    const accountCategoryIndex = categoryColumn(report, /^account category$/i);
+    const customerRevenueByAccountCategory =
+      customerIndex >= 0 && accountCategoryIndex >= 0
+        ? Object.fromEntries(
+            SALES_ACCOUNT_CATEGORIES.map((category) => [
+              category,
+              revenueBreakdown(
+                range,
+                entries.filter(
+                  (entry) =>
+                    categoryLabel(entry.row, accountCategoryIndex)
+                      .replace(/\s*-\s*ignore$/i, "")
+                      .toLowerCase() === category.toLowerCase(),
+                ),
+                (entry) =>
+                  categoryLabel(entry.row, customerIndex) || "Unknown customer",
+                {
+                  id: "revenue-customer-all",
+                  title: "Revenue Customer-Wise",
+                  description: `Customer revenue for ${category}.`,
+                },
+                Infinity,
+              ),
+            ]),
+          )
+        : undefined;
     if (!customerRevenue)
       notices.push(
         `Revenue Customer-Wise is unavailable: the report has no ${columns.customer ?? "customer name"} column.`,
       );
-    [...charts, ...(customerRevenue ? [customerRevenue] : [])].forEach(
-      (chart) =>
-        chart.months.forEach((month) =>
-          Object.keys(month.values).forEach((key) => {
-            month.values[key] =
-              Math.round((month.values[key] ?? 0) * 100) / 100;
-          }),
-        ),
+    [
+      ...charts,
+      ...(customerRevenue ? [customerRevenue] : []),
+      ...Object.values(customerRevenueByAccountCategory ?? {}),
+    ].forEach((chart) =>
+      chart.months.forEach((month) =>
+        Object.keys(month.values).forEach((key) => {
+          month.values[key] = Math.round((month.values[key] ?? 0) * 100) / 100;
+        }),
+      ),
     );
     if (skipped)
       notices.push(
@@ -518,9 +547,52 @@ export class SalesDashboardService implements OnModuleDestroy {
     return {
       charts,
       customerRevenue,
+      customerRevenueByAccountCategory,
       notices,
       filterOptions: filtered.options,
     };
+  }
+
+  /** Adds zero-filled quarterly and whole-period distinct counts computed from scoped payment events. */
+  private paymentCountPeriods(
+    chart: SalesDashboardChartDto,
+    rows: PaymentRow[],
+  ): void {
+    const quarterStarts = [
+      ...new Set(
+        chart.months.map((month) => {
+          const date = new Date(`${month.month}T00:00:00Z`);
+          return new Date(
+            Date.UTC(
+              date.getUTCFullYear(),
+              Math.floor(date.getUTCMonth() / 3) * 3,
+              1,
+            ),
+          )
+            .toISOString()
+            .slice(0, 10);
+        }),
+      ),
+    ];
+    const emptyValues = () =>
+      Object.fromEntries(chart.series.map((series) => [series.key, 0]));
+    chart.quarters = quarterStarts.map((month) => ({
+      month,
+      values: emptyValues(),
+    }));
+    chart.annual = emptyValues();
+    rows.forEach((row) => {
+      if (!chart.series.some((series) => series.key === row.payment_type))
+        return;
+      if (row.kind === "annual")
+        chart.annual![row.payment_type] = Number(row.members);
+      if (row.kind === "quarter") {
+        const quarter = chart.quarters!.find(
+          (entry) => entry.month === row.month,
+        );
+        if (quarter) quarter.values[row.payment_type] = Number(row.members);
+      }
+    });
   }
 
   /**
@@ -556,7 +628,23 @@ export class SalesDashboardService implements OnModuleDestroy {
           const month = chart.months.find((entry) => entry.month === row.month);
           if (month) month.values.taas = Number(row.amount);
         });
-      return { charts: [chart], notices: [] };
+      const count = monthlyChart(range, {
+        id: "taas-members-paid",
+        title: "TaaS members paid",
+        description:
+          "Unique TaaS members with payments created in each period, excluding cancelled payments.",
+        unit: "count",
+        stacked: false,
+        series: chart.series,
+      });
+      rows
+        .filter((row) => row.kind === "type" && row.payment_type === "taas")
+        .forEach((row) => {
+          const month = count.months.find((entry) => entry.month === row.month);
+          if (month) month.values.taas = Number(row.members);
+        });
+      this.paymentCountPeriods(count, rows);
+      return { charts: [chart, count], notices: [] };
     }
     const types = [
       { key: "task", label: "Task" },
@@ -582,6 +670,7 @@ export class SalesDashboardService implements OnModuleDestroy {
         series: types,
       }),
     ];
+    this.paymentCountPeriods(charts[1], rows);
     const totals = new Map<
       string,
       { key: string; label: string; total: number }
@@ -650,7 +739,7 @@ export class SalesDashboardService implements OnModuleDestroy {
               index === 0 ? row.amount : row.members,
             );
         });
-      } else {
+      } else if (row.kind === "customer") {
         const key = JSON.stringify([row.customer_id, row.customer_label]);
         const fullMonth = customerPayments.months.find(
           (m) => m.month === row.month,

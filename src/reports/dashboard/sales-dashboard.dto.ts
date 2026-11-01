@@ -94,6 +94,13 @@ export class SalesDashboardQueryDto extends DashboardQueryDto {
   customerType?: string[];
 }
 
+export const SALES_ACCOUNT_CATEGORIES = [
+  "External Revenue",
+  "Through Wipro",
+  "Wipro Internal",
+] as const;
+export type SalesAccountCategory = (typeof SALES_ACCOUNT_CATEGORIES)[number];
+
 /** One zero-filled monthly chart, with nullable values for unknown percentages. */
 export class SalesDashboardChartDto {
   @ApiProperty() id: string;
@@ -108,6 +115,11 @@ export class SalesDashboardChartDto {
     key: string;
     label: string;
   }>;
+  /** Distinct members within each quarter; never sums of monthly counts. */
+  @ApiPropertyOptional({ type: [Object] })
+  quarters?: SalesDashboardChartDto["months"];
+  /** Distinct members across the entire requested period, by series. */
+  @ApiPropertyOptional({ type: Object }) annual?: Record<string, number | null>;
   @ApiProperty({ type: [Object] }) months: Array<{
     month: string;
     values: Record<string, number | null>;
@@ -132,4 +144,9 @@ export class SalesDashboardDto {
   /** All customer names from the revenue report, without top-category/Other grouping. */
   @ApiPropertyOptional({ type: SalesDashboardChartDto })
   customerRevenue?: SalesDashboardChartDto;
+  /** Full customer matrices filtered by Account Category, independent of chart breakdown. */
+  @ApiPropertyOptional({ type: Object })
+  customerRevenueByAccountCategory?: Partial<
+    Record<SalesAccountCategory, SalesDashboardChartDto>
+  >;
 }
