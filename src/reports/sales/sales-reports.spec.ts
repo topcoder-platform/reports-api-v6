@@ -105,6 +105,26 @@ describe("SalesReportsService", () => {
     ]);
   });
 
+  it("isolates and coalesces forecast snapshots and supports a separate report override", async () => {
+    await Promise.all([
+      service.getDashboardSnapshot("revenue-forecast", window),
+      service.getDashboardSnapshot("revenue-forecast", window),
+      service.getDashboardSnapshot("revenue", window),
+      service.getDashboardSnapshot("pipeline", window),
+    ]);
+    expect(runReport.mock.calls).toEqual([
+      ["00OUN000008sJ4H2AU", run(window)],
+      ["00O1K000009GxBtUAK", run(window)],
+      ["00O1K00000A7UGDUA3", run(window)],
+    ]);
+    const configured = new SalesReportsService(
+      { runReport } as unknown as SalesforceReportsClient,
+      new ConfigService({ SALESFORCE_REVENUE_FORECAST_REPORT_ID: "custom" }),
+    );
+    await configured.getDashboardSnapshot("revenue-forecast", window);
+    expect(runReport).toHaveBeenLastCalledWith("custom", run(window));
+  });
+
   it("adds filter detail fields only at execution time and coalesces enriched snapshots", async () => {
     const fixture = reportFixture();
     const describeReport = jest.fn().mockResolvedValue(fixture);

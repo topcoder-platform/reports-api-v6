@@ -19,6 +19,10 @@ export const DASHBOARD_GROUPS = {
   dealCategory: { label: "Deal Category", pattern: CATEGORY_LABELS.deal },
   customerType: { label: "Customer Type", pattern: CATEGORY_LABELS.customer },
   stage: { label: "Stage", pattern: /^stage$/i },
+  fyClosure: {
+    label: "FY Closure",
+    pattern: /^(?:opportunity\/project )?close date$/i,
+  },
 };
 
 /**
