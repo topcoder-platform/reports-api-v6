@@ -15,6 +15,7 @@ export enum SalesDashboardSection {
   Pipeline = "pipeline",
   TaasPayments = "taas-payments",
   Revenue = "revenue",
+  RevenueForecast = "revenue-forecast",
   Payments = "payments",
   Talent = "talent",
   GrossMargin = "gross-margin",
@@ -26,6 +27,7 @@ export enum SalesDashboardGroupBy {
   DealCategory = "dealCategory",
   CustomerType = "customerType",
   Stage = "stage",
+  FyClosure = "fyClosure",
 }
 
 /** Monthly dashboard controls, shared by both portals; Sales payment scope is applied in SQL. */
@@ -33,7 +35,7 @@ export class SalesDashboardQueryDto extends DashboardQueryDto {
   @ApiPropertyOptional({
     enum: SalesDashboardGroupBy,
     description:
-      "Break down all amounts by this dimension; stage is available for pipeline only.",
+      "Break down all amounts by this dimension; stage is available for pipeline only and fyClosure for revenue/forecast only.",
   })
   @IsOptional()
   @IsEnum(SalesDashboardGroupBy)
