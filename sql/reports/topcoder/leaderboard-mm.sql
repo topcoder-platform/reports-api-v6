@@ -59,7 +59,7 @@ submission_metrics AS (
       rs."isFinal" IS TRUE AS is_strict_final
     FROM reviews."reviewSummation" AS rs
     WHERE rs."submissionId" = s.id
-      AND COALESCE(rs."isFinal", TRUE) = TRUE
+      AND COALESCE(rs."isFinal", FALSE) = TRUE
       AND rs."isProvisional" IS DISTINCT FROM TRUE
     ORDER BY COALESCE(rs."reviewedDate", rs."createdAt") DESC NULLS LAST, rs.id DESC
     LIMIT 1
