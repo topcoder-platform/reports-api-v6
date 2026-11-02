@@ -540,3 +540,43 @@ Tests: `pnpm test --runInBand sales-dashboard`. To include PostgreSQL aggregatio
 creates and removes its own test schemas. Tests exercise duplicate payments, members recurring
 across months and quarters, both portals, independent account/deal categories, negative revenue
 adjustments, and preservation of unfiltered customer/chart totals.
+
+### Revenue Forecast and FY Closure (PM-6700, PM-6697)
+
+`GET /sales-dashboard/revenue-forecast` uses Salesforce report
+`00OUN000008sJ4H2AU` (Revenue-Forecast-FY'27), with its own cached snapshots and the
+existing dashboard authorization. It retains the report's non-date filters,
+including its TaaS exclusion. The execution-only date override uses the requested
+reporting window instead of the saved report's October-only window; the saved
+Salesforce report is never modified.
+
+Both `revenue` and `revenue-forecast` accept
+`groupBy=offeringType|dealCategory|customerType|fyClosure`. FY Closure uses the
+opportunity/project close date to produce separate fiscal-year series (April to
+March, labelled by ending year: FY26 means April 2025 through March 2026).
+Recognition/forecast dates still determine the months and reporting window;
+closure years can be older. Unknown close dates retain their amounts in Unknown.
+The breakdown preserves totals, including credits, and does not group small
+fiscal years into Other. Missing or incompatible close-date columns produce an
+explicit unavailable notice. Other sections reject `fyClosure`.
+
+Verified default mappings:
+
+| Setting | Default |
+| --- | --- |
+| `SALESFORCE_REVENUE_CLOSE_DATE_COLUMN` | `PSA_Revenue_Recognition__c.Opportunity_Project_Close_Date__c` |
+| `SALESFORCE_REVENUE_FORECAST_REPORT_ID` | `00OUN000008sJ4H2AU` |
+| `SALESFORCE_REVENUE_FORECAST_DATE_COLUMN` | `Forecast_Line_Item__c.Date__c` |
+| `SALESFORCE_REVENUE_FORECAST_AMOUNT_COLUMN` | `Forecast_Line_Item__c.Amount__c` |
+| `SALESFORCE_REVENUE_FORECAST_CLOSE_DATE_COLUMN` | `FK_OPP_CLOSE_DATE` |
+| `SALESFORCE_REVENUE_FORECAST_CUSTOMER_TYPE_COLUMN` | `FK_Opportunity.New_or_Follow_On__c` |
+
+Forecast offering/deal categories resolve the report's relationship-prefixed
+labels. Optional `SALESFORCE_REVENUE_FORECAST_OFFERING_COLUMN` and
+`SALESFORCE_REVENUE_FORECAST_CATEGORY_COLUMN` override them. Forecast has a direct
+customer-type field and does not need the recognised-revenue Opportunity lookup.
+Custom forecast reports must configure date and amount explicitly; configure the
+close-date/customer-type fields when their labels cannot be resolved. Default
+field IDs apply only to the default report. Forecast does not replace the
+recognised-revenue customer matrices. Existing incomplete-source and currency
+notices apply. Deploy this API before the companion UI; no migration is required.

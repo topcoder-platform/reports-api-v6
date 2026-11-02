@@ -14,6 +14,8 @@ import { SalesRowDto } from "../sales/sales-reports.dto";
 import {
   DashboardDateFilter,
   DEFAULT_REVENUE_COLUMNS,
+  DEFAULT_REVENUE_FORECAST_COLUMNS,
+  DEFAULT_REVENUE_FORECAST_REPORT_ID,
   DEFAULT_REVENUE_REPORT_ID,
   REVENUE_CUSTOMER_TYPE_COLUMN,
   SalesReportsService,
@@ -80,6 +82,15 @@ function salesforceDateFilter(
     ),
     endDate: day(Math.max(...ranges.map((r) => Date.parse(r.endDate)))),
   };
+}
+
+/** Maps a raw close date to the April–March fiscal ending year, retaining unknown dates. */
+function closureFiscalYear(value: unknown): string {
+  if (typeof value !== "string" && typeof value !== "number") return "Unknown";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "Unknown";
+  const year = date.getUTCFullYear() + (date.getUTCMonth() >= 3 ? 1 : 0);
+  return `FY${String(year).slice(-2)}`;
 }
 
 /**
@@ -161,9 +172,15 @@ export class SalesDashboardService implements OnModuleDestroy {
         SalesDashboardSection.Bookings,
         SalesDashboardSection.Pipeline,
         SalesDashboardSection.Revenue,
+        SalesDashboardSection.RevenueForecast,
       ].includes(section) ||
         (query.groupBy === SalesDashboardGroupBy.Stage &&
-          section !== SalesDashboardSection.Pipeline))
+          section !== SalesDashboardSection.Pipeline) ||
+        (query.groupBy === SalesDashboardGroupBy.FyClosure &&
+          ![
+            SalesDashboardSection.Revenue,
+            SalesDashboardSection.RevenueForecast,
+          ].includes(section)))
     )
       throw new BadRequestException(
         "This breakdown is not available for this dashboard.",
@@ -218,7 +235,8 @@ export class SalesDashboardService implements OnModuleDestroy {
         };
       }
       case SalesDashboardSection.Revenue:
-        return this.revenue(range, query);
+      case SalesDashboardSection.RevenueForecast:
+        return this.revenue(range, query, section);
       case SalesDashboardSection.Payments:
         return this.payments(range, query.portal === "sales");
       case SalesDashboardSection.TaasPayments:
@@ -236,7 +254,7 @@ export class SalesDashboardService implements OnModuleDestroy {
    * @returns Date/amount IDs and optional category overrides; categories otherwise resolve from business labels.
    * @throws Does not throw.
    */
-  private revenueColumns():
+  private revenueColumns(forecast: boolean):
     | {
         date: string;
         amount: string;
@@ -244,17 +262,28 @@ export class SalesDashboardService implements OnModuleDestroy {
         category?: string;
         customer?: string;
         customerType?: string;
+        closeDate?: string;
         opportunities: string[];
       }
     | undefined {
-    const reportId = this.config.get<string>(
-      "SALESFORCE_REVENUE_REPORT_ID",
-      DEFAULT_REVENUE_REPORT_ID,
-    );
-    const defaults: Partial<typeof DEFAULT_REVENUE_COLUMNS> =
-      reportId === DEFAULT_REVENUE_REPORT_ID ? DEFAULT_REVENUE_COLUMNS : {};
+    const defaultId = forecast
+      ? DEFAULT_REVENUE_FORECAST_REPORT_ID
+      : DEFAULT_REVENUE_REPORT_ID;
+    const prefix = forecast
+      ? "SALESFORCE_REVENUE_FORECAST_"
+      : "SALESFORCE_REVENUE_";
+    const reportId = this.config.get<string>(`${prefix}REPORT_ID`, defaultId);
+    const defaults: Partial<
+      typeof DEFAULT_REVENUE_COLUMNS & typeof DEFAULT_REVENUE_FORECAST_COLUMNS
+    > =
+      reportId === defaultId
+        ? forecast
+          ? DEFAULT_REVENUE_FORECAST_COLUMNS
+          : DEFAULT_REVENUE_COLUMNS
+        : {};
     const setting = (name: string, fallback?: string) =>
-      this.config.get<string>(name) || fallback;
+      this.config.get<string>(name.replace("SALESFORCE_REVENUE_", prefix)) ||
+      fallback;
     const date = setting("SALESFORCE_REVENUE_DATE_COLUMN", defaults.date);
     const amount = setting("SALESFORCE_REVENUE_AMOUNT_COLUMN", defaults.amount);
     if (!reportId || !date || !amount) return undefined;
@@ -264,7 +293,14 @@ export class SalesDashboardService implements OnModuleDestroy {
       offering: setting("SALESFORCE_REVENUE_OFFERING_COLUMN"),
       category: setting("SALESFORCE_REVENUE_CATEGORY_COLUMN"),
       customer: setting("SALESFORCE_REVENUE_CUSTOMER_COLUMN"),
-      customerType: setting("SALESFORCE_REVENUE_CUSTOMER_TYPE_COLUMN"),
+      customerType: setting(
+        "SALESFORCE_REVENUE_CUSTOMER_TYPE_COLUMN",
+        defaults.customerType,
+      ),
+      closeDate: setting(
+        "SALESFORCE_REVENUE_CLOSE_DATE_COLUMN",
+        defaults.closeDate,
+      ),
       opportunities: setting("SALESFORCE_REVENUE_OPPORTUNITY_COLUMN")
         ? [setting("SALESFORCE_REVENUE_OPPORTUNITY_COLUMN")!]
         : [defaults.opportunity, defaults.projectOpportunity].filter(
@@ -284,20 +320,33 @@ export class SalesDashboardService implements OnModuleDestroy {
   private async revenue(
     range: DashboardDateRange,
     query: SalesDashboardQueryDto,
+    source:
+      | SalesDashboardSection.Revenue
+      | SalesDashboardSection.RevenueForecast,
   ): Promise<SalesDashboardDto> {
-    const columns = this.revenueColumns();
+    const forecast = source === SalesDashboardSection.RevenueForecast;
+    const title = forecast ? "Revenue Forecast" : "Revenue";
+    const columns = this.revenueColumns(forecast);
     if (!columns) {
       return {
         charts: [],
         notices: [
-          "Revenue report pending: the Salesforce revenue source is not fully configured.",
+          `${title} report pending: the Salesforce revenue source is not fully configured.`,
         ],
       };
     }
     const report = await this.sales.getDashboardSnapshot(
-      "revenue",
+      source,
       salesforceDateFilter(columns.date, range),
-      columns.customerType ? [columns.customerType] : columns.opportunities,
+      [
+        ...(columns.customerType
+          ? [columns.customerType]
+          : columns.opportunities),
+        ...(query.groupBy === SalesDashboardGroupBy.FyClosure &&
+        columns.closeDate
+          ? [columns.closeDate]
+          : []),
+      ],
       !columns.customerType && columns.opportunities.length > 0,
     );
     const dateIndex = report.columns.findIndex(
@@ -341,6 +390,7 @@ export class SalesDashboardService implements OnModuleDestroy {
       });
     });
     const categoryColumns = {
+      fyClosure: columns.closeDate,
       offeringType: columns.offering,
       dealCategory: columns.category,
       customerType:
@@ -358,9 +408,9 @@ export class SalesDashboardService implements OnModuleDestroy {
     const matchingRows = new Set(filtered.report.rows);
     entries = entries.filter((entry) => matchingRows.has(entry.row));
     const total = monthlyChart(range, {
-      id: "revenue",
-      title: "Revenue report",
-      description: `Monthly revenue from ${report.reportName}.`,
+      id: source,
+      title: forecast ? title : "Revenue report",
+      description: `Monthly ${title.toLowerCase()} from ${report.reportName}.`,
       unit: "currency",
       stacked: false,
       series: [{ key: "revenue", label: "Revenue" }],
@@ -400,7 +450,11 @@ export class SalesDashboardService implements OnModuleDestroy {
         ? report.columns.findIndex((column) => column.id === override)
         : categoryColumn(report, definition.pattern);
       charts.splice(0);
-      if (index < 0)
+      if (
+        index < 0 ||
+        (query.groupBy === SalesDashboardGroupBy.FyClosure &&
+          !["date", "datetime"].includes(report.columns[index].dataType))
+      )
         notices.push(
           `The ${definition.label} breakdown is unavailable: the revenue report does not include this category column.`,
         );
@@ -410,6 +464,8 @@ export class SalesDashboardService implements OnModuleDestroy {
             range,
             entries,
             (entry) => {
+              if (query.groupBy === SalesDashboardGroupBy.FyClosure)
+                return closureFiscalYear(entry.row.cells[index]?.value);
               if (query.groupBy === SalesDashboardGroupBy.OfferingType)
                 return offeringLabel(entry.row, index, projectIndex);
               const label = categoryLabel(entry.row, index) || "Unknown";
@@ -418,9 +474,12 @@ export class SalesDashboardService implements OnModuleDestroy {
                 : label;
             },
             {
-              id: "revenue",
-              title: `Revenue by ${definition.label}`,
-              description: `Monthly revenue broken down by ${definition.label}.`,
+              id: source,
+              title: `${title} by ${definition.label}`,
+              description:
+                query.groupBy === SalesDashboardGroupBy.FyClosure
+                  ? `${title} by opportunity/project closure fiscal year (April–March, ending year). Unknown close dates remain included.`
+                  : `Monthly ${title.toLowerCase()} broken down by ${definition.label}.`,
             },
             Infinity,
           ),
@@ -469,17 +528,19 @@ export class SalesDashboardService implements OnModuleDestroy {
     });
     // PM-6672 identifies Reporting Account as the revenue customer grouping.
     // Keep other customer labels as fallbacks for alternative reports.
-    const customerIndex = columns.customer
-      ? report.columns.findIndex((column) => column.id === columns.customer)
-      : ([
-          /^reporting account$/i,
-          /^(?:subcontracting )?end customer$/i,
-          /^customer(?: name)?$/i,
-          /^account name$/i,
-          /^account$/i,
-        ]
-          .map((label) => categoryColumn(report, label))
-          .find((index) => index >= 0) ?? -1);
+    const customerIndex = forecast
+      ? -1
+      : columns.customer
+        ? report.columns.findIndex((column) => column.id === columns.customer)
+        : ([
+            /^reporting account$/i,
+            /^(?:subcontracting )?end customer$/i,
+            /^customer(?: name)?$/i,
+            /^account name$/i,
+            /^account$/i,
+          ]
+            .map((label) => categoryColumn(report, label))
+            .find((index) => index >= 0) ?? -1);
     const customerRevenue =
       customerIndex >= 0
         ? revenueBreakdown(
@@ -521,7 +582,7 @@ export class SalesDashboardService implements OnModuleDestroy {
             ]),
           )
         : undefined;
-    if (!customerRevenue)
+    if (!forecast && !customerRevenue)
       notices.push(
         `Revenue Customer-Wise is unavailable: the report has no ${columns.customer ?? "customer name"} column.`,
       );

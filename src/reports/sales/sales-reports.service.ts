@@ -28,12 +28,22 @@ const CACHE_MS = 60000;
 const REFRESH_COOLDOWN_MS = CACHE_MS;
 /** Revenue report confirmed in PM-6632; deployments may override it for another Salesforce org. */
 export const DEFAULT_REVENUE_REPORT_ID = "00O1K000009GxBtUAK";
+/** Forecast source and detail fields verified from PM-6700 report metadata. */
+export const DEFAULT_REVENUE_FORECAST_REPORT_ID = "00OUN000008sJ4H2AU";
+export const DEFAULT_REVENUE_FORECAST_COLUMNS = {
+  date: "Forecast_Line_Item__c.Date__c",
+  amount: "Forecast_Line_Item__c.Amount__c",
+  closeDate: "FK_OPP_CLOSE_DATE",
+  customerType: "FK_Opportunity.New_or_Follow_On__c",
+};
+export type SalesDashboardSource = "pipeline" | "revenue" | "revenue-forecast";
 /**
  * Column IDs of the confirmed revenue report ("Accounts Monthly revenue File"), read from its
  * describe metadata. They apply only while that report is used; an overridden report needs
  * explicit column settings.
  */
 export const DEFAULT_REVENUE_COLUMNS = {
+  closeDate: "PSA_Revenue_Recognition__c.Opportunity_Project_Close_Date__c",
   date: "PSA_Revenue_Recognition__c.Date__c",
   amount: "PSA_Revenue_Recognition__c.Amount__c",
   opportunity: "PSA_Revenue_Recognition__c.Opportunity__c",
@@ -473,7 +483,7 @@ export class SalesReportsService {
    */
   private async getSnapshot(
     refresh: boolean,
-    source: "pipeline" | "revenue" = "pipeline",
+    source: SalesDashboardSource = "pipeline",
     dateFilter?: DashboardDateFilter,
     requiredColumns: string[] = [],
     enrichCustomerTypes = false,
@@ -505,8 +515,14 @@ export class SalesReportsService {
     const reportId = this.config.get<string>(
       source === "pipeline"
         ? "SALESFORCE_SALES_REPORT_ID"
-        : "SALESFORCE_REVENUE_REPORT_ID",
-      source === "pipeline" ? "00O1K00000A7UGDUA3" : DEFAULT_REVENUE_REPORT_ID,
+        : source === "revenue-forecast"
+          ? "SALESFORCE_REVENUE_FORECAST_REPORT_ID"
+          : "SALESFORCE_REVENUE_REPORT_ID",
+      source === "pipeline"
+        ? "00O1K00000A7UGDUA3"
+        : source === "revenue-forecast"
+          ? DEFAULT_REVENUE_FORECAST_REPORT_ID
+          : DEFAULT_REVENUE_REPORT_ID,
     );
     if (!reportId)
       throw new ServiceUnavailableException(
@@ -611,7 +627,7 @@ export class SalesReportsService {
    * @throws Sanitized configuration or Salesforce errors, with the existing retry cooldown.
    */
   getDashboardSnapshot(
-    source: "pipeline" | "revenue",
+    source: SalesDashboardSource,
     dateFilter: DashboardDateFilter,
     requiredColumns: string[] = [],
     enrichCustomerTypes = false,
