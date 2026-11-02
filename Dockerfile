@@ -1,4 +1,4 @@
-ARG NODE_VERSION=26.5.1
+ARG NODE_VERSION=26.12.1
 ARG PNPM_VERSION=11.15.1
 
 # ---- Build Base Stage ----
@@ -15,15 +15,16 @@ RUN npm install --global pnpm@${PNPM_VERSION}
 FROM package-manager AS deps
 # Copy dependency-defining files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY tools ./tools
 # Install dependencies
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --frozen-lockfile
 
 # ---- Build Stage ----
-FROM package-manager AS build
-COPY --from=deps /usr/src/app/node_modules ./node_modules
+FROM deps AS build
 COPY . .
 # Build the application
-RUN pnpm build
+RUN pnpm run test:dependency-compat && pnpm lint && pnpm build
+RUN pnpm prune --prod
 
 # ---- Production Stage ----
 FROM alpine:3.24 AS production
@@ -45,8 +46,8 @@ RUN apk upgrade --no-cache \
 COPY --from=build --chown=app:app /usr/src/app/dist ./dist
 COPY --from=build --chown=app:app /usr/src/app/sql ./sql
 COPY --from=build --chown=app:app /usr/src/app/data ./data
-# Copy production dependencies from the deps stage
-COPY --from=deps --chown=app:app /usr/src/app/node_modules ./node_modules
+# Copy only production dependencies after pruning build and test tools.
+COPY --from=build --chown=app:app /usr/src/app/node_modules ./node_modules
 
 # Expose the application port
 EXPOSE 3000

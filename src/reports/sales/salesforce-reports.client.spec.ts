@@ -119,8 +119,8 @@ describe("SalesforceReportsClient", () => {
   it("bounds opportunity query batches and rejects incomplete responses", async () => {
     request
       .mockResolvedValueOnce(oauth())
-      .mockImplementation(async () =>
-        Response.json({ done: true, records: [] }),
+      .mockImplementation(() =>
+        Promise.resolve(Response.json({ done: true, records: [] })),
       );
     await client.getOpportunityCustomerTypes(
       Array.from(
