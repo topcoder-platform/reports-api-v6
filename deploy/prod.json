@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "environment": "prod",
+  "accountId": "409275337247",
+  "region": "us-east-1",
+  "deployRoleArn": "arn:aws:iam::409275337247:role/reports-api-v6-prod-deploy",
+  "taskRoleArn": null,
+  "executionRoleArn": "arn:aws:iam::409275337247:role/ecsTaskExecutionRole",
+  "cluster": "tc-reporting-serverless",
+  "service": "reports-api-v6",
+  "taskFamily": "reports-api-v6",
+  "circleciOrgId": "947bef5e-1669-415d-b83c-4fc85155b7df",
+  "circleciProjectId": "b590101b-f538-45fe-93f4-3e26b4979ea1",
+  "repository": "github.com/topcoder-platform/reports-api-v6",
+  "branch": "master",
+  "images": {
+    "reports-api-v6": "reports-api-v6"
+  }
+}
