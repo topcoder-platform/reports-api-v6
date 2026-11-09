@@ -96,8 +96,8 @@ importers:
         specifier: ^7.8.2
         version: 7.8.2
       tc-core-library-js:
-        specifier: github:topcoder-platform/tc-core-library-js#v4.0.0-rc.2
-        version: https://codeload.github.com/topcoder-platform/tc-core-library-js/tar.gz/58de37670180e183e8378c3d203df0112a0414f6(supports-color@8.1.1)
+        specifier: https://codeload.github.com/topcoder-platform/tc-core-library-js/tar.gz/c7c8fab502b7152dd06b1ce46cdb703e0e13b357
+        version: https://codeload.github.com/topcoder-platform/tc-core-library-js/tar.gz/c7c8fab502b7152dd06b1ce46cdb703e0e13b357(supports-color@8.1.1)
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3.2.0
@@ -3161,9 +3161,9 @@ packages:
     resolution: {integrity: sha512-Re10+NauLTMCudc7T5WLFLAwDhQ0JWdrMK+9B2M8zR5hRExKmsRDCBA7/aV/pNJFltmBFO5BAMlQFi/vq3nKOg==}
     engines: {node: '>=6'}
 
-  tc-core-library-js@https://codeload.github.com/topcoder-platform/tc-core-library-js/tar.gz/58de37670180e183e8378c3d203df0112a0414f6:
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/topcoder-platform/tc-core-library-js/tar.gz/58de37670180e183e8378c3d203df0112a0414f6}
-    version: 4.0.0-rc.2
+  tc-core-library-js@https://codeload.github.com/topcoder-platform/tc-core-library-js/tar.gz/c7c8fab502b7152dd06b1ce46cdb703e0e13b357:
+    resolution: {tarball: https://codeload.github.com/topcoder-platform/tc-core-library-js/tar.gz/c7c8fab502b7152dd06b1ce46cdb703e0e13b357}
+    version: 4.0.0-rc.4
     engines: {node: '>=22.13'}
 
   terser-webpack-plugin@5.3.14:
@@ -6928,7 +6928,7 @@ snapshots:
 
   tapable@2.2.2: {}
 
-  tc-core-library-js@https://codeload.github.com/topcoder-platform/tc-core-library-js/tar.gz/58de37670180e183e8378c3d203df0112a0414f6(supports-color@8.1.1):
+  tc-core-library-js@https://codeload.github.com/topcoder-platform/tc-core-library-js/tar.gz/c7c8fab502b7152dd06b1ce46cdb703e0e13b357(supports-color@8.1.1):
     dependencies:
       '@types/jsonwebtoken': 9.0.10
       jsonwebtoken: 9.0.3
