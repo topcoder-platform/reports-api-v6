@@ -535,6 +535,19 @@ and request parameters remain compatible; no database migration or new configura
   empty matrices. Missing source columns omit this optional map; the UI reports unavailable data.
   `customerRevenue` retains all categories, including unknowns, and revenue charts remain unchanged.
 
+- PM-6740 adds optional `customerRevenueByOfferingType`, keyed by `AI Training`,
+  `Crowd Powered Outcomes`, `Crowd Powered Innovation`, `Flexible Talent`, `TopGear`
+  and `TaaS Ops`. Each value contains `customerRevenue` and, when Account Category
+  is available, `customerRevenueByAccountCategory` with the same structure as the
+  top-level datasets. Offering matching ignores case and hyphen/space differences;
+  `TopGear` includes `TopGear Ops`. The existing blank-offering corrections are
+  applied before filtering: TopGear → TopGear Ops, Multiple App Enhancement(s) 5 →
+  Flexible Talent. Populated offerings remain authoritative. Rows are filtered
+  before customer aggregation, retaining credits, all customers and zero-filled
+  months. Missing offering/customer columns omit the map; valid selections without
+  rows return empty matrices. ALL uses the unchanged top-level datasets, retaining
+  unknown/other offerings. Chart breakdown selection does not change these scopes.
+
 Tests: `pnpm test --runInBand sales-dashboard`. To include PostgreSQL aggregation tests, point
 `SALES_DASHBOARD_TEST_DB_URL` at a disposable database named `sales_dashboard_test`; the suite
 creates and removes its own test schemas. Tests exercise duplicate payments, members recurring

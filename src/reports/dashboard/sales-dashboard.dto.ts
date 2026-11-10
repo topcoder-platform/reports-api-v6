@@ -103,6 +103,18 @@ export const SALES_ACCOUNT_CATEGORIES = [
 ] as const;
 export type SalesAccountCategory = (typeof SALES_ACCOUNT_CATEGORIES)[number];
 
+/** Customer revenue filters; TopGear includes Salesforce's TopGear Ops offering. */
+export const SALES_REVENUE_OFFERING_TYPES = [
+  "AI Training",
+  "Crowd Powered Outcomes",
+  "Crowd Powered Innovation",
+  "Flexible Talent",
+  "TopGear",
+  "TaaS Ops",
+] as const;
+export type SalesRevenueOfferingType =
+  (typeof SALES_REVENUE_OFFERING_TYPES)[number];
+
 /** One zero-filled monthly chart, with nullable values for unknown percentages. */
 export class SalesDashboardChartDto {
   @ApiProperty() id: string;
@@ -128,8 +140,20 @@ export class SalesDashboardChartDto {
   }>;
 }
 
+/** Complete customer revenue matrices for one offering scope (or all offerings). */
+export class SalesCustomerRevenueDto {
+  /** All customer names from the revenue report, without top-category/Other grouping. */
+  @ApiPropertyOptional({ type: SalesDashboardChartDto })
+  customerRevenue?: SalesDashboardChartDto;
+  /** Full customer matrices filtered by Account Category, independent of chart breakdown. */
+  @ApiPropertyOptional({ type: Object })
+  customerRevenueByAccountCategory?: Partial<
+    Record<SalesAccountCategory, SalesDashboardChartDto>
+  >;
+}
+
 /** Independently loaded section; notices expose missing source data without fabricating metrics. */
-export class SalesDashboardDto {
+export class SalesDashboardDto extends SalesCustomerRevenueDto {
   @ApiProperty({ type: [SalesDashboardChartDto] })
   charts: SalesDashboardChartDto[];
   /** Unfiltered source categories so selecting one value does not remove the other choices. */
@@ -143,12 +167,9 @@ export class SalesDashboardDto {
   /** Full customer series for the payments matrix, before top-five/Other grouping. */
   @ApiPropertyOptional({ type: SalesDashboardChartDto })
   customerPayments?: SalesDashboardChartDto;
-  /** All customer names from the revenue report, without top-category/Other grouping. */
-  @ApiPropertyOptional({ type: SalesDashboardChartDto })
-  customerRevenue?: SalesDashboardChartDto;
-  /** Full customer matrices filtered by Account Category, independent of chart breakdown. */
+  /** Offering-scoped customer matrices, including intersections with Account Category. */
   @ApiPropertyOptional({ type: Object })
-  customerRevenueByAccountCategory?: Partial<
-    Record<SalesAccountCategory, SalesDashboardChartDto>
+  customerRevenueByOfferingType?: Partial<
+    Record<SalesRevenueOfferingType, SalesCustomerRevenueDto>
   >;
 }
