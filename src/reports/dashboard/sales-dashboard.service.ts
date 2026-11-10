@@ -9,7 +9,10 @@ import { ConfigService } from "@nestjs/config";
 import { Pool } from "pg";
 import { SqlLoaderService } from "../../common/sql-loader.service";
 import { DbService } from "../../db/db.service";
-import { customerTypeLabel } from "../sales/sales-category.utils";
+import {
+  categoryValue,
+  customerTypeLabel,
+} from "../sales/sales-category.utils";
 import { SalesRowDto } from "../sales/sales-reports.dto";
 import {
   DashboardDateFilter,
@@ -26,6 +29,8 @@ import {
 } from "./dashboard-reports.service";
 import {
   SALES_ACCOUNT_CATEGORIES,
+  SALES_REVENUE_OFFERING_TYPES,
+  SalesCustomerRevenueDto,
   SalesDashboardChartDto,
   SalesDashboardDto,
   SalesDashboardQueryDto,
@@ -541,43 +546,70 @@ export class SalesDashboardService implements OnModuleDestroy {
           ]
             .map((label) => categoryColumn(report, label))
             .find((index) => index >= 0) ?? -1);
-    const customerRevenue =
-      customerIndex >= 0
-        ? revenueBreakdown(
-            range,
-            entries,
-            (entry) =>
-              categoryLabel(entry.row, customerIndex) || "Unknown customer",
-            {
-              id: "revenue-customer-all",
-              title: "Revenue Customer-Wise",
-              description: `All customers by ${report.columns[customerIndex].label}, with monthly revenue and annual totals.`,
-            },
-            Infinity,
-          )
-        : undefined;
     const accountCategoryIndex = categoryColumn(report, /^account category$/i);
-    const customerRevenueByAccountCategory =
-      customerIndex >= 0 && accountCategoryIndex >= 0
+    // Build each matrix from matching detail rows, so customers with multiple
+    // offerings contribute only the selected offering's recognized revenue.
+    const customerMatrices = (
+      scopedEntries: RevenueEntry[],
+    ): SalesCustomerRevenueDto => {
+      if (customerIndex < 0) return {};
+      const matrix = (rows: RevenueEntry[], description: string) =>
+        revenueBreakdown(
+          range,
+          rows,
+          (entry) =>
+            categoryLabel(entry.row, customerIndex) || "Unknown customer",
+          {
+            id: "revenue-customer-all",
+            title: "Revenue Customer-Wise",
+            description,
+          },
+          Infinity,
+        );
+      return {
+        customerRevenue: matrix(
+          scopedEntries,
+          `All customers by ${report.columns[customerIndex].label}, with monthly revenue and annual totals.`,
+        ),
+        customerRevenueByAccountCategory:
+          accountCategoryIndex >= 0
+            ? Object.fromEntries(
+                SALES_ACCOUNT_CATEGORIES.map((category) => [
+                  category,
+                  matrix(
+                    scopedEntries.filter(
+                      (entry) =>
+                        categoryLabel(entry.row, accountCategoryIndex)
+                          .replace(/\s*-\s*ignore$/i, "")
+                          .toLowerCase() === category.toLowerCase(),
+                    ),
+                    `Customer revenue for ${category}.`,
+                  ),
+                ]),
+              )
+            : undefined,
+      };
+    };
+    const { customerRevenue, customerRevenueByAccountCategory } =
+      customerMatrices(entries);
+    const offeringIndex = columns.offering
+      ? report.columns.findIndex((column) => column.id === columns.offering)
+      : categoryColumn(report, CATEGORY_LABELS.offering);
+    const customerRevenueByOfferingType =
+      customerIndex >= 0 && offeringIndex >= 0
         ? Object.fromEntries(
-            SALES_ACCOUNT_CATEGORIES.map((category) => [
-              category,
-              revenueBreakdown(
-                range,
-                entries.filter(
-                  (entry) =>
-                    categoryLabel(entry.row, accountCategoryIndex)
-                      .replace(/\s*-\s*ignore$/i, "")
-                      .toLowerCase() === category.toLowerCase(),
-                ),
-                (entry) =>
-                  categoryLabel(entry.row, customerIndex) || "Unknown customer",
-                {
-                  id: "revenue-customer-all",
-                  title: "Revenue Customer-Wise",
-                  description: `Customer revenue for ${category}.`,
-                },
-                Infinity,
+            SALES_REVENUE_OFFERING_TYPES.map((offering) => [
+              offering,
+              customerMatrices(
+                entries.filter((entry) => {
+                  const label = categoryValue(
+                    offeringLabel(entry.row, offeringIndex, projectIndex),
+                  );
+                  return (
+                    (label === "topgear ops" ? "topgear" : label) ===
+                    categoryValue(offering)
+                  );
+                }),
               ),
             ]),
           )
@@ -590,6 +622,10 @@ export class SalesDashboardService implements OnModuleDestroy {
       ...charts,
       ...(customerRevenue ? [customerRevenue] : []),
       ...Object.values(customerRevenueByAccountCategory ?? {}),
+      ...Object.values(customerRevenueByOfferingType ?? {}).flatMap((scope) => [
+        ...(scope.customerRevenue ? [scope.customerRevenue] : []),
+        ...Object.values(scope.customerRevenueByAccountCategory ?? {}),
+      ]),
     ].forEach((chart) =>
       chart.months.forEach((month) =>
         Object.keys(month.values).forEach((key) => {
@@ -609,6 +645,7 @@ export class SalesDashboardService implements OnModuleDestroy {
       charts,
       customerRevenue,
       customerRevenueByAccountCategory,
+      customerRevenueByOfferingType,
       notices,
       filterOptions: filtered.options,
     };
