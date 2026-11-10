@@ -9,6 +9,7 @@ import { DbService } from "../../db/db.service";
 import { SalesReportDto } from "../sales/sales-reports.dto";
 import { SalesReportsService } from "../sales/sales-reports.service";
 import {
+  SalesDashboardGroupBy,
   SalesDashboardQueryDto,
   SalesDashboardSection,
 } from "./sales-dashboard.dto";
@@ -1105,6 +1106,242 @@ describe("Monthly sales dashboards", () => {
     expect(total(categories["Through Wipro"])).toBe(20);
     expect(total(categories["Wipro Internal"])).toBe(30);
     expect(total(result.charts[0])).toBe(130);
+  });
+
+  it("filters customer revenue by offering and account category before aggregation, including blank-offering corrections", async () => {
+    const report = {
+      allData: true,
+      reportName: "Revenue",
+      columns: [
+        {
+          id: "PSA_Revenue_Recognition__c.Date__c",
+          label: "Date",
+          dataType: "date",
+        },
+        {
+          id: "PSA_Revenue_Recognition__c.Amount__c",
+          label: "Gross Amount",
+          dataType: "currency",
+        },
+        {
+          id: "offering",
+          label: "Project Stream: Engagement Offering Type",
+          dataType: "string",
+        },
+        {
+          id: "accountCategory",
+          label: "Account Category",
+          dataType: "string",
+        },
+        { id: "customer", label: "Reporting Account", dataType: "string" },
+        {
+          id: "project",
+          label: "Project Stream: Opportunity/Project Name",
+          dataType: "string",
+        },
+      ],
+      rows: [
+        [
+          "2026-09-01",
+          100.125,
+          "AI Training",
+          "External Revenue",
+          "Shared",
+          "Project",
+        ],
+        [
+          "2026-09-01",
+          -25,
+          "AI Training",
+          "External Revenue",
+          "Shared",
+          "Project",
+        ],
+        ["2026-10-01", 10, "AI Training", "Through Wipro", "Shared", "Project"],
+        [
+          "2026-09-01",
+          20,
+          " ai training ",
+          "External Revenue",
+          "Second",
+          "Project",
+        ],
+        [
+          "2026-09-01",
+          30,
+          "AI Training",
+          "Wipro Internal - Ignore",
+          "Third",
+          "TopGear",
+        ],
+        [
+          "2026-09-01",
+          200,
+          "Flexible Talent",
+          "External Revenue",
+          "Shared",
+          "Project",
+        ],
+        [
+          "2026-09-01",
+          40,
+          null,
+          "Wipro Internal - Ignore",
+          "TopGear customer",
+          "TopGear",
+        ],
+        [
+          "2026-09-01",
+          5,
+          "TopGear Ops",
+          "Wipro Internal",
+          "TopGear customer",
+          "Project",
+        ],
+        [
+          "2026-09-01",
+          6,
+          "TopGear",
+          "Wipro Internal",
+          "TopGear customer",
+          "Project",
+        ],
+        [
+          "2026-09-01",
+          50,
+          "",
+          "External Revenue",
+          "Talent customer",
+          "Multiple App Enhancement 5",
+        ],
+        [
+          "2026-09-01",
+          60,
+          "-",
+          "Through Wipro",
+          "Talent customer",
+          "Multiple App Enhancements 5",
+        ],
+        [
+          "2026-09-01",
+          70,
+          "Crowd-Powered Outcomes",
+          "External Revenue",
+          "Outcomes customer",
+          "Project",
+        ],
+        [
+          "2026-09-01",
+          80,
+          "Crowd Powered Innovation",
+          "External Revenue",
+          "Innovation customer",
+          "Project",
+        ],
+        [
+          "2026-09-01",
+          90,
+          "TaaS Ops",
+          "External Revenue",
+          "TaaS customer",
+          "Project",
+        ],
+        ["2026-09-01", 1, "", "", "Unknown offering", "Other project"],
+        [
+          "2026-11-01",
+          999,
+          "AI Training",
+          "External Revenue",
+          "Out of range",
+          "Project",
+        ],
+      ].map((cells) => ({
+        cells: cells.map((value) => ({
+          value,
+          label: value == null ? "" : String(value),
+        })),
+      })),
+    };
+    getDashboardSnapshot.mockResolvedValue(report);
+    const result = await service().load(SalesDashboardSection.Revenue, range);
+    const scopes = result.customerRevenueByOfferingType!;
+    const totals = (chart: typeof result.customerRevenue) =>
+      chart!.months.map((month) =>
+        Object.values(month.values).reduce<number>(
+          (sum, value) => sum + (value ?? 0),
+          0,
+        ),
+      );
+    const ai = scopes["AI Training"]!;
+    expect(
+      ai.customerRevenue!.series.map((series) => series.label).sort(),
+    ).toEqual(["Second", "Shared", "Third"]);
+    expect(totals(ai.customerRevenue)).toEqual([0, 125.13, 10]);
+    expect(
+      totals(ai.customerRevenueByAccountCategory!["External Revenue"]),
+    ).toEqual([0, 95.13, 0]);
+    expect(
+      totals(ai.customerRevenueByAccountCategory!["Through Wipro"]),
+    ).toEqual([0, 0, 10]);
+    expect(
+      totals(ai.customerRevenueByAccountCategory!["Wipro Internal"]),
+    ).toEqual([0, 30, 0]);
+    expect(totals(scopes.TopGear!.customerRevenue)).toEqual([0, 51, 0]);
+    expect(totals(scopes["Flexible Talent"]!.customerRevenue)).toEqual([
+      0, 310, 0,
+    ]);
+    expect(totals(scopes["Crowd Powered Outcomes"]!.customerRevenue)).toEqual([
+      0, 70, 0,
+    ]);
+    expect(totals(scopes["Crowd Powered Innovation"]!.customerRevenue)).toEqual(
+      [0, 80, 0],
+    );
+    expect(totals(scopes["TaaS Ops"]!.customerRevenue)).toEqual([0, 90, 0]);
+    expect(
+      scopes["TaaS Ops"]!.customerRevenueByAccountCategory!["Through Wipro"]!
+        .series,
+    ).toEqual([]);
+    expect(totals(result.customerRevenue)).toEqual([0, 727.13, 10]);
+    expect(totals(result.charts[0])).toEqual(totals(result.customerRevenue));
+
+    // Independent chart breakdowns and configured field IDs keep the same matrices.
+    const byDeal = await service().load(SalesDashboardSection.Revenue, {
+      ...range,
+      groupBy: SalesDashboardGroupBy.DealCategory,
+    });
+    expect(byDeal.customerRevenueByOfferingType).toEqual(scopes);
+    report.columns[2].label = "Custom offering field";
+    const configured = await service({
+      SALESFORCE_REVENUE_OFFERING_COLUMN: "offering",
+    }).load(SalesDashboardSection.Revenue, range);
+    expect(configured.customerRevenueByOfferingType).toEqual(scopes);
+
+    // A missing column is unavailable, while a supported offering with no rows is empty.
+    const unavailable = await service().load(
+      SalesDashboardSection.Revenue,
+      range,
+    );
+    expect(unavailable.customerRevenueByOfferingType).toBeUndefined();
+    report.columns[2].label = "Engagement Offering Type";
+    report.rows = [];
+    const empty = await service().load(SalesDashboardSection.Revenue, range);
+    expect(
+      empty.customerRevenueByOfferingType!["AI Training"]!.customerRevenue!
+        .series,
+    ).toEqual([]);
+    report.columns[3].label = "Missing account category";
+    const missingAccount = await service().load(
+      SalesDashboardSection.Revenue,
+      range,
+    );
+    expect(
+      missingAccount.customerRevenueByOfferingType!["AI Training"]!
+        .customerRevenue,
+    ).toBeDefined();
+    expect(
+      missingAccount.customerRevenueByOfferingType!["AI Training"]!
+        .customerRevenueByAccountCategory,
+    ).toBeUndefined();
   });
 
   it("preserves unknown markup and exposes excluded unknown-payment counts", async () => {
