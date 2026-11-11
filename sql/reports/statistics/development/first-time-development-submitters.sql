@@ -1,6 +1,9 @@
 WITH development_submissions_ranked AS (
   SELECT
-    s."memberId"::bigint AS member_id,
+    CASE WHEN s."memberId" ~ '^[0-9]{1,19}$' THEN
+      CASE WHEN s."memberId"::numeric <= 9223372036854775807
+        THEN s."memberId"::bigint END
+    END AS member_id,
     s."challengeId"      AS challenge_id,
     s."submittedDate"    AS submitted_date,
     ROW_NUMBER() OVER (
