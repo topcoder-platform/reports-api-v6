@@ -1,4 +1,4 @@
-ARG NODE_VERSION=26.12.1
+ARG NODE_VERSION=26.13.1
 ARG PNPM_VERSION=11.15.1
 
 # ---- Build Base Stage ----
@@ -38,7 +38,7 @@ WORKDIR /usr/src/app
 # Alpine replaces old package revisions; constrain Node to the builder's major
 # version while allowing supported minor/patch releases and packaging revisions.
 RUN apk upgrade --no-cache \
-    && apk add --no-cache ca-certificates "nodejs-current~${NODE_VERSION%%.*}" \
+    && apk add --no-cache 'zlib>=1.4-r0' ca-certificates "nodejs-current~${NODE_VERSION%%.*}" "nodejs-current>=${NODE_VERSION}-r0" \
     && addgroup -S -g 10001 app \
     && adduser -S -D -u 10001 -G app -h /home/app app
 
