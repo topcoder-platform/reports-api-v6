@@ -224,4 +224,48 @@ describe("ChallengesReportsService", () => {
     expect(result[0]).not.toHaveProperty("finalScore");
     expect(result[0]).not.toHaveProperty("finalRank");
   });
+
+  it("passes AI-assisted submission filters to the report query in order", async () => {
+    const rows = [
+      {
+        challengeId: "challenge-id",
+        challengeName: "Marathon Match 165",
+        challengeTrack: "Data Science",
+        challengeType: "Marathon Match",
+        challengeStatus: "ACTIVE",
+        submissionId: "submission-id",
+        submissionType: "CONTEST_SUBMISSION",
+        memberId: "123",
+        submitterHandle: "member",
+        aiAssisted: true,
+        submittedDate: "2026-11-12T10:00:00.000Z",
+      },
+    ];
+    db.query.mockResolvedValue(rows);
+
+    const result = await service.getAiAssistedSubmissions({
+      challengeId: "challenge-id",
+      challengeStatus: ["ACTIVE"] as any,
+      submittedDateFrom: "2026-11-01T00:00:00.000Z",
+    });
+
+    expect(sql.load).toHaveBeenCalledWith(
+      "reports/challenges/ai-assisted-submissions.sql",
+    );
+    expect(db.query).toHaveBeenCalledWith("SELECT 1", [
+      "challenge-id",
+      ["ACTIVE"],
+      "2026-11-01T00:00:00.000Z",
+      null,
+    ]);
+    expect(result).toEqual(rows);
+  });
+
+  it("sends null for every omitted AI-assisted submission filter", async () => {
+    db.query.mockResolvedValue([]);
+
+    await service.getAiAssistedSubmissions({ challengeStatus: [] });
+
+    expect(db.query).toHaveBeenCalledWith("SELECT 1", [null, null, null, null]);
+  });
 });

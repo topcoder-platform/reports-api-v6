@@ -27,6 +27,10 @@ import {
   SubmissionLinksQueryDto,
 } from "./dtos/submission-links.dto";
 import { ChallengeUsersPathParamDto } from "./dtos/challenge-users.dto";
+import {
+  AiAssistedSubmissionDto,
+  AiAssistedSubmissionsQueryDto,
+} from "./dtos/ai-assisted-submissions.dto";
 
 @ApiTags("Challenges Reports")
 @ApiProduces("application/json", "text/csv")
@@ -84,6 +88,25 @@ export class ChallengesReportsController {
   async getSubmissionLinks(@Query() query: SubmissionLinksQueryDto) {
     const report = await this.reportsService.getSubmissionLinks(query);
     return report;
+  }
+
+  @Get("/ai-assisted-submissions")
+  @UseGuards(PermissionsGuard)
+  @Scopes(AppScopes.AllReports, AppScopes.Challenge.AiAssistedSubmissions)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Return submissions whose submitters answered the AI-usage question",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Export successful.",
+    type: ResponseDto<AiAssistedSubmissionDto[]>,
+  })
+  async getAiAssistedSubmissions(
+    @Query() query: AiAssistedSubmissionsQueryDto,
+  ) {
+    return this.reportsService.getAiAssistedSubmissions(query);
   }
 
   @Get("/:challengeId/registered-users")

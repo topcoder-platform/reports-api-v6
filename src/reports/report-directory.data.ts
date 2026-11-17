@@ -223,6 +223,28 @@ const challengeHistoryFilters = [
   ...challengeDateRangeParams,
 ];
 
+const aiAssistedSubmissionsFilters: ReportParameter[] = [
+  {
+    name: "challengeId",
+    type: "string",
+    description: "Only include submissions for this challenge ID",
+    location: "query",
+  },
+  challengeStatusParam,
+  {
+    name: "submittedDateFrom",
+    type: "date",
+    description: "Only include submissions made on or after this date",
+    location: "query",
+  },
+  {
+    name: "submittedDateTo",
+    type: "date",
+    description: "Only include submissions made on or before this date",
+    location: "query",
+  },
+];
+
 const submissionLinksFilters = [
   completionDateFromParam,
   completionDateToParam,
@@ -418,17 +440,31 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
   win: {
     label: "WIN",
     basePath: "/WIN",
-    reports: [report(
-      "WIN showcases",
-      "/WIN",
-      "Showcase posts explicitly shared with WIN and their current project metadata.",
-      [AppScopes.WIN],
-      [
-        { name: "projectId", type: "string", description: "Optional project ID." },
-        { name: "page", type: "number", description: "Page number, starting at 1." },
-        { name: "perPage", type: "number", description: "Page size, from 1 to 100." },
-      ],
-    )],
+    reports: [
+      report(
+        "WIN showcases",
+        "/WIN",
+        "Showcase posts explicitly shared with WIN and their current project metadata.",
+        [AppScopes.WIN],
+        [
+          {
+            name: "projectId",
+            type: "string",
+            description: "Optional project ID.",
+          },
+          {
+            name: "page",
+            type: "number",
+            description: "Page number, starting at 1.",
+          },
+          {
+            name: "perPage",
+            type: "number",
+            description: "Page size, from 1 to 100.",
+          },
+        ],
+      ),
+    ],
   },
   challenges: {
     label: "Challenges Reports",
@@ -482,6 +518,13 @@ const REGISTERED_REPORTS_DIRECTORY: RegisteredReportsDirectory = {
         "Return the challenge winners report with placement winners only. Marathon Match exports use the latest non-failed provisionalScore and include completed challenge finalScore/finalRank values.",
         AppScopes.Challenge.Winners,
         [challengeIdParam],
+      ),
+      challengeReport(
+        "AI Assisted Submissions",
+        "/challenges/ai-assisted-submissions",
+        "Return every submission whose submitter answered the submit-page AI-usage question (Yes/No), with challenge track, type, and status. Submissions made before the question existed are not included.",
+        AppScopes.Challenge.AiAssistedSubmissions,
+        aiAssistedSubmissionsFilters,
       ),
     ],
   },
