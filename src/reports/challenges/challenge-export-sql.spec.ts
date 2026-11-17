@@ -97,4 +97,14 @@ describe("Challenge export SQL", () => {
       "WHEN wm.is_marathon_match AND wm.is_completed THEN wm.placement",
     );
   });
+
+  it("only exports submissions with an AI-usage answer", () => {
+    const sql = sqlLoader.load(
+      "reports/challenges/ai-assisted-submissions.sql",
+    );
+
+    expect(sql).toContain(`WHERE s."aiAssisted" IS NOT NULL`);
+    expect(sql).toContain(`s."aiAssisted" AS "aiAssisted"`);
+    expect(sql).toContain("($1::text IS NULL OR c.id = $1::text)");
+  });
 });
