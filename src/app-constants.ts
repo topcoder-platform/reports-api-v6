@@ -35,6 +35,7 @@ export const Scopes = {
     Submitters: "reports:challenge-submitters",
     ValidSubmitters: "reports:challenge-valid-submitters",
     Winners: "reports:challenge-winners",
+    AiAssistedSubmissions: "reports:challenge-ai-assisted-submissions",
   },
   Identity: {
     UsersByRole: "reports:identity-users-by-role",
@@ -70,6 +71,7 @@ export const ScopeRoleAccess: Record<string, readonly string[]> = {
   [Scopes.Challenge.Submitters]: challengeReportAccessRoles,
   [Scopes.Challenge.ValidSubmitters]: challengeReportAccessRoles,
   [Scopes.Challenge.Winners]: challengeReportAccessRoles,
+  [Scopes.Challenge.AiAssistedSubmissions]: challengeReportAccessRoles,
   [Scopes.SFDC.PaymentsReport]: sfdcReportsTalentManagerRoles,
   [Scopes.SFDC.ChallengesReport]: sfdcReportsTalentManagerRoles,
   [Scopes.SFDC.BA]: sfdcReportsTalentManagerRoles,

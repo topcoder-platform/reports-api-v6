@@ -10,6 +10,10 @@ import { multiValueArrayFilter } from "src/common/filtering";
 import { ChallengesReportResponseDto } from "./dtos/challenge.dto";
 import { SubmissionLinksQueryDto } from "./dtos/submission-links.dto";
 import {
+  AiAssistedSubmissionDto,
+  AiAssistedSubmissionsQueryDto,
+} from "./dtos/ai-assisted-submissions.dto";
+import {
   ChallengeUserRecordDto,
   ChallengeUsersPathParamDto,
 } from "./dtos/challenge-users.dto";
@@ -42,6 +46,31 @@ export class ChallengesReportsService {
     } catch (e) {
       this.logger.error(e);
     }
+  }
+
+  /**
+   * Retrieves submissions whose submitters answered the submit-page AI-usage question.
+   * @param filters Optional challenge, challenge status, and submission date filters.
+   * @returns One row per answered submission, newest first.
+   * @throws Propagates database errors so the request fails instead of returning a partial export.
+   */
+  async getAiAssistedSubmissions(
+    filters: AiAssistedSubmissionsQueryDto,
+  ): Promise<AiAssistedSubmissionDto[]> {
+    this.logger.debug(
+      "Starting getAiAssistedSubmissions with filters:",
+      filters,
+    );
+    const query = this.sql.load(
+      "reports/challenges/ai-assisted-submissions.sql",
+    );
+
+    return this.db.query<AiAssistedSubmissionDto>(query, [
+      filters.challengeId ?? null,
+      filters.challengeStatus?.length ? filters.challengeStatus : null,
+      filters.submittedDateFrom ?? null,
+      filters.submittedDateTo ?? null,
+    ]);
   }
 
   async getChallengesReport(filters: ChallengeRegistrantsQueryDto) {
