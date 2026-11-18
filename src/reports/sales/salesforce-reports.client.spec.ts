@@ -142,6 +142,135 @@ describe("SalesforceReportsClient", () => {
     ).rejects.toBeInstanceOf(BadGatewayException);
   });
 
+  it("looks up offerings by validated billing IDs, normalizes labels, and caches missing links", async () => {
+    await expect(
+      client.getBillingAccountOfferings(["unknown", "1'", "0", "1 OR 1=1"]),
+    ).resolves.toEqual(new Map());
+    expect(request).not.toHaveBeenCalled();
+    request.mockResolvedValueOnce(oauth()).mockResolvedValueOnce(
+      Response.json({
+        done: true,
+        records: [
+          {
+            TopCoder_Billing_Account_Id__c: "1",
+            Opportunity__r: {
+              Engagement_Offering_Type__c: "Crowd-Powered Outcomes",
+            },
+          },
+          {
+            TopCoder_Billing_Account_Id__c: "2",
+            Opportunity__r: { Engagement_Offering_Type__c: "TopGear Ops" },
+          },
+          {
+            TopCoder_Billing_Account_Id__c: "3",
+            Opportunity__r: { Name: "TopGear" },
+          },
+          {
+            TopCoder_Billing_Account_Id__c: "4",
+            Opportunity__r: { Name: "Multiple App Enhancement 5" },
+          },
+          {
+            TopCoder_Billing_Account_Id__c: "5",
+            Opportunity__r: {
+              Name: "TopGear",
+              Engagement_Offering_Type__c: "AI Training",
+            },
+          },
+          { TopCoder_Billing_Account_Id__c: "6", Opportunity__r: null },
+          {
+            TopCoder_Billing_Account_Id__c: "99",
+            Opportunity__r: { Engagement_Offering_Type__c: "Do not include" },
+          },
+        ],
+      }),
+    );
+    const ids = ["1", "2", "3", "4", "5", "6", "7", "1"];
+    const expected = new Map([
+      ["1", "Crowd Powered Outcomes"],
+      ["2", "TopGear"],
+      ["3", "TopGear"],
+      ["4", "Flexible Talent"],
+      ["5", "AI Training"],
+    ]);
+    await expect(client.getBillingAccountOfferings(ids)).resolves.toEqual(
+      expected,
+    );
+    const q = new URL(request.mock.calls[1][0]).searchParams.get("q");
+    expect(q).toBe(
+      "SELECT TopCoder_Billing_Account_Id__c, Opportunity__r.Engagement_Offering_Type__c, " +
+        "Opportunity__r.Name FROM Topcoder_Billing_Account__c WHERE TopCoder_Billing_Account_Id__c IN ('1','2','3','4','5','6','7')",
+    );
+    await expect(client.getBillingAccountOfferings(ids)).resolves.toEqual(
+      expected,
+    );
+    expect(request).toHaveBeenCalledTimes(2);
+    const now = Date.now();
+    jest.spyOn(Date, "now").mockReturnValue(now + 61000);
+    request.mockResolvedValueOnce(Response.json({ done: true, records: [] }));
+    await expect(client.getBillingAccountOfferings(ids)).resolves.toEqual(
+      new Map(),
+    );
+    expect(request).toHaveBeenCalledTimes(3);
+  });
+
+  it("batches offering requests and rejects partial or conflicting source data", async () => {
+    request
+      .mockResolvedValueOnce(oauth())
+      .mockImplementation(() =>
+        Promise.resolve(Response.json({ done: true, records: [] })),
+      );
+    await client.getBillingAccountOfferings(
+      Array.from({ length: 201 }, (_, i) => String(i + 1)),
+    );
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(
+      new URL(request.mock.calls[1][0]).searchParams.get("q")?.match(/'\d+'/g),
+    ).toHaveLength(200);
+    request.mockResolvedValueOnce(Response.json({ done: false, records: [] }));
+    await expect(client.getBillingAccountOfferings(["300"])).rejects.toThrow(
+      "incomplete billing account offerings",
+    );
+    request.mockResolvedValueOnce(Response.json({ done: true, records: null }));
+    await expect(client.getBillingAccountOfferings(["300"])).rejects.toThrow(
+      "incomplete billing account offerings",
+    );
+    request.mockResolvedValueOnce(
+      Response.json({
+        done: true,
+        records: [
+          {
+            TopCoder_Billing_Account_Id__c: "300",
+            Opportunity__r: { Engagement_Offering_Type__c: "AI Training" },
+          },
+          {
+            TopCoder_Billing_Account_Id__c: "300",
+            Opportunity__r: { Engagement_Offering_Type__c: "Flexible Talent" },
+          },
+        ],
+      }),
+    );
+    await expect(client.getBillingAccountOfferings(["300"])).rejects.toThrow(
+      "conflicting billing account offerings",
+    );
+  });
+
+  it("rejects malformed offering values without exposing upstream payloads", async () => {
+    request.mockResolvedValueOnce(oauth()).mockResolvedValueOnce(
+      Response.json({
+        done: true,
+        records: [
+          {
+            TopCoder_Billing_Account_Id__c: "1",
+            Opportunity__r: { Engagement_Offering_Type__c: 42 },
+          },
+        ],
+      }),
+    );
+    await expect(client.getBillingAccountOfferings(["1"])).rejects.toThrow(
+      "Salesforce returned invalid billing account offerings.",
+    );
+  });
+
   it("renews expired sessions once", async () => {
     request
       .mockResolvedValueOnce(oauth())

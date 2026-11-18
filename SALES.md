@@ -593,3 +593,53 @@ close-date/customer-type fields when their labels cannot be resolved. Default
 field IDs apply only to the default report. Forecast does not replace the
 recognised-revenue customer matrices. Existing incomplete-source and currency
 notices apply. Deploy this API before the companion UI; no migration is required.
+
+## PM-6783: goods-sold date/offering filters and booking costs
+
+`GET /sales-dashboard/payments` now returns both `customerPayments` and
+`customerBookingCosts` with identical complete customer series and month buckets.
+Booking Cost is the existing member-payment amount (`gross_amount`, falling back
+to `total_amount`) plus `finance.payment.challenge_fee`, counted once for the
+latest payment version. Cancelled payments remain excluded. Zero fees and
+negative adjustments are preserved; a missing fee makes that customer/month's
+booking cost `null` and adds a notice that totals include known values only.
+No payment is inferred from a fee rate or from a customer's revenue.
+
+`startDate` is inclusive and `endDate` is exclusive, both in UTC and applied at
+payment-event precision before aggregation. Existing validation limits ranges
+to 732 days. The UI converts the inclusive To date to next-day midnight.
+
+Repeat `offeringType` for OR selections; omit it for ALL. Offerings resolve by the
+effective billing-account ID, using the existing payment-account precedence and
+challenge-account fallback, through Salesforce:
+
+- `Topcoder_Billing_Account__c.TopCoder_Billing_Account_Id__c`
+- `Opportunity__r.Engagement_Offering_Type__c` and `Opportunity__r.Name`
+
+These are exact ID lookups, without a close-date restriction or customer-name
+matching. The client validates numeric IDs, queries batches of 200, caches results
+for one minute, and rejects incomplete/conflicting results. Known offering labels
+are normalized like customer revenue (including TopGear Ops → TopGear and the
+existing two blank-offering corrections). Other recorded offerings remain
+available. Missing accounts, opportunity links and categories are **Unknown**;
+ALL includes them and Unknown can also be selected explicitly.
+
+The query first obtains eligible billing-account IDs alongside the unfiltered
+payment aggregates. After resolving the selected offerings, it reruns the
+parameterized SQL with the matching IDs, so filtering precedes type/customer
+sums, rankings and distinct member counts. `filterOptions.offeringType` retains
+the full choices for the date/portal scope, even when a selection matches no rows.
+An empty account selection matches nothing; it never becomes ALL. Both matrices
+retain the existing Sales/Reports portal scope and TaaS/TopGear-payment exclusions.
+The separate TaaS report does not perform offering lookups.
+
+If Salesforce fails, unfiltered member/booking totals remain available with an
+explicit offering-unavailable notice. A selected offering fails the request
+instead of returning unfiltered totals. Existing report OAuth configuration and
+Salesforce object/field read permissions must permit the lookup above.
+
+Deploy this API change before the PM-6783 platform-ui change. No database migration
+or new configuration variables are required. Validation covers real PostgreSQL
+aggregation, inclusive/exclusive/leap-day boundaries, latest/cancelled versions,
+multiple account selections, unknown links/fees, negative/zero fees, customer
+scope, Salesforce ID validation/batching/cache, and upstream failure handling.
