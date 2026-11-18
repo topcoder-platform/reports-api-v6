@@ -991,6 +991,7 @@ describe("Monthly sales dashboards", () => {
         new Date(range.endDate).toISOString(),
         false,
         true,
+        null,
       ]);
       expect(result.charts).toHaveLength(2);
       expect(result.charts[0].months.map((month) => month.values.taas)).toEqual(

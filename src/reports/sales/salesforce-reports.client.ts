@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { setTimeout as delay } from "node:timers/promises";
+import { categoryValue } from "./sales-category.utils";
 
 export interface SalesforceGrouping {
   key: string;
@@ -84,6 +85,10 @@ export class SalesforceReportsClient {
   private session?: SalesforceSession;
   private authenticating?: Promise<SalesforceSession>;
   private quotaRetryAt = 0;
+  private readonly billingOfferings = new Map<
+    string,
+    { expires: number; offering?: string }
+  >();
 
   /** @param config Server environment configuration. Creates a lazy client; does not authenticate or throw. */
   constructor(private readonly config: ConfigService) {}
@@ -385,6 +390,112 @@ export class SalesforceReportsClient {
       }
     }
     return types;
+  }
+
+  /**
+   * Resolves payment offerings through the billing account's linked Opportunity.
+   * Uses exact numeric Topcoder IDs, never customer names or opportunity close dates.
+   * Missing links remain unknown; malformed/incomplete or ambiguous responses fail explicitly.
+   * Results (including missing links) are cached for one minute and queried in batches of 200.
+   */
+  async getBillingAccountOfferings(
+    ids: string[],
+  ): Promise<Map<string, string>> {
+    const unique = [...new Set(ids.filter((id) => /^[1-9]\d{0,9}$/.test(id)))];
+    const now = Date.now();
+    for (const [id, entry] of this.billingOfferings) {
+      if (entry.expires <= now) this.billingOfferings.delete(id);
+    }
+    const missing = unique.filter((id) => !this.billingOfferings.has(id));
+    for (let start = 0; start < missing.length; start += 200) {
+      const batch = missing.slice(start, start + 200);
+      const query =
+        "SELECT TopCoder_Billing_Account_Id__c, Opportunity__r.Engagement_Offering_Type__c, " +
+        "Opportunity__r.Name FROM Topcoder_Billing_Account__c WHERE TopCoder_Billing_Account_Id__c IN (" +
+        batch.map((id) => `'${id}'`).join(",") +
+        ")";
+      const result = await this.dataRequest<{
+        done: boolean;
+        records: Array<{
+          TopCoder_Billing_Account_Id__c: string;
+          Opportunity__r?: {
+            Engagement_Offering_Type__c?: string | null;
+            Name?: string;
+          } | null;
+        }>;
+      }>(
+        `query?q=${encodeURIComponent(query)}`,
+        {},
+        "billing account offerings",
+      );
+      if (!result || result.done !== true || !Array.isArray(result.records)) {
+        throw new BadGatewayException(
+          "Salesforce returned incomplete billing account offerings.",
+        );
+      }
+      const offerings = new Map<string, string | undefined>();
+      for (const record of result.records) {
+        const id = record?.TopCoder_Billing_Account_Id__c;
+        if (!batch.includes(id)) continue;
+        const opportunity = record.Opportunity__r;
+        if (
+          opportunity != null &&
+          (typeof opportunity !== "object" ||
+            (opportunity.Engagement_Offering_Type__c != null &&
+              typeof opportunity.Engagement_Offering_Type__c !== "string") ||
+            (opportunity.Name != null && typeof opportunity.Name !== "string"))
+        ) {
+          throw new BadGatewayException(
+            "Salesforce returned invalid billing account offerings.",
+          );
+        }
+        let offering =
+          opportunity?.Engagement_Offering_Type__c?.trim() || undefined;
+        // Preserve the same two blank-offering corrections used by customer revenue.
+        if (!offering && /^topgear$/i.test(opportunity?.Name?.trim() ?? ""))
+          offering = "TopGear";
+        if (
+          !offering &&
+          /^multiple app enhancements? 5$/i.test(
+            opportunity?.Name?.trim() ?? "",
+          )
+        ) {
+          offering = "Flexible Talent";
+        }
+        const canonical = [
+          "AI Training",
+          "Crowd Powered Outcomes",
+          "Crowd Powered Innovation",
+          "Flexible Talent",
+          "TopGear",
+          "TaaS Ops",
+        ].find(
+          (value) => categoryValue(value) === categoryValue(offering ?? ""),
+        );
+        offering =
+          categoryValue(offering ?? "") === "topgear ops"
+            ? "TopGear"
+            : (canonical ?? offering);
+        if (offerings.has(id) && offerings.get(id) !== offering) {
+          throw new BadGatewayException(
+            "Salesforce returned conflicting billing account offerings.",
+          );
+        }
+        offerings.set(id, offering);
+      }
+      for (const id of batch) {
+        this.billingOfferings.set(id, {
+          expires: Date.now() + 60000,
+          offering: offerings.get(id),
+        });
+      }
+    }
+    return new Map(
+      unique.flatMap((id) => {
+        const offering = this.billingOfferings.get(id)?.offering;
+        return offering ? [[id, offering]] : [];
+      }),
+    );
   }
 
   /**

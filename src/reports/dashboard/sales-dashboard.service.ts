@@ -54,6 +54,8 @@ type PaymentRow = {
   customer_id: string | null;
   customer_label: string | null;
   amount: string;
+  booking_amount: string | null;
+  billing_account_id: string | null;
   members: string;
 };
 
@@ -243,7 +245,12 @@ export class SalesDashboardService implements OnModuleDestroy {
       case SalesDashboardSection.RevenueForecast:
         return this.revenue(range, query, section);
       case SalesDashboardSection.Payments:
-        return this.payments(range, query.portal === "sales");
+        return this.payments(
+          range,
+          query.portal === "sales",
+          false,
+          query.offeringType,
+        );
       case SalesDashboardSection.TaasPayments:
         return this.payments(range, false, true);
       case SalesDashboardSection.Talent:
@@ -698,6 +705,7 @@ export class SalesDashboardService implements OnModuleDestroy {
    * @param range Half-open UTC reporting range.
    * @param customerOnly Excludes internal Topcoder and payments without a linked customer in Sales.
    * @param taasOnly Selects only TaaS payments; otherwise TaaS is excluded from Topcoder payments.
+   * @param offeringTypes Exact offering selections (OR); empty includes all offerings, including unknowns.
    * @returns Payment values, distinct members per type, top-five customer chart and an ungrouped customer table.
    * @throws Propagates database errors.
    */
@@ -705,11 +713,41 @@ export class SalesDashboardService implements OnModuleDestroy {
     range: DashboardDateRange,
     customerOnly: boolean,
     taasOnly = false,
+    offeringTypes: string[] = [],
   ): Promise<SalesDashboardDto> {
-    const rows = await this.db.query<PaymentRow>(
-      this.sql.load("reports/dashboard/sales-payments.sql"),
-      [range.startDate, range.endDate, customerOnly, taasOnly],
-    );
+    const sql = this.sql.load("reports/dashboard/sales-payments.sql");
+    const params = [range.startDate, range.endDate, customerOnly, taasOnly];
+    let rows = await this.db.query<PaymentRow>(sql, [...params, null]);
+    const notices: string[] = [];
+    let offeringOptions: string[] = [];
+    if (!taasOnly) {
+      const accounts = rows
+        .filter((row) => row.kind === "billing-account")
+        .map((row) => row.billing_account_id!);
+      try {
+        const offerings = accounts.length
+          ? await this.sales.getBillingAccountOfferings(accounts)
+          : new Map<string, string>();
+        const label = (account: string) => offerings.get(account) ?? "Unknown";
+        offeringOptions = [...new Set(accounts.map(label))].sort();
+        if (offeringTypes.length) {
+          const selected = new Set(offeringTypes);
+          const billingAccounts = accounts.filter((account) =>
+            selected.has(label(account)),
+          );
+          rows = await this.db.query<PaymentRow>(sql, [
+            ...params,
+            billingAccounts,
+          ]);
+        }
+      } catch (error) {
+        // Never return unfiltered amounts when an offering selection cannot be resolved.
+        if (offeringTypes.length) throw error;
+        notices.push(
+          "Offering type details are unavailable. All payment offerings are included.",
+        );
+      }
+    }
     if (taasOnly) {
       const chart = monthlyChart(range, {
         id: "taas-payments",
@@ -828,6 +866,13 @@ export class SalesDashboardService implements OnModuleDestroy {
         .sort((a, b) => a[1].localeCompare(b[1]) || a[0].localeCompare(b[0]))
         .map(([key, label]) => ({ key, label })),
     });
+    const customerBookingCosts = monthlyChart(range, {
+      ...customerPayments,
+      id: "booking-customer-all",
+      title: "Monthly booking costs by customer",
+      description:
+        "Member payments plus challenge fees for the same customers and payment events.",
+    });
     rows.forEach((row) => {
       if (row.kind === "type") {
         charts.forEach((chart, index) => {
@@ -845,6 +890,15 @@ export class SalesDashboardService implements OnModuleDestroy {
         if (fullMonth)
           fullMonth.values[key] =
             (fullMonth.values[key] ?? 0) + Number(row.amount);
+        const bookingMonth = customerBookingCosts.months.find(
+          (m) => m.month === row.month,
+        );
+        if (bookingMonth) {
+          bookingMonth.values[key] =
+            row.booking_amount == null || bookingMonth.values[key] === null
+              ? null
+              : (bookingMonth.values[key] ?? 0) + Number(row.booking_amount);
+        }
         const selected = top.some((c) => c.key === key) ? key : "other";
         const month = customerChart.months.find((m) => m.month === row.month);
         if (month)
@@ -855,7 +909,22 @@ export class SalesDashboardService implements OnModuleDestroy {
     return {
       charts: [...charts, customerChart],
       customerPayments,
-      notices: [],
+      customerBookingCosts,
+      filterOptions: {
+        offeringType: offeringOptions,
+        dealCategory: [],
+        customerType: [],
+      },
+      notices: [
+        ...notices,
+        ...(rows.some(
+          (row) => row.kind === "customer" && row.booking_amount === null,
+        )
+          ? [
+              "Some challenge fees are unavailable. Affected customer/month booking costs are unknown; totals include known values only.",
+            ]
+          : []),
+      ],
     };
   }
 
