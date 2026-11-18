@@ -167,6 +167,9 @@ export class SalesDashboardDto extends SalesCustomerRevenueDto {
   /** Full customer series for the payments matrix, before top-five/Other grouping. */
   @ApiPropertyOptional({ type: SalesDashboardChartDto })
   customerPayments?: SalesDashboardChartDto;
+  /** Same payment/customer scope, with challenge fees included once per payment. */
+  @ApiPropertyOptional({ type: SalesDashboardChartDto })
+  customerBookingCosts?: SalesDashboardChartDto;
   /** Offering-scoped customer matrices, including intersections with Account Category. */
   @ApiPropertyOptional({ type: Object })
   customerRevenueByOfferingType?: Partial<

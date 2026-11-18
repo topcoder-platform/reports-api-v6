@@ -567,6 +567,13 @@ export class SalesReportsService {
     }
   }
 
+  /** Resolves current offerings by exact billing-account ID, independently of report date filters. */
+  async getBillingAccountOfferings(
+    ids: string[],
+  ): Promise<Map<string, string>> {
+    return this.client.getBillingAccountOfferings(ids);
+  }
+
   /**
    * Adds Pipeline's customer category by raw Opportunity ID, never by a project/customer display name.
    * @param report Normalized revenue snapshot. @param lookupColumns Ordered lookup IDs, direct opportunity first.
@@ -605,7 +612,7 @@ export class SalesReportsService {
       ],
       rows: report.rows.map((row, index) => {
         const type = ids[index]
-          ? types.get(ids[index]!.slice(0, 15))
+          ? types.get(ids[index].slice(0, 15))
           : undefined;
         return {
           ...row,

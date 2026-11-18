@@ -23,7 +23,7 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
       CREATE SCHEMA projects;
       CREATE TABLE projects.projects (id int, "billingAccountId" int);
       CREATE TABLE engagements."Engagement" (id text, "projectId" text);
-      CREATE TABLE finance.payment (winnings_id text, version int, created_at timestamp, gross_amount numeric, total_amount numeric, billing_account text, payment_status text, challenge_markup numeric);
+      CREATE TABLE finance.payment (winnings_id text, version int, created_at timestamp, gross_amount numeric, total_amount numeric, billing_account text, payment_status text, challenge_markup numeric, challenge_fee numeric DEFAULT 0);
       CREATE TABLE finance.winnings (winning_id text, winner_id text, category text, type text, external_id text);
       CREATE TABLE challenges."Challenge" (id text);
       CREATE TABLE challenges."ChallengeBilling" ("challengeId" text, "billingAccountId" text);
@@ -82,11 +82,11 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
   it("filters customer work before type totals, distinct-member counts and customer ranking", async () => {
     const sales = await pool.query(
       sql.load("reports/dashboard/sales-payments.sql"),
-      [...bounds, true, false],
+      [...bounds, true, false, null],
     );
     const reports = await pool.query(
       sql.load("reports/dashboard/sales-payments.sql"),
-      [...bounds, false, false],
+      [...bounds, false, false, null],
     );
     const august = sales.rows.filter((r) => r.month === "2026-08-01");
     expect(
@@ -211,7 +211,7 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
     `);
     const { rows } = await pool.query(
       sql.load("reports/dashboard/sales-payments.sql"),
-      [...bounds, true, false],
+      [...bounds, true, false, null],
     );
     const labels = rows
       .filter((row) => row.kind === "customer")
@@ -235,7 +235,7 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
     `);
     const { rows } = await pool.query(
       sql.load("reports/dashboard/sales-payments.sql"),
-      [...bounds, false, true],
+      [...bounds, false, true, null],
     );
     expect(rows.filter((row) => row.kind === "type")).toEqual([
       expect.objectContaining({
@@ -247,7 +247,7 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
     ]);
     const regular = await pool.query(
       sql.load("reports/dashboard/sales-payments.sql"),
-      [...bounds, false, false],
+      [...bounds, false, false, null],
     );
     expect(
       regular.rows.some(
@@ -271,7 +271,7 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
     try {
       const result = await pool.query(
         sql.load("reports/dashboard/sales-payments.sql"),
-        ["2027-04-01T00:00:00Z", "2028-04-01T00:00:00Z", false, true],
+        ["2027-04-01T00:00:00Z", "2028-04-01T00:00:00Z", false, true, null],
       );
       expect(result.rows.filter((row) => row.kind === "quarter")).toEqual([
         expect.objectContaining({
@@ -301,6 +301,92 @@ integration("Monthly sales SQL (PostgreSQL)", () => {
       await pool.query(
         "DELETE FROM finance.winnings WHERE winning_id LIKE 'quarter-%'",
       );
+    }
+  });
+
+  it("filters billing accounts before all aggregates and adds fees once within exact UTC bounds", async () => {
+    const db = await pool.connect();
+    await db.query("BEGIN");
+    try {
+      await db.query(`
+        INSERT INTO "billing-accounts"."BillingAccount" VALUES
+          (90, 'customer', 'Goods customer'), (91, 'customer', 'Goods customer'),
+          (92, 'customer', 'Unknown fee');
+        INSERT INTO finance.winnings VALUES
+          ('goods-a', 'm1', 'CHALLENGE_PAYMENT', 'PAYMENT', 'challenge'),
+          ('goods-b', 'm1', 'CHALLENGE_PAYMENT', 'PAYMENT', NULL),
+          ('goods-c', 'm1', 'ENGAGEMENT_PAYMENT', 'PAYMENT', NULL),
+          ('goods-d', 'm2', 'TASK_PAYMENT', 'PAYMENT', NULL),
+          ('goods-unlinked', 'm3', 'CHALLENGE_PAYMENT', 'PAYMENT', NULL),
+          ('goods-cancelled', 'm4', 'CHALLENGE_PAYMENT', 'PAYMENT', NULL),
+          ('goods-before', 'm5', 'CHALLENGE_PAYMENT', 'PAYMENT', NULL),
+          ('goods-after', 'm6', 'CHALLENGE_PAYMENT', 'PAYMENT', NULL);
+        INSERT INTO finance.payment
+          (winnings_id, version, created_at, gross_amount, total_amount, billing_account, payment_status, challenge_fee)
+        VALUES
+          ('goods-a', 1, '2028-02-15', 999, 999, '90', 'PAID', 999),
+          ('goods-a', 2, '2028-02-15', 100, 90, '00090', 'PAID', 25),
+          ('goods-b', 1, '2028-02-29 23:59:59.999', -20, -20, '90', 'PAID', -5),
+          ('goods-c', 1, '2028-02-20', 50, 50, '91', 'PAID', 0),
+          ('goods-d', 1, '2028-02-20', 40, 40, '92', 'OWED', NULL),
+          ('goods-unlinked', 1, '2028-02-20', 30, 30, NULL, 'PAID', 3),
+          ('goods-cancelled', 1, '2028-02-20', 999, 999, '90', 'PAID', 999),
+          ('goods-cancelled', 2, '2028-02-20', 999, 999, '90', 'CANCELLED', 999),
+          ('goods-before', 1, '2028-02-14 23:59:59.999', 999, 999, '90', 'PAID', 999),
+          ('goods-after', 1, '2028-03-01', 999, 999, '90', 'PAID', 999);
+      `);
+      const query = (ids: string[] | null, sales = false) =>
+        db.query(sql.load("reports/dashboard/sales-payments.sql"), [
+          "2028-02-15T00:00:00Z",
+          "2028-03-01T00:00:00Z",
+          sales,
+          false,
+          ids,
+        ]);
+      const selected = (await query(["90", "91"])).rows;
+      expect(selected.find((row) => row.kind === "customer")).toMatchObject({
+        month: "2028-02-01",
+        amount: "130",
+        booking_amount: "150",
+        members: "1",
+      });
+      expect(
+        selected.find(
+          (row) => row.kind === "type" && row.payment_type === "challenge",
+        ),
+      ).toMatchObject({ amount: "80", booking_amount: "100", members: "1" });
+      expect(
+        selected
+          .filter((row) => row.kind === "billing-account")
+          .map((row) => row.billing_account_id)
+          .sort(),
+      ).toEqual(["90", "91", "92", "unknown"]);
+      expect(
+        (await query([])).rows.every((row) => row.kind === "billing-account"),
+      ).toBe(true);
+      expect(
+        (await query(["92"])).rows.find((row) => row.kind === "customer"),
+      ).toMatchObject({ amount: "40", booking_amount: null });
+      expect(
+        (await query(["unknown"])).rows.find((row) => row.kind === "customer"),
+      ).toMatchObject({ amount: "30", booking_amount: "33" });
+      const sales = (await query(null, true)).rows;
+      expect(sales.some((row) => row.billing_account_id === "unknown")).toBe(
+        false,
+      );
+      expect(
+        sales
+          .filter((row) => row.kind === "customer")
+          .reduce((sum, row) => sum + Number(row.amount), 0),
+      ).toBe(170);
+      expect(
+        selected
+          .filter((row) => row.kind === "annual" || row.kind === "quarter")
+          .every((row) => row.members === "1"),
+      ).toBe(true);
+    } finally {
+      await db.query("ROLLBACK");
+      db.release();
     }
   });
 });

@@ -1,5 +1,7 @@
 -- $1/$2 inclusive/exclusive UTC bounds; $3 restricts to customer work for Sales.
 -- $4 selects TaaS only; false selects non-TaaS Topcoder payments.
+-- $5 optionally selects effective billing-account IDs resolved from Salesforce offerings.
+-- NULL means ALL; an empty array matches none; unknown includes unlinked accounts.
 -- Exclude TaaS, internal Topcoder and unlinked payments BEFORE any sums or rankings.
 -- Uses the established dashboard payment version, category and customer-label rules.
 WITH bounds AS (
@@ -27,6 +29,8 @@ payment_events AS MATERIALIZED (
     END AS payment_type,
     NULLIF(BTRIM(cl.name), '') AS client_name,
     COALESCE(p.gross_amount, p.total_amount, 0) AS amount,
+    p.challenge_fee,
+    COALESCE(payment_ba.id::text, challenge_ba.id::text, 'unknown') AS billing_account_id,
     NULLIF(TRIM(cl.id), '') AS customer_id,
     NULLIF(TRIM(CASE
       WHEN w.category::text = 'TAAS_PAYMENT'
@@ -66,7 +70,7 @@ payment_events AS MATERIALIZED (
     AND NULLIF(TRIM(w.winner_id), '') IS NOT NULL
     AND w.category::text IS DISTINCT FROM 'TOPGEAR_PAYMENT'
 ),
-selected_events AS (
+scoped_events AS (
   SELECT pe.*
   FROM payment_events pe
   CROSS JOIN bounds b
@@ -80,11 +84,17 @@ selected_events AS (
       AND LOWER(pe.client_name) <> 'topcoder'
       AND LOWER(COALESCE(pe.customer_label, '')) NOT IN ('topcoder', 'taas')
     ))
+),
+selected_events AS (
+  SELECT * FROM scoped_events
+  WHERE $5::text[] IS NULL OR billing_account_id = ANY($5::text[])
 )
 SELECT TO_CHAR(DATE_TRUNC('month', activity_at), 'YYYY-MM-01') AS month,
        CASE WHEN GROUPING(payment_type) = 0 THEN 'type' ELSE 'customer' END AS kind,
        payment_type, customer_id, customer_label,
-       SUM(amount) AS amount, COUNT(DISTINCT member_id) AS members
+       SUM(amount) AS amount, COUNT(DISTINCT member_id) AS members,
+       CASE WHEN COUNT(challenge_fee) = COUNT(*) THEN SUM(amount + challenge_fee) END AS booking_amount,
+       NULL::text AS billing_account_id
 FROM selected_events
 GROUP BY GROUPING SETS (
   (DATE_TRUNC('month', activity_at), payment_type),
@@ -93,13 +103,24 @@ GROUP BY GROUPING SETS (
 UNION ALL
 SELECT TO_CHAR(DATE_TRUNC('quarter', activity_at), 'YYYY-MM-01') AS month,
        'quarter' AS kind, payment_type, NULL AS customer_id, NULL AS customer_label,
-       SUM(amount) AS amount, COUNT(DISTINCT member_id) AS members
+       SUM(amount) AS amount, COUNT(DISTINCT member_id) AS members,
+       CASE WHEN COUNT(challenge_fee) = COUNT(*) THEN SUM(amount + challenge_fee) END AS booking_amount,
+       NULL::text AS billing_account_id
 FROM selected_events
 GROUP BY DATE_TRUNC('quarter', activity_at), payment_type
 UNION ALL
 SELECT NULL AS month, 'annual' AS kind, payment_type,
        NULL AS customer_id, NULL AS customer_label,
-       SUM(amount) AS amount, COUNT(DISTINCT member_id) AS members
+       SUM(amount) AS amount, COUNT(DISTINCT member_id) AS members,
+       CASE WHEN COUNT(challenge_fee) = COUNT(*) THEN SUM(amount + challenge_fee) END AS booking_amount,
+       NULL::text AS billing_account_id
 FROM selected_events
 GROUP BY payment_type
+UNION ALL
+-- Retain every in-range account before offering filtering so filter choices stay stable.
+SELECT NULL AS month, 'billing-account' AS kind, NULL AS payment_type,
+       NULL AS customer_id, NULL AS customer_label, NULL AS amount, NULL AS members,
+       NULL AS booking_amount, billing_account_id
+FROM scoped_events
+GROUP BY billing_account_id
 ORDER BY month, kind, payment_type, customer_id, customer_label;
