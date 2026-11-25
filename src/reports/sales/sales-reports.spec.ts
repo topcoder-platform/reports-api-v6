@@ -339,8 +339,8 @@ describe("SalesReportsService", () => {
       ["PROBABILITY", "Probability (%)", "percent"],
     ];
     for (const [id, label, dataType] of extra) {
-      fixture.reportMetadata!.detailColumns!.push(id);
-      fixture.reportExtendedMetadata!.detailColumnInfo![id] = {
+      fixture.reportMetadata.detailColumns.push(id);
+      fixture.reportExtendedMetadata.detailColumnInfo[id] = {
         label,
         dataType,
       };
@@ -389,6 +389,11 @@ describe("SalesReportsService", () => {
       "AMOUNT",
     ]);
     expect(result.summary.amounts[0].total).toBe(1020);
+    expect(
+      result.summary.probabilityBreakdown?.buckets.map(
+        (bucket) => bucket.count,
+      ),
+    ).toEqual([0, 0, 0, 2, 0]);
     const stages = result.summary.groups.find(
       (group) => group.columnId === "STAGE",
     )!;
@@ -476,12 +481,85 @@ describe("SalesReportsService", () => {
     }
   });
 
+  it("summarizes all five probability bands before drilldown and pagination", async () => {
+    const fixture = reportFixture();
+    fixture.reportMetadata.detailColumns = [
+      "PROBABILITY",
+      "AMOUNT",
+      "EXPECTED",
+    ];
+    Object.assign(fixture.reportExtendedMetadata.detailColumnInfo, {
+      PROBABILITY: { label: "Probability (%)", dataType: "percent" },
+      EXPECTED: { label: "Expected Revenue", dataType: "currency" },
+    });
+    const values = [
+      0,
+      19.99,
+      20,
+      49.99,
+      50,
+      69.99,
+      70,
+      99.99,
+      100,
+      null,
+      -1,
+      101,
+    ];
+    fixture.factMap = {
+      "T!T": {
+        rows: values.map((value) => ({
+          dataCells: [
+            { label: `${value}%`, value },
+            { value: { amount: 100, currencyCode: "USD" } },
+            { value },
+          ],
+        })),
+      },
+    };
+    runReport.mockResolvedValue(fixture);
+    const query = Object.assign(new SalesReportQueryDto(), { perPage: 1 });
+    const report = await service.getReport(query);
+    const group = report.summary.probabilityBreakdown!;
+    expect(group.buckets.map(({ label, count }) => [label, count])).toEqual([
+      ["Shaping (<20%)", 2],
+      ["Long Upside (20–49%)", 2],
+      ["Upside (50–69%)", 2],
+      ["Commit (70–99%)", 2],
+      ["Won (100%)", 1],
+    ]);
+    expect(group.buckets[3].amounts).toMatchObject([
+      { columnId: "AMOUNT", total: 200, currencyCode: "USD" },
+      { columnId: "EXPECTED", total: 169.99 },
+    ]);
+    const drilled = await service.getReport({
+      ...query,
+      page: 3,
+      drilldownColumn: group.columnId,
+      drilldownValue: [group.buckets[0].label, group.buckets[4].label],
+    });
+    expect(drilled.total).toBe(3);
+    expect(drilled.rows[0].cells[0].value).toBe(100);
+    expect(drilled.summary).toEqual(report.summary);
+    expect(report.summary.recordCount).toBe(values.length);
+    const filtered = await service.getReport({
+      ...query,
+      amountColumn: "PROBABILITY",
+      amountMin: 99,
+    });
+    expect(
+      filtered.summary.probabilityBreakdown!.buckets.map(
+        (bucket) => bucket.count,
+      ),
+    ).toEqual([0, 0, 0, 1, 1]);
+  });
+
   it.each(["percent", "int", "double"])(
     "compares probability in percent units with exclusive bounds (%s)",
     async (dataType) => {
       const fixture = reportFixture();
-      fixture.reportMetadata!.detailColumns!.push("PROBABILITY");
-      fixture.reportExtendedMetadata!.detailColumnInfo!.PROBABILITY = {
+      fixture.reportMetadata.detailColumns.push("PROBABILITY");
+      fixture.reportExtendedMetadata.detailColumnInfo.PROBABILITY = {
         label: "Probability (%)",
         dataType,
       };
@@ -506,6 +584,10 @@ describe("SalesReportsService", () => {
       expect(result.total).toBe(1);
       expect(result.rows[0].cells[0].label).toBe("Beta");
       expect(result.summary.recordCount).toBe(1);
+      expect(result.summary.probabilityBreakdown?.buckets[3]).toMatchObject({
+        label: "Commit (70–99%)",
+        count: 1,
+      });
     },
   );
 
