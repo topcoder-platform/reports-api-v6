@@ -102,7 +102,7 @@ export class SalesReportQueryDto {
 
   @ApiPropertyOptional({
     description:
-      "Column ID the returned page drills into; requires drilldownValue.",
+      "Column or summary.probabilityBreakdown.columnId to drill into. Requires drilldownValue.",
   })
   @IsOptional()
   @IsString()
@@ -359,6 +359,12 @@ export class SalesSummaryDto {
   amounts: SalesSummaryAmountDto[];
   @ApiProperty({ type: [SalesSummaryGroupDto] })
   groups: SalesSummaryGroupDto[];
+  @ApiPropertyOptional({
+    description:
+      "Five ordered bands for reports with a numeric opportunity probability.",
+    type: SalesSummaryGroupDto,
+  })
+  probabilityBreakdown?: SalesSummaryGroupDto;
 }
 
 /** Read-only report snapshot with explicit completeness and filtered pagination metadata. */

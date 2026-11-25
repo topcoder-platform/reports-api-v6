@@ -75,6 +75,30 @@ const CATEGORY_TYPES = ["picklist", "multipicklist", "combobox", "boolean"];
 /** Keeps a breakdown readable and the response bounded for very wide reports. */
 const MAX_SUMMARY_GROUPS = 3;
 const MAX_SUMMARY_BUCKETS = 25;
+const PROBABILITY_GROUP_ID = "__probability_band";
+const PROBABILITY_BANDS = [
+  { label: "Shaping (<20%)", below: 20 },
+  { label: "Long Upside (20–49%)", below: 50 },
+  { label: "Upside (50–69%)", below: 70 },
+  { label: "Commit (70–99%)", below: 100 },
+  { label: "Won (100%)", below: Infinity },
+];
+
+function probabilityColumnIndex(columns: SalesColumnDto[]): number {
+  return columns.findIndex(
+    (column) =>
+      ["percent", "int", "double"].includes(column.dataType) &&
+      (/^(?:.*\.)?probability$/i.test(column.id) ||
+        /^probability(?:\s*\(%\))?$/i.test(column.label.trim())),
+  );
+}
+
+function probabilityBand(cell: SalesCellDto | undefined): string | undefined {
+  const value = cell?.value;
+  if (typeof value !== "number" || value < 0 || value > 100) return undefined;
+  return PROBABILITY_BANDS.find((band) => value < band.below)?.label;
+}
+
 const htmlToPlainText = compile({
   wordwrap: false,
   selectors: [
@@ -366,7 +390,8 @@ export class SalesReportsService {
    * @param column The category column being broken down.
    * @param index The column's position in every row's cells.
    * @param amounts Every numeric column and its position; the first one is the primary total.
-   * @returns Buckets ordered by primary total then count, capped with an explicit remainder.
+   * @param byProbability Use fixed probability ranges in pipeline order, including empty ranges.
+   * @returns Category buckets ordered by total, or the five probability buckets.
    * @throws Does not throw for blank category labels, which form their own bucket.
    */
   private group(
@@ -374,41 +399,49 @@ export class SalesReportsService {
     column: SalesColumnDto,
     index: number,
     amounts: Array<{ column: SalesColumnDto; index: number }>,
+    byProbability = false,
   ): SalesSummaryGroupDto {
     const buckets = new Map<string, SalesRowDto[]>();
+    if (byProbability) {
+      for (const { label } of PROBABILITY_BANDS) buckets.set(label, []);
+    }
     for (const row of rows) {
-      const label = row.cells[index]?.label ?? "";
+      const label = byProbability
+        ? probabilityBand(row.cells[index])
+        : (row.cells[index]?.label ?? "");
+      if (label === undefined) continue;
       const bucket = buckets.get(label) ?? [];
       bucket.push(row);
       buckets.set(label, bucket);
     }
     const primary = amounts[0];
-    const ordered = [...buckets.entries()]
-      .map(([label, bucketRows]) => {
-        const totals = amounts.map((amount) =>
-          this.amount(bucketRows, amount.column, amount.index),
-        );
-        return {
-          label,
-          count: bucketRows.length,
-          total: totals[0]?.total ?? 0,
-          amounts: totals,
-        };
-      })
-      .sort(
+    const ordered = [...buckets.entries()].map(([label, bucketRows]) => {
+      const totals = amounts.map((amount) =>
+        this.amount(bucketRows, amount.column, amount.index),
+      );
+      return {
+        label,
+        count: bucketRows.length,
+        total: totals[0]?.total ?? 0,
+        amounts: totals,
+      };
+    });
+    if (!byProbability) {
+      ordered.sort(
         (left, right) =>
           right.total - left.total ||
           right.count - left.count ||
           left.label.localeCompare(right.label, "en", { sensitivity: "base" }),
       );
+    }
     // The group currency describes the primary total across every bucket, so it
     // is omitted as soon as any contributing row declares a different currency.
     const currencyCode = primary
       ? this.amount(rows, primary.column, primary.index).currencyCode
       : undefined;
     return {
-      columnId: column.id,
-      label: column.label,
+      columnId: byProbability ? PROBABILITY_GROUP_ID : column.id,
+      label: byProbability ? "Probability" : column.label,
       ...(primary ? { amountColumnId: primary.column.id } : {}),
       ...(currencyCode !== undefined ? { currencyCode } : {}),
       buckets: ordered.slice(0, MAX_SUMMARY_BUCKETS),
@@ -431,7 +464,17 @@ export class SalesReportsService {
     const amountIndexes = columns
       .map((column, index) => ({ column, index }))
       .filter(({ column }) => AMOUNT_TYPES.includes(column.dataType));
+    const probabilityIndex = probabilityColumnIndex(columns);
     return {
+      ...(probabilityIndex >= 0 && {
+        probabilityBreakdown: this.group(
+          rows,
+          columns[probabilityIndex],
+          probabilityIndex,
+          amountIndexes,
+          true,
+        ),
+      }),
       recordCount: rows.length,
       amounts: amountIndexes.map(({ column, index }) =>
         this.amount(rows, column, index),
@@ -700,9 +743,12 @@ export class SalesReportsService {
     const dateIndex = report.columns.findIndex(
       (column) => column.id === query.dateColumn,
     );
-    const drilldownIndex = report.columns.findIndex(
-      (column) => column.id === query.drilldownColumn,
-    );
+    const byProbability = query.drilldownColumn === PROBABILITY_GROUP_ID;
+    const drilldownIndex = byProbability
+      ? probabilityColumnIndex(report.columns)
+      : report.columns.findIndex(
+          (column) => column.id === query.drilldownColumn,
+        );
     if (
       (query.sortBy && sortIndex < 0) ||
       (query.filterColumn && filterIndex < 0) ||
@@ -801,11 +847,14 @@ export class SalesReportsService {
     // to one bucket while the breakdown it was clicked in stays on screen.
     const summary = this.summarize(matched, report.columns);
     const rows = drilldowns.length
-      ? matched.filter((row) =>
-          drilldowns.includes(
-            row.cells[drilldownIndex].label.trim().toLowerCase(),
-          ),
-        )
+      ? matched.filter((row) => {
+          const cell = row.cells[drilldownIndex];
+          const label = byProbability ? probabilityBand(cell) : cell.label;
+          return (
+            label !== undefined &&
+            drilldowns.includes(label.trim().toLowerCase())
+          );
+        })
       : matched;
     if (sortIndex >= 0) {
       rows.sort((left, right) => {
