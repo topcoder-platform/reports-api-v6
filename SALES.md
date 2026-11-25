@@ -71,6 +71,17 @@ pagination. `total` is the returned received-row count, after any drilldown;
 `sourceRowCount` is its unfiltered count. Out-of-range pages clamp to the final
 available page. Empty reports return zero rows and `totalPages: 0`, `page: 1`.
 
+### Probability breakdown
+
+When the report includes numeric opportunity probability, `summary.probabilityBreakdown`
+contains five buckets in ascending probability order. The lower bounds are 0, 20,
+50, 70 and 100 percent. Each bucket includes its opportunity count and the same
+amount totals as a stage bucket. Empty bands have zero records. Missing probabilities
+and values outside 0–100 contribute only to the overall report and other applicable groups.
+
+To drill into one or more bands, pass this group's `columnId` as `drilldownColumn`
+and repeat `drilldownValue` with the selected bucket labels.
+
 ### Multiple values and amount ranges (PM-6639)
 
 Repeat a value parameter to OR its values, for example
