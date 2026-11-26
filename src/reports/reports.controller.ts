@@ -1,9 +1,9 @@
 import { Controller, Get, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { PermissionsGuard } from "src/auth/guards/permissions.guard";
-import { Scopes } from "src/auth/decorators/scopes.decorator";
-import { Scopes as AppScopes } from "src/app-constants";
-import { AuthUserLike } from "src/auth/permissions.util";
+import { PermissionsGuard } from "../auth/guards/permissions.guard";
+import { Scopes } from "../auth/decorators/scopes.decorator";
+import { Scopes as AppScopes } from "../app-constants";
+import { AuthUserLike } from "../auth/permissions.util";
 import {
   REPORTS_DIRECTORY_REQUIRED_SCOPES,
   ReportsDirectory,

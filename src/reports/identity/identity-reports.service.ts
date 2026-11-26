@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { extname } from "node:path";
-import { alpha3ToCountryName } from "src/common/country.util";
-import { Logger } from "src/common/logger";
-import { SqlLoaderService } from "src/common/sql-loader.service";
-import { DbService } from "src/db/db.service";
+import { alpha3ToCountryName } from "../../common/country.util";
+import { Logger } from "../../common/logger";
+import { SqlLoaderService } from "../../common/sql-loader.service";
+import { DbService } from "../../db/db.service";
 import {
   IdentityUserDto,
   UsersByHandlesBodyDto,

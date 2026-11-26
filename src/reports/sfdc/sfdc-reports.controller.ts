@@ -38,7 +38,7 @@ import {
   WesternUnionPaymentsReportQueryDto,
   WesternUnionPaymentsReportResponse,
 } from "./sfdc-reports.dto";
-import { ResponseDto } from "src/dto/api-response.dto";
+import { ResponseDto } from "../../dto/api-response.dto";
 
 @ApiTags("Sfdc Reports")
 @ApiProduces("application/json", "text/csv")

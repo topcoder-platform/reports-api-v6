@@ -2,7 +2,7 @@ import { BadRequestException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { SqlLoaderService } from "src/common/sql-loader.service";
+import { SqlLoaderService } from "../../common/sql-loader.service";
 import { DbService } from "../../db/db.service";
 import {
   ChallengesFilterMode,

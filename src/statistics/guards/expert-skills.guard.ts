@@ -10,7 +10,7 @@ import {
   getNormalizedRoles,
   hasAdminRole,
 } from "../../auth/permissions.util";
-import { UserRoles } from "src/app-constants";
+import { UserRoles } from "../../app-constants";
 
 const ALLOWED_ROLES = new Set([UserRoles.TalentManager.toLowerCase()]);
 

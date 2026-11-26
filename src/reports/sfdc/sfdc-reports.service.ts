@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { DbService } from "../../db/db.service";
-import { Logger } from "src/common/logger";
+import { Logger } from "../../common/logger";
 import {
   BaFeesReportQueryDto,
   BaFeesReportResponse,
@@ -20,8 +20,8 @@ import {
   WesternUnionPaymentsReportQueryDto,
   WesternUnionPaymentsReportResponse,
 } from "./sfdc-reports.dto";
-import { SqlLoaderService } from "src/common/sql-loader.service";
-import { multiValueArrayFilter } from "src/common/filtering";
+import { SqlLoaderService } from "../../common/sql-loader.service";
+import { multiValueArrayFilter } from "../../common/filtering";
 import { normalizeChallengeStatus } from "./status-normalizer";
 
 @Injectable()

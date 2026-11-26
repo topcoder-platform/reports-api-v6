@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
-import { CsvSerializer } from "src/common/csv/csv-serializer";
-import { CsvResponseInterceptor } from "src/common/interceptors/csv-response.interceptor";
+import { CsvSerializer } from "../../common/csv/csv-serializer";
+import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.interceptor";
 import { MemberSearchController } from "./member-search.controller";
 import { MemberSearchService } from "./member-search.service";
 import { MemberSearchGuard } from "./guards/member-search.guard";

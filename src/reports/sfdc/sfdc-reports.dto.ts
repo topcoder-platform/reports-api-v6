@@ -11,7 +11,7 @@ import {
   IsBoolean,
   IsEnum,
 } from "class-validator";
-import { transformArray } from "src/common/validation.util";
+import { transformArray } from "../../common/validation.util";
 
 export enum ChallengesFilterMode {
   BILLING_ACCOUNT = "billingAccount",
