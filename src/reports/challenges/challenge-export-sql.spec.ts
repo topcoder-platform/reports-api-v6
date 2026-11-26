@@ -1,4 +1,4 @@
-import { SqlLoaderService } from "src/common/sql-loader.service";
+import { SqlLoaderService } from "../../common/sql-loader.service";
 
 describe("Challenge export SQL", () => {
   const sqlLoader = new SqlLoaderService();

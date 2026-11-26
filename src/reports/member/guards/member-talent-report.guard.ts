@@ -5,7 +5,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
-import { Scopes, UserRoles } from "src/app-constants";
+import { Scopes, UserRoles } from "../../../app-constants";
 import {
   AuthUserLike,
   getNormalizedRoles,

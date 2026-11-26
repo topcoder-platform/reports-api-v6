@@ -13,8 +13,8 @@ import {
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
-import { PermissionsGuard } from "src/auth/guards/permissions.guard";
-import { ResponseDto } from "src/dto/api-response.dto";
+import { PermissionsGuard } from "../../auth/guards/permissions.guard";
+import { ResponseDto } from "../../dto/api-response.dto";
 import { PaymentsReportResponse } from "../sfdc/sfdc-reports.dto";
 import { Scopes } from "../../auth/decorators/scopes.decorator";
 import { Scopes as AppScopes } from "../../app-constants";

@@ -6,7 +6,7 @@ import {
   IsString,
 } from "class-validator";
 import { Transform } from "class-transformer";
-import { transformArray } from "src/common/validation.util";
+import { transformArray } from "../../../common/validation.util";
 import { ChallengeStatus } from "./challenge-status.enum";
 
 /** Filters for the AI-assisted submissions report. All filters are optional. */

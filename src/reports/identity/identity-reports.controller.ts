@@ -19,10 +19,10 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { Scopes as AppScopes } from "src/app-constants";
-import { Scopes } from "src/auth/decorators/scopes.decorator";
-import { PermissionsGuard } from "src/auth/guards/permissions.guard";
-import { CsvResponseInterceptor } from "src/common/interceptors/csv-response.interceptor";
+import { Scopes as AppScopes } from "../../app-constants";
+import { Scopes } from "../../auth/decorators/scopes.decorator";
+import { PermissionsGuard } from "../../auth/guards/permissions.guard";
+import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.interceptor";
 import {
   UsersByHandlesBodyDto,
   UsersByGroupQueryDto,

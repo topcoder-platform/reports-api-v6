@@ -1,7 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { CsvResponseInterceptor } from "src/common/interceptors/csv-response.interceptor";
-import { CsvSerializer } from "src/common/csv/csv-serializer";
-import { SqlLoaderService } from "src/common/sql-loader.service";
+import { CsvResponseInterceptor } from "../../common/interceptors/csv-response.interceptor";
+import { CsvSerializer } from "../../common/csv/csv-serializer";
+import { SqlLoaderService } from "../../common/sql-loader.service";
 import { DbModule } from "../../db/db.module";
 import { DbService } from "../../db/db.service";
 import { SfdcReportsController } from "./sfdc-reports.controller";

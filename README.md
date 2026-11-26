@@ -119,7 +119,7 @@ Each report will be a separate SQL query, potentially with a few parameters (lik
 
 ## Prerequisites
 
-- Node.js 26.5.1 (run `nvm use` to select the repository version)
+- Node.js 26.13.1 (run `nvm use` to select the repository version)
 - pnpm 11.15.1
 
 ## Getting Started

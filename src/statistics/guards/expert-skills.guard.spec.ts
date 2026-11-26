@@ -3,7 +3,7 @@ import {
   ForbiddenException,
   UnauthorizedException,
 } from "@nestjs/common";
-import { UserRoles } from "src/app-constants";
+import { UserRoles } from "../../app-constants";
 import { ExpertSkillsGuard } from "./expert-skills.guard";
 
 type AuthUserFixture = {

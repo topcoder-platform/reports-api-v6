@@ -11,7 +11,7 @@ import {
   hasAccessToScopes,
   hasAdminRole,
 } from "../../../auth/permissions.util";
-import { Scopes, UserRoles } from "src/app-constants";
+import { Scopes, UserRoles } from "../../../app-constants";
 
 /** Roles (normalised, lower-cased) that are allowed to access talent-search. */
 const ALLOWED_ROLES = new Set([UserRoles.TalentManager.toLowerCase()]);

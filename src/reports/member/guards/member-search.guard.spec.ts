@@ -3,7 +3,7 @@ import {
   ForbiddenException,
   UnauthorizedException,
 } from "@nestjs/common";
-import { Scopes, UserRoles } from "src/app-constants";
+import { Scopes, UserRoles } from "../../../app-constants";
 import { MemberSearchGuard } from "./member-search.guard";
 
 type AuthUserFixture = {

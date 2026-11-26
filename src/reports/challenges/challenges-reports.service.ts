@@ -1,12 +1,12 @@
 import { Injectable } from "@nestjs/common";
-import { Logger } from "src/common/logger";
-import { SqlLoaderService } from "src/common/sql-loader.service";
-import { DbService } from "src/db/db.service";
+import { Logger } from "../../common/logger";
+import { SqlLoaderService } from "../../common/sql-loader.service";
+import { DbService } from "../../db/db.service";
 import {
   ChallengeRegistrantsQueryDto,
   ChallengeRegistrantsResponseDto,
 } from "./dtos/registrants.dto";
-import { multiValueArrayFilter } from "src/common/filtering";
+import { multiValueArrayFilter } from "../../common/filtering";
 import { ChallengesReportResponseDto } from "./dtos/challenge.dto";
 import { SubmissionLinksQueryDto } from "./dtos/submission-links.dto";
 import {

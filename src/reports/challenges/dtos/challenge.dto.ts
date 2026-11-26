@@ -6,7 +6,7 @@ import {
   IsOptional,
   IsString,
 } from "class-validator";
-import { transformArray } from "src/common/validation.util";
+import { transformArray } from "../../../common/validation.util";
 import { ChallengeStatus } from "./challenge-status.enum";
 
 export class ChallengesReportQueryDto {

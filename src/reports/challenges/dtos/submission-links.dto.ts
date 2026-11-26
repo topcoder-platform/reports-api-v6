@@ -7,7 +7,7 @@ import {
 } from "class-validator";
 import { ChallengeStatus } from "./challenge-status.enum";
 import { Transform } from "class-transformer";
-import { transformArray } from "src/common/validation.util";
+import { transformArray } from "../../../common/validation.util";
 
 export class SubmissionLinksQueryDto {
   @ApiProperty({
